@@ -1,0 +1,41 @@
+
+// Redefine the standard std::vector to perform range checks if _GLIBCXX_DEBUG
+// is defined. In fact this is the standard behavior when the GNU C++ libraries
+// are used, but it doesn't happen on windows or OS X. You should include this
+// header instead of <vector>, then used vector<> as you normally would.
+
+#ifndef __TOOLKIT_MYVECTOR_H__
+#define __TOOLKIT_MYVECTOR_H__
+
+#include <vector>
+
+namespace std {
+
+template <class T> struct myvector : public vector<T> {
+  typedef typename vector<T>::size_type _size;
+  typedef typename vector<T>::reference _ref;
+  typedef typename vector<T>::const_reference _const_ref;
+  myvector() : vector<T>() {}
+  myvector(_size sz) : vector<T>(sz) {}
+  myvector(_size sz, const T& value) : vector<T>(sz, value) {}
+  _ref operator[](_size pos) {
+    #ifdef _GLIBCXX_DEBUG
+      return vector<T>::at(pos);
+    #else
+      return vector<T>::operator[](pos);
+    #endif
+  }
+  _const_ref operator[](_size pos) const {
+    #ifdef _GLIBCXX_DEBUG
+      return vector<T>::at(pos);
+    #else
+      return vector<T>::operator[](pos);
+    #endif
+  }
+};
+
+#define vector myvector
+
+}  // namespace std
+
+#endif

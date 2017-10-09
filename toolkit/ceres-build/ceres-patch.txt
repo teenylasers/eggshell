@@ -1,0 +1,26 @@
+diff -r -u ceres-solver-1.13.0-original/internal/ceres/miniglog/glog/logging.h ceres-solver-1.13.0/internal/ceres/miniglog/glog/logging.h
+--- ceres-solver-1.13.0-original/internal/ceres/miniglog/glog/logging.h
++++ ceres-solver-1.13.0/internal/ceres/miniglog/glog/logging.h
+@@ -230,7 +230,7 @@
+     time (&rawtime);
+
+     struct tm timeinfo;
+-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
++#if 0
+     // On Windows, use secure localtime_s not localtime.
+     localtime_s(&timeinfo, &rawtime);
+ #else
+diff -r -u ceres-solver-1.13.0-original/internal/ceres/reorder_program.cc ceres-solver-1.13.0/internal/ceres/reorder_program.cc
+--- ceres-solver-1.13.0-original/internal/ceres/reorder_program.cc
++++ ceres-solver-1.13.0/internal/ceres/reorder_program.cc
+@@ -498,8 +498,8 @@
+     if (!program->IsParameterBlockSetIndependent(first_elimination_group)) {
+       *error =
+           StringPrintf("The first elimination group in the parameter block "
+-                       "ordering of size %zd is not an independent set",
+-                       first_elimination_group.size());
++                       "ordering of size %d is not an independent set",
++                       (int) first_elimination_group.size());
+       return false;
+     }
+
