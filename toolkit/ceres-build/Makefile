@@ -29,6 +29,7 @@ LIBNAME = $(notdir $(CERES_LIB))
 CCFLAGS += \
   -Werror=all -Werror=extra -Wno-unknown-pragmas -Wno-sign-compare \
   -Wno-unused-parameter -Wno-missing-field-initializers -Wno-ignored-qualifiers \
+  -Wno-overloaded-virtual \
   -I$(CERES_DIR)/include -I$(CERES_DIR)/internal \
   -I$(CERES_DIR)/internal/ceres  -I$(CERES_DIR)/internal/ceres/miniglog \
   -I$(EIGEN_DIR) $(EIGEN_FLAGS) -I. -DANDROID
@@ -70,13 +71,17 @@ SRC = \
   dogleg_strategy.cc \
   dynamic_compressed_row_jacobian_writer.cc \
   dynamic_compressed_row_sparse_matrix.cc \
+  dynamic_sparse_normal_cholesky_solver.cc \
+  eigensparse.cc \
   evaluator.cc \
   file.cc \
+  function_sample.cc \
   gradient_checker.cc \
   gradient_checking_cost_function.cc \
   gradient_problem.cc \
   gradient_problem_solver.cc \
   implicit_schur_complement.cc \
+  inner_product_computer.cc \
   is_close.cc \
   iterative_schur_complement_solver.cc \
   levenberg_marquardt_strategy.cc \
@@ -107,10 +112,12 @@ SRC = \
   schur_complement_solver.cc \
   schur_eliminator.cc \
   schur_jacobi_preconditioner.cc \
+  schur_templates.cc \
   scratch_evaluate_preparer.cc \
   single_linkage_clustering.cc \
   solver.cc \
   solver_utils.cc \
+  sparse_cholesky.cc \
   sparse_matrix.cc \
   sparse_normal_cholesky_solver.cc \
   split.cc \
