@@ -1,0 +1,1057 @@
+﻿# @@@ TODO: Notes for things to add to this document
+# * Make it clear that optimize() should return many values and that they can
+#   be negative. Don't return values like a^2+b^2+c^2, return a,b,c instead.
+# * Spell check.
+# * The optimizer can fail with "Return value %d of config.optimize() (or its
+#   derivative) is not finite. See the manual for common ways this happens."
+#   For rama a common way this happens is when using port phase when zero
+#   power is delivered to the port.
+
+@title{Rama @subtitle{v@arg{version}} @author{Evenedric}}
+
+@emph{This is the manual for the Rama simulator. It is a work in progress and
+not all parts have been written!}
+
+Here are the @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
+and the @link{http://ramasimulator.org/Rama.dmg}{Mac image}
+for the latest version of Rama.
+
+@contents{}
+
+#############################################################################
+@section{Introduction to Rama}
+
+Rama is a finite element simulator for electromagnetic and quantum mechanical
+systems. It is intended for physics education and for engineering design of
+certain problems. Rama is very fast and interactive, because it is limited to
+two dimensional systems (and some 3D systems that have the right kind of 2D
+symmetry). The user can adjust model geometry and see new solutions generated
+in real time. This is a good way to develop quick intuitions about many models.
+
+@figure{ramademo1.gif}{}
+
+Rama has a variety of features to investigate and design systems.
+@list{
+@* The field solutions can be visualized in many ways.
+@* Plots can be generated from model parameters swept over values.
+@* Model parameters can be optimized to improve an objective function.
+}
+
+The 2D limitation might seem to rule out using Rama for serious design
+problems. However there are many 3D problems with 2D symmetries that allow
+Rama to generate exact solutions, especially problems involving
+@link{http://en.wikipedia.org/wiki/Waveguide}{waveguide}-fed cavities. Some
+other problems have 2D models that approximate the full 3D situations, and
+Rama can provide design intuition in these cases.
+
+[TODO: maybe add a getting started guide, walk through one of the examples?]
+
+#############################################################################
+@section{Concepts of simulation}
+
+Rama solves the Schrödinger equation for nonrelativistic particles, or
+@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}.
+Solutions are produced within 2D cavities that have boundary conditions and
+materials described by a script. Four kinds of cavities are supported:
+@numlist{
+@* @b{@c{S}} cavities contain Schrödinger fields and are bounded by walls
+   where @m{\psi=0}. The constant frequency (i.e. fixed momentum) Schrödinger
+   equation is solved:
+   @M{
+     \nabla^2 \psi + 2 m \left( \omega - {V \by \hbar} \right) \psi &= 0
+   }
+   We use Planck units with @m{\hbar=1} and @m{m=1/2}, giving
+   @M{
+     \nabla^2 \psi + ( \omega - V ) \: \psi &= 0
+   }
+@* @b{@c{Ez}} cavities contain electromagnetic (EM) fields and are bounded by
+   walls of constant depth in the Z direction, and all electric fields point
+   in the Z direction:
+
+   @figure{EzCavity.png}{}
+
+   Rama computes a 2D field @m{\phi(x,y)} such that the full 3D electric and
+   magnetic phasor fields are
+
+   @M{
+     \mathbf{E} &= \left[ 0, 0, \phi(x,y) \right] \\
+     \mathbf{H} &= {i \by \mu \omega} \: \left[
+      {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right]
+   }
+
+@* @b{@c{Exy}} cavities cavities contain EM fields and are bounded by walls of
+   constant depth in the Z direction, and all electric fields lie in the XY
+   plane:
+
+   @figure{ExyCavity.png}{}
+
+   Rama computes a 2D field @m{\phi(x,y)} such that the full 3D electric and
+   magnetic phasor fields are
+
+   @M{
+     \mathbf{E} &= {i \by \epsilon \omega} \: \cos\left({\pi z \by d}\right) \: \left[
+      {-\del \phi(x,y) \by \del y}, {\del \phi(x,y) \by \del x}, 0 \right] \\
+     \mathbf{H} &= \left[ 0, 0, \cos\left({\pi z \by d}\right) \phi(x,y) \right]
+   }
+
+   where @m{d} is the depth of the cavity.
+
+@* @b{@c{TE}} and @b{@c{TM}} cavities correspond to cross sections of
+   arbitrarily shape EM waveguides. Rama can compute the TE and TM modes.
+}
+
+In all cases the interior of the cavity can be free space or can contain
+materials with various dielectric properties. The boundary of the cavity can be
+metal walls, ports (from which energy enters or leaves) or absorbers used in
+radiation problems.
+
+The ports are actually
+@link{http://en.wikipedia.org/wiki/Waveguide}{rectangular waveguides}. It is
+assumed that the fields at the ports have the @m{TE_{10}} mode. In each
+simulation one port is the excited port, where energy in injected. Energy will
+exit through the other ports.
+
+@subsection{Modelling tips}
+
+TODO: write this section. Things to include:
+@list{
+@* Minimum mesh size for accuracy.
+@* Don't violate the @m{TE_{10}} mode assumption at ports, i.e. use an
+   appropriate width and keep this width for a short distance.
+}
+
+#############################################################################
+@section{Rama user interface}
+
+Rama simulations are managed from a single window:
+
+@figure{ramaUI.png}{}
+
+In the cavity tab, mouse buttons are used to change the view:
+@list{
+@* Right click + drag: pan the view.
+@* Middle click + drag: rotate the view.
+@* Mouse wheel: zoom around the mouse pointer.
+@* Ctrl + right click + drag: zoom around the mouse pointer.
+@* On Mac trackpads:
+   @list{
+     @* Pinch+zoom: zoom around the mouse pointer.
+     @* Two finger swipes: pan the view.
+     @* Command + tap + drag: rotate the view.
+   }
+}
+
+Model scripts are loaded with the File/Open menu command. Scripts are executed
+to create the model. If the Field checkbox is ticked, the field is then
+computed and displayed. The script is re-executed (and the field recomputed)
+when either:
+@list{
+@* A parameter is changed through its text box or slider.
+@* The script is edited and saved with an external text editor.
+@* The File/Reload menu command is selected.
+}
+
+[TODO: write more] Notes:
+@list{
+@* Explain menu commands in detail.
+@* Tabs can be rearranged, multiple tabs at once.
+@* Explain script messages and what happens on errors.
+}
+
+@subsection{Sweeps}
+
+[TODO: write this]
+
+@figure{PlotExample.png}{}
+
+Within the plot window, zoom in by left-clicking and dragging to select an area
+of the plot. Zoom out to the previous view by right-clicking.
+
+#############################################################################
+@section{Lua scripting}
+
+Simulations in Rama are driven by Lua scripts that specify the boundary of
+the cavity, the locations of ports, any dielectric materials, and other
+parameters. Here's the
+@link{http://www.lua.org/manual/5.3/manual.html}{reference manual} for Lua,
+which explains the structure of the language. That has much more detail than
+you actually need to run Rama, a gentler introduction is the book
+@link{http://www.lua.org/pil/}{Programming in Lua}. An older version of that
+book @link{http://www.lua.org/pil/contents.html}{is available online} and is
+still 100% relevant as Rama does not use any advanced Lua features.
+
+@subsection{The config table}
+
+The job of the script is to create a Lua table called @c{config} that contains
+the following fields:
+
+@table{
+
+  @* @c{type}
+  @| The type of cavity to simulate: @c{'S'}, @c{'Exy'}, @c{'Ez'}, @c{'TE'} or
+     @c{'TM'}.
+
+  @* @c{unit}
+  @| The distance unit to use for all geometry numbers. Options are @c{'nm'},
+     @c{'micron'}, @c{'mm'}, @c{'cm'}, @c{'m'}, @c{'km'}, @c{'mil'} and
+     @c{'thou'} (both mean 0.001 inch), @c{'inch'}, @c{'foot'}, @c{'yard'},
+     @c{'mile'}.
+
+  @* @c{cd}
+  @| The geometry of the ``computational domain''. This is a shape object that
+     specifies the boundary polygon, dielectric regions, and the location of
+     ports. Usually most of the script is concerned with creating this object
+     (see ``Shape objects'' below).
+
+  @* @c{frequency}
+  @| The frequency in Hz to run the simulation at.
+
+  @* @c{mesh_edge_length}
+  @| The maximum edge length of the mesh (in the above units). This should
+     usually be no larger than 1/10 of the wavelength. Smaller numbers here
+     result in finer meshes that will have more accurate solutions but which
+     will take longer to solve.
+
+  @* @c{mesh_refines}
+  @| The number of mesh refinement steps to take. This is currently ignored.
+
+  @* @c{excited_port}
+  @| If this is an integer @m{\ge 1}, the port to inject a signal on.
+     If this is an array @c{@{}@m{m_1,\phi_1,m_2,\phi_2,\ldots}@c{@}} then
+     @m{m_i,\phi_i} specifies the magnitude (not power) and relative phase (in
+     degrees) of the signal to inject on port @m{i}.
+
+  @* @c{depth} (optional)
+  @| The depth (in the above units) of @c{Exy} cavities. This is not used for
+     the other cavities as their solutions are independent of depth.
+
+  @* @c{optimize} (optional)
+  @| When optimization is performed the optimizer calls this function. It is
+     defined as:
+@===[
+  optimize=function(port_power, port_phase, field)
+    ...
+    return error1,error2, ...
+  end
+]===@
+  The arguments are arrays of powers (in Watts) and phases (in radians) for
+  each defined port, and a @c{field} table that allows the field solution to be
+  interrogated. The return values are one or more error values. The goal of
+  optimization is to get the errors as close to zero as possible.
+
+  The @c{field} table contains functions that can be called with x,y
+  coordinates to return various field-derived quantities:
+@===[
+  field.Complex(x,y)    -- real,imaginary field components (2 return values)
+  field.Magnitude(x,y)  -- magnitude of the field
+  field.Phase(x,y)      -- phase of the field (in radians)
+  field.Poynting(x,y)   -- x,y components of Poynting vector (2 return values)
+  field.Power(x,y)      -- magnitude of the Poynting vector
+  field.Pattern(theta)  -- antenna power (in W) at angle theta (in degrees)
+  field.Directivity()   -- antenna directivity (max power / avg power)
+]===@
+  If the @c{Magnitude}, @c{Phase} or @c{Power} functions are used where the
+  field is zero, the derivatives with respect to parameters will be undefined
+  and the optimization will fail.
+
+  The @c{Pattern} and @c{Directivity} functions requires a radiation boundary.
+  If they are used without this the derivatives with respect to parameters will
+  be undefined and the optimization will fail.
+
+  If @c{config.optimize} is defined it is also called once for each regular
+  (non-optimization) run of the script, to help verify the function contains no
+  runtime errors. For these calls the @c{field} functions may return zeros.
+
+  @* @c{boresight} (optional)
+  @| For antenna simulations, the angle that is nominally the highest gain part
+     of the beam. This angle becomes the zero-azimuth on the antenna pattern
+     plot. This angle is in degrees, 0 is towards the right and 90 is up. If
+     this is not specified it defaults to 0.
+
+  @* @c{max_modes}
+  @| For @c{TE} and @c{TM} type, this is the number of modes to compute.
+
+}
+
+@subsection{Parameters}
+
+The geometry and other parameters of most models will be driven by parameters.
+Parameters are numerical values that the user can easily adjust via text boxes
+and sliders in a panel on the user interface:
+
+@figure{parameters.png}{}
+
+Parameters are easy to use from within the script. For each parameter you want,
+call the @c{Parameter()} function like this:
+
+@===[
+  value = Parameter{label='Some text', min=0, max=3, default=1}
+]===@
+
+The @c{label} is displayed next to the parameter's text box and slider. Each
+parameter must have a different label. The bounds of the parameter, i.e. its
+minimum and maximum value are specified in @c{min} and @c{max}. The initial
+value of the parameter is specified by @c{default} (which must be between
+@c{min} and @c{max}). The returned @c{value} of the @c{Parameter()} function is
+the current value of the parameter. The first time the script is run this will
+be the @c{default}, but when the user changes the parameter the script will be
+re-run, @c{Parameter()} will return the new value and an updated solution will
+be computed for any new geometry.
+
+By default parameters can take any real value. Parameters that are restricted
+to integers can be generated by:
+
+@===[
+  count = Parameter{label='Count', min=1, max=10, default=1,
+                    integer=true}
+]===@
+
+If you have many parameters it can be useful to put them into groups. A
+horizontal line to separate groups can be generated by calling
+@c{ParameterDivider()}.
+
+Parameter values can be used to control shapes, or for anything else. For
+example it is common to use parameters in the @c{config} table to allow
+configuration values to be controlled, like this:
+
+@===[
+  config = {
+    frequency = Parameter{label='Frequency (Hz)', min=10e9,
+                          max=20e9, default=15e9},
+    excited_port = Parameter{label='Excited port', min=1, max=4,
+                             default=1, integer=true},
+    ...
+  }
+]===@
+
+If the "Reload resets parameters to script defaults" checkbox is checked then
+parameters are reset to their default values each time the script is loaded
+from disk. If it's not checked then parameters keep their current values
+(actually they take the value of whatever parameter last had the same label,
+even if the parameter order changed, as long as the min and max values are
+consistent).
+
+@subsection{Parameter defaults}
+
+The @c{default} argument to the @c{Parameter@{@}} function is actually optional.
+If it is not given, the default value will be read from the global
+@c{default_parameters} table using the parameter label as a key, if that table
+and key exists. If that table or key doesn't exist the parameter will take the
+@c{min} value. This mechanism allows easy copying of the current parameter
+values back into the script: simply select Edit/Copy from the menu (or press
+Ctrl+C) and the current parameters will be copied to the clipboard in this
+form:
+
+@===[
+  default_parameters = {
+    ['Point x'] = 0.12,
+    ['Point y'] = 0.54,
+    ...
+  }
+]===@
+
+This block of text can be pasted back into the script so that parameters can
+acquire their defaults from it.
+
+
+@subsection{Markers}
+
+It is common to have parameters that are actually the x,y coordinates of some
+point within a shape. Such parameters pairs can be generated automatically and
+controlled by clicking and dragging on-screen markers, as shown here:
+
+@figure{markers.png}{}
+
+To create a marker you call the @c{ParameterMarker@{@}} function like this:
+
+@===[
+  x,y = ParameterMarker{label='Point', min={-1,-1}, max={2,2},
+                        default={0.5,0.5}}
+]===@
+
+The @c{min}, @c{max} and @c{default} arguments are similar to @c{Parameter@{@}}
+except that a table of x,y coordinates is given instead of a number. The
+@c{label} is suffixed with ``x'' and ``y'' to create two new parameters. Those
+parameters can be adjusted by text box, slider, or by clicking and dragging the
+marker. @c{ParameterMarker@{@}} returns both the x and y parameters values.
+Note that Lua allows those values to be passed directly as two arguments of
+another function, so for example the following is a convenient idiom:
+
+@===[
+  shape:AddPoint(ParameterMarker{...})
+]===@
+
+@subsection{Functions accessible to the Lua script}
+
+The following @link{http://www.lua.org/manual/5.3/manual.html}{Lua standard libraries}
+can be used: base, table, string, utf8 and
+math. The standard Lua @c{print()} function sends text to the ``script messages''
+tab. The standard Lua @c{error()} function will output its error message to this
+tab also. The following extra miscellaneous functions are defined:
+
+@table{
+  @* @c{Draw(s)}
+  @| For debugging, draw the shape @c{s} to the simulation window. The shape
+     will not be simulated. This can be used (for example) to check
+     intermediate stages of shape creation.
+
+  @* @c{DrawText(x,y, @_@~@~@~s,ha,va)}
+  @| For debugging, draw the string @c{s} at @c{x},@c{y} in the simulation
+     window. The optional @c{ha} argument is the horizontal alignment of the
+     text which can be @c{'center'}, @c{'right'} or the default @c{'left'}.
+     The optional @c{va} argument is the vertical alignment of the
+     text which can be @c{'top'}, @c{'bottom'}, @c{'center'} or the default
+     @c{'baseline'}.
+
+  @* @c{math.log10(x)}
+  @| The standard @m{\log_{10}} function, an addition to the math library
+     because it is not defined by Lua. It is useful for computing things in
+     decibels.
+}
+
+@subsection{@label{vectors} Vectors}
+
+Rama Lua supports vectors in addition to regular Lua numbers. Vectors are
+arrays of numbers that are treated as a single block by math operators.
+Vector are mostly used by @link{dielectrics}{dielectric callback functions},
+for efficiency reasons. Below are the operations and functions available for
+vectors (@c{a} and @c{b} are vectors of the same size and @c{k} is a regular
+number).
+
+@table{
+  @* @c{a + b}, @c{a - b}, @_
+     @c{a * b}, @c{a / b}, @_
+     @c{a ^ b}
+  @| The element-wise sum (product, etc) of @c{a} and @c{b}. This result is a
+     vector of the same size as @c{a} or @c{b}.
+  @* @c{a + k}, @c{k + a}, etc.
+  @| The element-wise sum of @c{a} and @c{k}. This result is a vector of the
+     same size as @c{a} (and likewise for the other operators).
+  @* @c{Vector()}
+  @| Create a new zero-sized vector.
+  @* @c{@#a}
+  @| The number of elements in @c{a}.
+  @* @c{a:Resize(n)}
+  @| Resize the vector to have @c{n} elements.
+  @* @c{a[i]}
+  @| Access the @c{i}'th element of @c{a}, where @c{i} is in the range
+     @c{1...@#a}.
+  @* @c{vec.abs(a)},@~@c{vec.acos(a)}, @_
+     @c{vec.asin(a)},@~@c{vec.atan(a)}, @_
+     @c{vec.atan2(a,b)},@~@c{vec.ceil(a)}, @_
+     @c{vec.cos(a)},@~@c{vec.exp(a)}, @_
+     @c{vec.floor(a)},@~@c{vec.fmod(a,b)}, @_
+     @c{vec.log(a)},@~@c{vec.log10(a)}, @_
+     @c{vec.sin(a)},@~@c{vec.sqrt(a)}, @_
+     @c{vec.tan(a)}
+  @| Math functions on vectors, similar to the regular functions in the
+     Lua math library.
+  @* @c{vec.eq(a,b)} @| A vector with ones where @m{a = b} and zero otherwise.
+  @* @c{vec.ne(a,b)} @| A vector with ones where @m{a \ne b} and zero otherwise.
+  @* @c{vec.lt(a,b)} @| A vector with ones where @m{a < b} and zero otherwise.
+  @* @c{vec.gt(a,b)} @| A vector with ones where @m{a > b} and zero otherwise.
+  @* @c{vec.le(a,b)} @| A vector with ones where @m{a \le b} and zero otherwise.
+  @* @c{vec.ge(a,b)} @| A vector with ones where @m{a \ge b} and zero otherwise.
+}
+
+@subsection{Programming style}
+
+At the end of the script it is a good idea to do these things:
+
+@list{
+
+@* Check the geometry to make sure it has the expected number of pieces, e.g.:
+@===[
+  assert(config.cd.pieces == 3)
+]===@
+
+}
+
+#############################################################################
+@section{Shape objects}
+
+A shape object represents the 2D geometry of the computational domain. It
+contains the boundary polygons, dielectric regions, and the location of ports.
+The parts of the shape polygon that are not ports usually represent metal
+walls. Shapes can be created in a variety of ways using the functions below. A
+common strategy is to perform ``constructive solid geometry'', i.e. take
+primitive shapes such as rectangles and combine them with union, intersection
+and subtraction operations.
+
+Internally a shape is a set of one or more 2D polygons (each polygon is
+referred to as a ``piece''). Each piece has three or more vertices. Polygons
+can either represent outer boundaries or interior holes. Outer boundary
+polygons have positive area and their vertices wind in a counterclockwise
+direction. Interior holes have negative area and their vertices wind in a
+clockwise direction.
+
+A special case is ``polylines'', which are polygons with zero area that have
+coordinates in the sequence @m{p_1,p_2,\ldots,p_{n-1},p_n,p_{n-1},\ldots,p_2}.
+These polygons are not useful as shapes for computational domains, but are
+useful to pass to the @c{Grow()} function to make ``fat polylines''.
+
+@subsection{Shape primitives}
+
+The following global functions will create the standard primitive shapes:
+
+@table{
+  @* @c{Circle(x,y,radius,npoints)}
+  @| Return a circle shape with the given @c{radius} and @c{npoints} vertices,
+     where (x,y) is the center of the circle.
+
+  @* @c{Rectangle(x1,y1,x2,y2)}
+  @| Return a rectangle shape with 4 vertices, where (x1,y1) and (x2,y2) are
+     vertices on diagonally opposite corners.
+
+  @* @c{Shape()}
+  @| Return a new, empty shape. This is useful when @c{AddPoint()} is used to
+     create a shape directly from vertices.
+}
+
+Shapes can be created vertex-by-vertex using @c{AddPoint()}. For example, to
+create a triangle from the points (x1,y1), (x2,y2), and (x3,y3) you can do
+this.
+
+@===[
+  triangle = Shape():AddPoint(x1,y1):AddPoint(x2,y2):AddPoint(x3,y3)
+]===@
+
+Note that all shapes must contain at least three vertices. If the vertices wind
+in an anticlockwise manner the new shape will have positive area, and vice
+versa.
+
+@subsection{Shapes are copy-by-reference}
+
+Lua variables contain @emph{references} to shapes, not the shapes themselves.
+Forgetting this fact can lead to unexpected errors, e.g.:
+
+@===[
+  q = Rectangle(0, 0, 1, 1)     -- q is a new rectangle shape
+  r = q                         -- r is that same shape, not a copy
+  q.Offset(10, 10)              -- q is moved, and so is r!
+]===@
+
+If you want to have two copies of a shape and change them independently, you
+can do this:
+
+@===[
+  q = Rectangle(0, 0, 1, 1)     -- q is a new rectangle shape
+  r = q:s:Clone()               -- r is a copy (or "clone") of q
+  q.Offset(10, 10)              -- q is moved, r stays the same
+]===@
+
+@subsection{Accessing piece polygons and vertices of shapes}
+
+If you have a shape object @c{s} then its polygon pieces and vertices can be
+referenced with the following syntax:
+
+@table{
+  @* @c{s.pieces}
+  @| The number of polygon pieces in this shape (0 for an empty shape).
+     Disjoint polygons and interior holes count as separate pieces.
+
+  @* @c{s(n)}
+  @| A new shape that contains just the @c{n}'th piece of @c{s}, where @c{n} is
+     in the range 1 to @c{s.pieces}.
+
+  @* @c{@#s}
+  @| The number of vertices for a single piece shape, or 0 for an empty shape.
+     It is an error if @c{s} has more than once piece.
+
+  @* @c{s[n]}
+  @| The @c{n}'th vertex of a single piece shape, where n is in the range 1 to
+     @c{@#s}. It is an error if @c{s} has more than once piece. The vertex is
+     returned as a table containing number fields @c{x} and @c{y}.
+}
+
+For example, the following program prints out all pieces and vertices in @c{s}:
+
+@===[
+  for i = 1,s.pieces do
+    print('Piece', i, 'has', #s(i), 'vertices:')
+    for j = 1,#s(i) do
+      local v = s(i)[j]
+      print('  Vertex', j, '=', v.x, v.y)
+    end
+  end
+]===@
+
+@subsection{Shape information}
+
+If you have a shape object @c{s} then:
+
+@table{
+  @* @c{s.area}
+  @| A number that is the total area of the shape (i.e. outer boundaries minus
+     interior holes). For single piece polygons, positive areas are returned for
+     outer boundaries and negative areas are returned for interior holes
+
+  @* @c{s.bounds}
+  @| A table containing the bounding box of the shape in the form
+     @m{\{\min_x, \min_y, \max_x, \max_y\}}. It is an error if @c{s} is empty.
+
+  @* @c{s.empty}
+  @| @c{true} if the shape has no polygons, @c{false} if this is a valid shape.
+
+  @* @c{s.orientation}
+  @| @c{true} if this is an outer boundary or @c{false} if this in an interior
+     hole. It is an error if the shape does not have a single piece.
+}
+
+@subsection{Shape operators}
+
+If @c{A} and @c{B} are two shapes then a third shape can be created by:
+
+@table{
+  @* @c{A + B}
+  @| The union of @c{A} and @c{B}.
+  @* @c{A - B}
+  @| The subtraction of @c{B} from @c{A}.
+  @* @c{A * B}
+  @| The intersection of @c{A} and @c{B}.
+  @* @c{A ~ B}
+  @| The xor of @c{A} and @c{B} (i.e. points in @c{A} or @c{B} but not both).
+     This is rarely used.
+}
+
+@subsection{Shape object geometry functions}
+
+A shape object @c{s} can be modified or interrogated by the following
+functions. Note that shape functions that don't return some other value will
+return @c{s}, allowing such functions to be chained together. For example, to
+rotate @c{s} about (3,4) you could do this:
+
+@===[
+  s:Offset(-3,-4):Rotate(theta):Offset(3,4)
+]===@
+
+@table{
+  @* @c{s:AddPoint(x,y)}
+  @| Adds the point (x,y) to the end of the last polygon piece. This is used to
+     create new shapes from a list of coordinates. Returns @c{s}.
+
+  @* @c{s:APointInside()}
+  @| Returns two numbers (x,y) that are a point guaranteed to be inside the
+     shape. This requires @c{s} to be a nonempty single piece polygon of any
+     orientation, or a single positive area polygon with any number of negative
+     area holes. Other cases are not handled and result in an error.
+
+  @* @c{s:ChamferVertex(x,y, @_@~@~predist,postdist)}
+  @| Add a chamfer of the given pre- and post-vertex distances to the vertex
+     closest to @c{x},@c{y}. It is a runtime error if the shape is empty.
+
+  @* @c{s:Clean(threshold)}
+  @| Remove all vertices from shape polygons that are closer than @c{threshold}
+     to adjacent vertices. Cleaning is automatically done on the final
+     @c{config.cd} shape to avoid making meshes with extremely small triangles.
+     It is however occasionally necessary to clean intermediate shapes.
+
+  @* @c{s:Clone()}
+  @| Returns a new copy of @c{s} so that @c{s} and its copy can be changed
+     independently.
+
+  @* @c{s:Contains(x,y)}
+  @| Returns @c{true} if the point (x,y) is inside the shape (but not inside
+     one of its holes) or @c{false} otherwise.
+
+  @* @c{s:FilletVertex(x,y, @_@~@~radius,limit)}
+  @| Add a fillet of the given @c{radius} to the vertex closest to @c{x},@c{y}.
+     The @c{limit} is the maximum distance allowed between a polygon
+     approximation of an arc and a true circle. It is a runtime error if the
+     shape is empty.
+
+  @* @c{s:Grow(delta,style,limit)} @_
+     or @_
+     @c{s:Grow(delta,style,limit, @_@~@~endcap_style)}
+  @| Grows or shrinks the shape by distance @c{delta}. The style is
+     @c{'square'}, @c{'round'} or @c{'miter'}. For the miter style, @c{limit} is the
+     @link{http://www.angusj.com/delphi/clipper/documentation/Docs/Units/ClipperLib/Classes/ClipperOffset/Properties/MiterLimit.htm}{miter limit}
+     (e.g. 2). For the round style, @c{limit} is the maximum distance allowed
+     between a polygon approximation of an arc and a true circle. Port vertices
+     will only be mitered (without limit) and any ports that end up being
+     merged will be erased. This only works with @c{area}@m{\ge 0} polygons.
+     The optional @c{endcap_style} is for the ends of polylines, and it can be
+     @c{'square'}, @c{'round'}, or @c{'butt'}. Returns @c{s}.
+
+  @* @c{s:MakePolyline()}
+  @| Turn the last piece of this shape into a polyline by adding points
+     @c{s[@#s-1]...s[2]} to the polygon. This makes a zero area polygon to
+     represent the polyline.
+
+  @* @c{s:MirrorX(x)}
+  @| Flips the shape around the vertical line x=@c{x}. Returns @c{s}.
+
+  @* @c{s:MirrorY(y)}
+  @| Flips the shape around the horizontal line y=@c{y}. Returns @c{s}.
+
+  @* @c{s:Offset(x,y)}
+  @| Offsets the shape horizontally and vertically by @c{x} and @c{y}. Returns
+     @c{s}.
+
+  @* @c{s:Reverse()}
+  @| Reverses the orientation of all polygon pieces so that their areas change
+     sign. This is done by reversing their vertex lists. Returns @c{s}.
+
+  @* @c{s:Rotate(theta)}
+  @| Rotates the shape around the origin by the angle @c{theta} (in degrees).
+     Returns @c{s}.
+
+  @* @c{s:Scale(factor)} @_
+     @c{s:Scale(factorx, factory)}
+  @| Scales the shape around the origin by the given scale @c{factor} (e.g. 2
+     doubles the size of the shape). If two scale factors are provided then
+     X and Y can be scaled separately. Returns @c{s}.
+
+  @* @c{s:Select(x,y)}
+  @| Returns a selection table for the polygon edge that is closest to (x,y).
+     The selection table is @c{@{p,e@}} where @c{p} is the piece number and
+     @c{e} is the edge number.
+
+  @* @c{s:Select(x1,y1,x2,y2)}
+  @| Returns a selection table for all polygon edges that intersect the
+     rectangle (x1,y1,x2,y2). The selection table is an array of @c{@{p,e@}}
+     tables.
+
+  @* @c{s:SelectAll()}
+  @| Returns a selection table for all polygon edges in the shape. The
+     selection table is an array of @c{@{p,e@}} tables.
+}
+
+@subsection{Defining ports}
+
+Ports are specified on a shape @c{s} by first selecting one or more shape edges
+using @c{s:Select()} or @c{s:SelectAll()}, then calling one of the following
+functions:
+
+@table{
+  @* @c{s:ABC(sel_table)}
+  @| Given a selection table @c{sel_table} specifying one or more shape edges
+     in @c{s}, mark all those edges as an absorbing boundary condition (an
+     ``ABC'').
+  @* @c{s:Port(sel_table,n)}
+  @| Given a selection table @c{sel_table} specifying one or more shape edges
+     in @c{s}, mark all those edges as belonging to port @c{n}, where
+     @c{n}@m{\ge 1}.
+}
+
+@subsection{@label{dielectrics} Dielectrics}
+
+Shapes by themselves define metal walls of a cavity, or ports or other boundary
+conditions. The space between the walls is vacuum by default (or you can regard
+this as air). Other materials with different dielectric constants or
+Schrödinger potentials can be inserted into the cavity. These dielectrics are
+represented as ``painted'' regions within shapes. The ``paint'' that is used
+has a actual visible color (so that the area can be identified on screen) and a
+relative epsilon (@m{\epsilon}) or potential value.
+
+The following functions can be used to define dielectrics in shape @c{s}:
+
+@table{
+  @* @c{s:Paint(q,col,epsilon)} @_
+     or @_
+     @c{s:Paint(q,col,epsilon_r, @_@~@~epsilon_i)}
+  @| Paint a new dielectric into @c{s}. The painted area is shape @c{q}, which
+     should intersect @c{s}. The on-screen color used to represent this is
+     @c{col}, which is an @c{0xrrggbb} color constant. The relative epsilon
+     value of the dielectric is @m{\epsilon} (e.g. for air @m{\epsilon=1}) or
+     @m{\epsilon_r+i\epsilon_i}. For Schrödinger cavities @c{epsilon} is
+     actually the potential @m{V}.
+
+  @* @===[
+s:Paint(q,col,function(x,y)
+          ...
+          return er,ei
+        end)
+]===@
+  @| Similar to the @c{Paint()} function above except that the relative
+     epsilon value of the dielectric is specified with a function that takes
+     @c{x,y} coordinates are returns the real (and optionally, imaginary) part
+     of @m{\epsilon}. For performance reasons @c{x,y} are vectors of
+     coordinates and the returned values must be vectors of the same size.
+     See the section on @link{vectors}{Vectors}.
+}
+
+In the current implementation of @c{Paint()} the shape is split into several
+unmerged pieces with different material properties, so the shape piece and
+vertex access functions may return unexpected results after painting.
+
+@emph{Also note that in the current implementation of dielectrics, if
+dielectric-containing shapes are combined with others using the
+@c{+},@c{*},@c{-},@c{~} operators then the dielectric regions will be erased.
+This limitation will be corrected in a future version. This means that painting
+should generally be one of the last steps in model creation.}
+
+@subsection{Utility functions}
+
+@table{
+  @* @c{MakeMachinable(shape, @_@~@~radius, limit)}
+  @| Returns a ``machinable'' version of shape, assuming a cutting tool of the
+     given @c{radius}. If @c{radius} > 0 then the shape is assumed to be a
+     pocket machined out of some larger slab. If @c{radius} < 0 then the shape
+     is assumed to be a plate machined from the outside. The @c{limit} is the
+     maximum distance allowed between a polygon approximation of an arc and a
+     true circle.
+}
+
+#############################################################################
+@section{Sweeps and Optimization}
+
+TODO: write me. NOTES:
+@list{
+@* Select parameters to optimize
+@* The ``invisible hand'' concept.
+@* How to write the @c{optimize()} function: don't square things, split
+   separate objectives into multiple return values.
+}
+
+#############################################################################
+@section{Waveguide modes}
+
+When @c{config.type} is @c{TE} or @c{TM} the TE or TM waveguide modes are
+computed.
+The number of modes computed is given by @c{config.max_modes}.
+For each mode the cutoff frequency is displayed.
+The display selection box allows various components of the E and H fields to
+be displayed.
+
+When the cutoff frequencies of two modes are very close to each other (or
+identical) the mode fields recovered will be some linear superposition of
+whatever you think the ``official'' modes should look like. E.g. for TM modes
+in a rectangle with 2:1 aspect ratio, modes 4 and 5 will have this issue. The
+best that the mode solver can do is find an orthogonal subspace for all modes
+with the same cutoff frequency.
+
+
+#############################################################################
+#############################################################################
+#############################################################################
+#############################################################################
+@section{Rama Internals}
+
+This part of the manual is only useful if you want to do Rama software
+development.
+
+@subsection{Building from source on windows}
+
+It is much more annoying to build on windows than on linux. We use the
+@c{x86_64-w64-mingw32} toolchain on cygwin so that we can (a) use GNU source on
+both linux and windows, and (b) still build native binaries on windows. The
+other major option (Visual C++) would compile much faster but also require a
+lot of Visual C++-specific modifications to the code. However building for
+@c{x86_64-w64-mingw32} is a big pain, because it mixes gnu-isms, linux-isms and
+windows-isms in a way that confuses many libraries. Therefore, many of the
+libraries below have to be built with a custom processes.
+
+@subsubsection{Prerequisites}
+
+@list{
+@* Cygwin with @c{x86_64-w64-mingw32}, make (and other packages?)
+@* Matlab
+@* config.mk
+}
+
+@subsubsection{wxWidgets}
+
+wxWidgets is compiled to use its own internal implementations of vectors
+rather than the equivalent STL data structures. This is so we have the option
+to use the @c{_GLIBCXX_DEBUG} define in debug mode in the rest of the code.
+Using this flag causes STL data structures to change memory layout so it must
+be used consistently everywhere STL is used.
+
+wxWidgets is configured on Windows with:
+@===[
+./configure --host=x86_64-w64-mingw32 --disable-shared --disable-compat28 \
+            --with-opengl --with-msw --enable-http
+]===@
+
+@subsubsection{Eigen}
+
+Apply @c{eigen_patches.txt}.
+
+Eigen blas and lapack. From the eigen source directory:
+@===[
+mkdir build_dir
+cd build_dir
+make clean && cmake .. && make -j4 CMAKE_CXX_FLAGS=-mmacosx-version-min=10.9 \
+  CMAKE_C_FLAGS=-mmacosx-version-min=10.9 VERBOSE=1 blas lapack
+]===@
+
+@subsubsection{Triangle}
+
+The triangle library converts shape polygons into mesh triangles.
+
+@subsubsection{Clipper}
+@subsubsection{Lua}
+@subsubsection{Ceres}
+@subsubsection{ARPACK}
+
+@===[
+./configure --disable-alloca --with-our-malloc16 --disable-shared
+  --enable-static --disable-threads --enable-sse2 --host=x86_64-w64-mingw32
+]===@
+
+@subsubsection{Zlib}
+
+@subsubsection{Matlab (optional)}
+
+@subsubsection{Release process}
+
+@list{
+@* Update @c{__APP_VERSION__} in version.h before each binary release.
+@* Run Inno Setup Compiler.
+}
+
+
+@subsection{Building from source on OS X}
+
+NOTES:
+@list{
+@* Use the Xcode gcc, even though it's an old 4.2. Using an up to date
+   gcc installed via e.g. MacPorts seems to cause hard to debug binary
+   compatibility problems.
+@* Select an optimized build (1) or a debug build (0) to match the
+   debug/release status of the wxWidgets library, otherwise there will be
+   hard to debug binary compatibility problems.
+@* Configuring wxWidgets with @c{--with-macosx-version-min=10.9} causes the
+   @c{-mmacosx-version-min=10.9} gcc flag to be used everywhere. This has
+   implications for the C/C++ libraries that are used. We must be careful
+   because files compiled with different min versions then linked together
+   can cause hard to debug binary compatibility problems.
+   Note that the ceres headers need at least 10.9.
+@* @link{https://iconverticons.com/online/}{Online icon conversion}.
+}
+
+@subsubsection{wxWidgets}
+
+wxWidgets is configured on OS X with:
+
+@===[
+# Patch with:
+patch -p1 < .../wxwidgets_patches.txt
+
+# Optimized:
+./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9
+
+# Debug
+./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9 --enable-debug
+]===@
+
+
+@subsection{Design Notes}
+
+Just random notes for now.
+
+The ``invisible hand'' uses idle events to trigger recurrent processing of
+sweep and optimize updates while still being responsive to user input (mouse
+events etc). An alternative strategy is to use regular command events but call
+@c{wxTheApp->Yield(true)} before adding the next event within the event handler
+to ensure that those other events are processed. That however has reentrancy
+issues: arbitrary other class functions can be called, in particular the script
+may be re-run. Handling all those reentrancy issues separately is a pain, so we
+don't do that.
+
+#............................................................................
+@subsection{Computing the Jacobian}
+
+For optimization we need to compute derivatives of the @c{config.optimize}
+function with respect to the parameters. Since @c{config.optimize} has multiple
+return values and there are multiple parameters we are actually computing a
+jacobian matrix. Computing the jacobian numerically is
+@link{http://en.wikipedia.org/wiki/Numerical_differentiation}{easy enough}, but
+highly inaccurate for two reasons. First there is the classic problem of
+choosing the step size @m{h} in @m{f'(x) \approx f(x+h)/h} without introducing
+either truncation or floating point errors. Second, the more serious problem is
+that the current mesh generator is not stable so even small changes in boundary
+geometry can cause completely different meshes to be generated. This means that
+the field solution (and therefore the objective function) is a little noisy.
+That noise forces us to use large @m{h}, making the jacobian untrustworthy. A
+bad jacobian will frustrate the ability of e.g. a Levenberg-Marquardt optimizer
+to reach a good solution.
+
+A much better approach is to compute a correct jacobian, either analytically or
+using automatic differentiation. In fact we must use both approaches together,
+as the Lua script contains a user defined function for which we can not figure
+out analytic jacobians, and a large @m{Ax=b} solve would be slowed down too
+much if each matrix element was subject to automatic differentiation.
+
+Let's look at the complete chain of dependencies between the parameters @m{p}
+and the @c{config.optimize} output. We use the chain rule to figure out
+@m{d/dp} at each stage. The dependency chain is:
+
+@numlist{
+@*  Start with the parameter vector @m{p}.
+
+@*  @m{p \rightarrow} Lua script engine @m{\rightarrow S} (the shape of
+    the computational domain) and the @c{ScriptConfig}. We introduce the
+    numerical type @c{JetNum} (based on @c{ceres::Jet}), which does automatic
+    differentiation. The Lua interpreter is modified to accept @c{JetNum} as
+    its @c{lua_Number}, meaning that derivatives with respect to parameters
+    can be carried through all numeric quantities in user scripts. All point
+    coordinates in shapes use @c{JetNum}, so we automatically have @m{dS/dp}.
+
+    The main issue with this scheme is the Clipper library, which converts all
+    continuous quantities into integers for its own robustness reasons, so we
+    can not simply replace those integers with @c{JetNum}. However each Clipper
+    integer coordinate has an associated @c{Z} value, which we modify to
+    contain the required derivatives. The @c{Z} derivatives for new vertices
+    introducted by Clipper are computed correctly by the Clipper
+    @c{ZFillCallback}.
+
+    For simplicity below we enforce that @c{ScriptConfig} should not depend
+    on the parameters. This restriction can be relaxed later.
+
+@*  @m{dS/dp \rightarrow} Mesher @m{\rightarrow dM/dp}, where @m{M} is the
+    mesh. We must ignore the mesh length and refinement settings in
+    @c{ScriptConfig} because they would substantially alter the mesh, and the
+    stability of our method depends on the fact that the mesh remains
+    unaltered. Therefore we enforce that @c{ScriptConfig} should not depend on
+    the parameters. The continuous values in the mesh are the vertex positions
+    and triangle material values (e.g. @m{\epsilon}). The other mesh values are
+    triangle connectivity and port settings, discrete values which are assumed
+    not to be affected by small changes in the parameters. For simplicity below
+    we enforce that material settings can not depend on parameters.
+
+    To compute @m{dM/dp} we associate boundary triangle edges to lines in
+    @m{dS/dp}, then then linearly interpolate from @m{dS/dp}. We assume that as
+    parameters changes only boundary triangles are affected, i.e. geometry
+    changes are not propagated into interior triangles.
+
+@*  @m{dM/dp \rightarrow} System matrix creator @m{\rightarrow dA/dp, db/dp}.
+    This is done with automatic differentiation by using @c{JetNum} and
+    @c{JetComplex}.
+
+@*  @m{dA/dp, db/dp \rightarrow} Linear solver @m{\rightarrow dx/dp}.
+    Given a solution to a linear problem @m{A \: x = b} and a scalar parameter
+    @m{p}, we want to compute @m{dx/dp} from @m{dA/dp} and @m{db/dp}, without
+    expensive refactoring of @m{A}-sized matrices. From the
+    @link{http://www2.imm.dtu.dk/pubdb/views/edoc_download.php/3274/pdf/imm3274.pdf}{Matrix Cookbook}
+    we have
+
+    @M{
+      {\del A^{-1} \by \del p} &= -A^{-1} \: {\del A \by \del p} \: A^{-1}
+    }
+
+    From which we get
+
+    @M{
+      x &= A^{-1} \: b \\
+      {\del x \by \del p} &= {\del A^{-1} \by \del p} \: b + A^{-1} \: {\del b \by \del p} \\
+        &= -A^{-1} \: {\del A \by \del p} \: A^{-1} \: b + A^{-1} \: {\del b \by \del p} \\
+        &= A^{-1} \left(  -{\del A \by \del p} \: x + {\del b \by \del p} \right)
+    }
+
+    The cost of this is one multiplication by @m{\del A / \del p} (which might
+    be cheap if it is sparse) and one solve with the already-factored
+    @m{A^{-1}}.
+
+@*  @m{dx/dp \rightarrow} Compute port powers @m{\rightarrow P}, where
+    @m{P} are the port powers and phase angles. This is done with @c{JetNum}.
+
+@*  @m{P \rightarrow} output of the @c{config.optimize} function.
+    This is done with @c{JetNum} within Lua.
+}
+
+Each @c{JetNum} contains the derivative with respect to just one parameter, so
+the above steps have to be done once per parameter. The @c{JetNum} could
+contain more derivatives but that would slow down the Lua interpreter, and we
+spend most of the time doing the matrix solves anyway.

@@ -1,0 +1,108 @@
+# Patch using: patch -p1 -l
+diff -w -u -r wxWidgets-3.1.0-original/include/wx/osx/glcanvas.h wxWidgets-3.1.0/include/wx/osx/glcanvas.h
+--- wxWidgets-3.1.0-original/include/wx/osx/glcanvas.h
++++ wxWidgets-3.1.0/include/wx/osx/glcanvas.h
+@@ -16,7 +16,7 @@
+ #import <OpenGLES/ES1/glext.h>
+ #define wxUSE_OPENGL_EMULATION 1
+ #else
+-#include <OpenGL/gl.h>
++#include <OpenGL/gl3.h>
+ #endif
+
+ #include "wx/vector.h"
+diff -w -u -r wxWidgets-3.1.0-original/src/common/dcgraph.cpp wxWidgets-3.1.0/src/common/dcgraph.cpp
+--- wxWidgets-3.1.0-original/src/common/dcgraph.cpp
++++ wxWidgets-3.1.0/src/common/dcgraph.cpp
+@@ -901,12 +901,19 @@
+                    source->LogicalToDeviceXRel(srcWidth),
+                    source->LogicalToDeviceYRel(srcHeight));
+     const wxRect subrectOrig = subrect;
++    /*
+     // clip the subrect down to the size of the source DC
++    // RLS: On macs with retina displays GetSize() returns the size of the
++    // source DC in points not pixels (there are 2x2 pixels per point). This
++    // limits us to blitting just half the source DC's width and height.
++    // Disable the check here since Rama wont try to blit out-of-bounds
++    // coordinates.
+     wxRect clip;
+     source->GetSize(&clip.width, &clip.height);
+     subrect.Intersect(clip);
+     if (subrect.width == 0)
+         return true;
++    */
+
+     bool retval = true;
+
+diff -w -u -r wxWidgets-3.1.0-original/src/common/glcmn.cpp wxWidgets-3.1.0/src/common/glcmn.cpp
+--- wxWidgets-3.1.0-original/src/common/glcmn.cpp
++++ wxWidgets-3.1.0/src/common/glcmn.cpp
+@@ -90,6 +90,7 @@
+     return context.SetCurrent(*static_cast<const wxGLCanvas *>(this));
+ }
+
++/*
+ bool wxGLCanvasBase::SetColour(const wxString& colour)
+ {
+     wxColour col = wxTheColourDatabase->Find(colour);
+@@ -121,6 +122,7 @@
+ #endif
+     return true;
+ }
++*/
+
+ wxGLCanvasBase::~wxGLCanvasBase()
+ {
+@@ -437,6 +439,7 @@
+ {
+ }
+
++/*
+ void wxGLAPI::glFrustum(GLfloat left, GLfloat right, GLfloat bottom,
+                             GLfloat top, GLfloat zNear, GLfloat zFar)
+ {
+@@ -602,6 +605,7 @@
+     ::glEnd();
+ #endif
+ }
++*/
+
+ #endif // wxUSE_GLCANVAS
+
+diff -w -u -r wxWidgets-3.1.0-original/src/osx/cocoa/window.mm wxWidgets-3.1.0/src/osx/cocoa/window.mm
+--- wxWidgets-3.1.0-original/src/osx/cocoa/window.mm
++++ wxWidgets-3.1.0/src/osx/cocoa/window.mm
+@@ -683,10 +683,15 @@
+
+             wxevent.SetEventType( wxEVT_MOUSEWHEEL ) ;
+
++            wxevent.m_wheelDelta = 10;
++
+             if ( [nsEvent hasPreciseScrollingDeltas] )
+             {
+                 deltaX = [nsEvent scrollingDeltaX];
+                 deltaY = [nsEvent scrollingDeltaY];
++                // The scroll command probably comes from the trackpad.
++                // Indicate this with a wheel delta of 1.
++                wxevent.m_wheelDelta = 1;
+             }
+             else
+             {
+@@ -694,7 +699,6 @@
+                 deltaY = [nsEvent scrollingDeltaY] * 10;
+             }
+
+-            wxevent.m_wheelDelta = 10;
+             wxevent.m_linesPerAction = 1;
+             wxevent.m_columnsPerAction = 1;
+
+@@ -2966,6 +2970,9 @@
+     NSRect r = wxOSXGetFrameForControl( wxpeer, pos , size ) ;
+     wxNSView* v = [[wxNSView alloc] initWithFrame:r];
+
++    // Use the full resolution on retina displays:
++    [v setWantsBestResolutionOpenGLSurface:YES];
++
+     wxWidgetCocoaImpl* c = new wxWidgetCocoaImpl( wxpeer, v, false, true );
+     return c;
+ }

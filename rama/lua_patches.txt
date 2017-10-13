@@ -1,0 +1,193 @@
+diff -r -u -w lua-5.3.0-original/src/ldebug.c lua-5.3.0/src/ldebug.c
+--- lua-5.3.0-original/src/ldebug.c
++++ lua-5.3.0/src/ldebug.c
+@@ -573,6 +573,7 @@
+
+
+ static void addinfo (lua_State *L, const char *msg) {
++  return;       // No file:line info in error messages as backtrace will do that
+   CallInfo *ci = L->ci;
+   if (isLua(ci)) {  /* is Lua code? */
+     char buff[LUA_IDSIZE];  /* add file:line information */
+diff -r -u -w lua-5.3.0-original/src/liolib.c lua-5.3.0/src/liolib.c
+--- lua-5.3.0-original/src/liolib.c
++++ lua-5.3.0/src/liolib.c
+@@ -608,7 +608,7 @@
+       /* optimization: could be done exactly as for strings */
+       int len = lua_isinteger(L, arg)
+                 ? fprintf(f, LUA_INTEGER_FMT, lua_tointeger(L, arg))
+-                : fprintf(f, LUA_NUMBER_FMT, lua_tonumber(L, arg));
++                : fprintf(f, LUA_NUMBER_FMT, ToDouble(lua_tonumber(L, arg)));
+       status = status && (len > 0);
+     }
+     else {
+diff -r -u -w lua-5.3.0-original/src/lmathlib.c lua-5.3.0/src/lmathlib.c
+--- lua-5.3.0-original/src/lmathlib.c
++++ lua-5.3.0/src/lmathlib.c
+@@ -269,7 +269,7 @@
+
+
+ static int math_randomseed (lua_State *L) {
+-  l_srand((unsigned int)(lua_Integer)luaL_checknumber(L, 1));
++  l_srand((unsigned int)(lua_Integer)ToInt64(luaL_checknumber(L, 1)));
+   (void)rand(); /* discard first value to avoid undesirable correlations */
+   return 0;
+ }
+diff -r -u -w lua-5.3.0-original/src/lobject.c lua-5.3.0/src/lobject.c
+--- lua-5.3.0-original/src/lobject.c
++++ lua-5.3.0/src/lobject.c
+@@ -205,7 +205,7 @@
+       if (sigdig == 0 && *s == '0')  /* non-significant digit (zero)? */
+         nosigdig++;
+       else if (++sigdig <= MAXSIGDIG)  /* can read it without overflow? */
+-          r = (r * cast_num(16.0)) + luaO_hexavalue(*s);
++          r = (r * cast_num(16.0)) + lua_Number(luaO_hexavalue(*s));
+       else e++; /* too many digits; ignore, but still count for exponent */
+       if (dot) e--;  /* decimal digit? correct exponent */
+     }
+@@ -229,7 +229,7 @@
+     *endptr = cast(char *, s);  /* valid up to here */
+   }
+   if (neg) r = -r;
+-  return l_mathop(ldexp)(r, e);
++  return l_mathop(ldexp)(ToDouble(r), e);
+ }
+
+ #endif
+diff -r -u -w lua-5.3.0-original/src/lstrlib.c lua-5.3.0/src/lstrlib.c
+--- lua-5.3.0-original/src/lstrlib.c
++++ lua-5.3.0/src/lstrlib.c
+@@ -907,7 +907,7 @@
+         case 'e': case 'E': case 'f':
+         case 'g': case 'G': {
+           addlenmod(form, LUA_NUMBER_FRMLEN);
+-          nb = sprintf(buff, form, luaL_checknumber(L, arg));
++          nb = sprintf(buff, form, ToDouble(luaL_checknumber(L, arg)));
+           break;
+         }
+         case 'q': {
+@@ -1211,11 +1211,11 @@
+         break;
+       }
+       case Kfloat: {  /* floating-point options */
+-        volatile Ftypes u;
++        /*volatile*/ Ftypes u;
+         char *buff = luaL_prepbuffsize(&b, size);
+         lua_Number n = luaL_checknumber(L, arg);  /* get argument */
+-        if (size == sizeof(u.f)) u.f = (float)n;  /* copy it into 'u' */
+-        else if (size == sizeof(u.d)) u.d = (double)n;
++        if (size == sizeof(u.f)) u.f = (float)ToDouble(n);  /* copy it into 'u' */
++        else if (size == sizeof(u.d)) u.d = ToDouble(n);
+         else u.n = n;
+         /* move 'u' to final result, correcting endianness if needed */
+         copywithendian(buff, u.buff, size, h.islittle);
+@@ -1346,7 +1346,7 @@
+         break;
+       }
+       case Kfloat: {
+-        volatile Ftypes u;
++        /*volatile*/ Ftypes u;
+         lua_Number num;
+         copywithendian(u.buff, data + pos, size, h.islittle);
+         if (size == sizeof(u.f)) num = (lua_Number)u.f;
+diff -r -u -w lua-5.3.0-original/src/ltable.c lua-5.3.0/src/ltable.c
+--- lua-5.3.0-original/src/ltable.c
++++ lua-5.3.0/src/ltable.c
+@@ -100,8 +100,8 @@
+ */
+ static Node *hashfloat (const Table *t, lua_Number n) {
+   int i;
+-  n = l_mathop(frexp)(n, &i) * cast_num(INT_MAX - DBL_MAX_EXP);
+-  i += cast_int(n);
++  n = l_mathop(frexp)(ToDouble(n), &i) * cast_num(INT_MAX - DBL_MAX_EXP);
++  i += cast_int(ToDouble(n));
+   if (i < 0) {
+     if (cast(unsigned int, i) == 0u - i)  /* use unsigned to avoid overflows */
+       i = 0;  /* handle INT_MIN */
+diff -r -u -w lua-5.3.0-original/src/luaconf.h lua-5.3.0/src/luaconf.h
+--- lua-5.3.0-original/src/luaconf.h
++++ lua-5.3.0/src/luaconf.h
+@@ -8,6 +8,8 @@
+ #ifndef luaconf_h
+ #define luaconf_h
+
++#include "../../my_jet.h"
++
+ #include <limits.h>
+ #include <stddef.h>
+
+@@ -429,9 +431,9 @@
+
+ #elif defined(LUA_REAL_DOUBLE)		/* }{ double */
+
+-#define LUA_NUMBER	double
++#define LUA_NUMBER	JetNum
+
+-#define LUAI_UACNUMBER	double
++#define LUAI_UACNUMBER	JetNum
+
+ #define LUA_NUMBER_FRMLEN	""
+ #define LUA_NUMBER_FMT		"%.14g"
+@@ -449,7 +451,7 @@
+
+ #define l_floor(x)		(l_mathop(floor)(x))
+
+-#define lua_number2str(s,n)	sprintf((s), LUA_NUMBER_FMT, (n))
++#define lua_number2str(s,n)	sprintf((s), LUA_NUMBER_FMT, ToDouble(n))
+
+
+ /*
+@@ -461,9 +463,9 @@
+ ** and therefore its conversion to float may have an ill-defined value.)
+ */
+ #define lua_numbertointeger(n,p) \
+-  ((n) >= (LUA_NUMBER)(LUA_MININTEGER) && \
+-   (n) < -(LUA_NUMBER)(LUA_MININTEGER) && \
+-      (*(p) = (LUA_INTEGER)(n), 1))
++  (ToDouble(n) >= (double)(LUA_MININTEGER) && \
++   ToDouble(n) < -(double)(LUA_MININTEGER) && \
++      (*(p) = (LUA_INTEGER)ToDouble(n), 1))
+
+
+ /*
+diff -r -u -w lua-5.3.0-original/src/lua.h lua-5.3.0/src/lua.h
+--- lua-5.3.0-original/src/lua.h
++++ lua-5.3.0/src/lua.h
+@@ -208,9 +208,10 @@
+
+ LUA_API void  (lua_arith) (lua_State *L, int op);
+
+-#define LUA_OPEQ	0
+-#define LUA_OPLT	1
+-#define LUA_OPLE	2
++#define LUA_OPEQ	14  // Was 0, but we want all LUA_OP constants together
++#define LUA_OPLT	15  // Was 1
++#define LUA_OPLE	16  // Was 2
++#define LUA_OPCONCAT	17  // New value to support LuaUserClass::Operator()
+
+ LUA_API int   (lua_rawequal) (lua_State *L, int idx1, int idx2);
+ LUA_API int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);
+diff -r -u -w lua-5.3.0-original/src/lvm.c lua-5.3.0/src/lvm.c
+--- lua-5.3.0-original/src/lvm.c
++++ lua-5.3.0/src/lvm.c
+@@ -51,7 +51,7 @@
+ static int tofloat (const TValue *obj, lua_Number *n) {
+   if (ttisfloat(obj)) *n = fltvalue(obj);
+   else if (ttisinteger(obj)) {
+-    volatile lua_Number x = cast_num(ivalue(obj));  /* avoid extra precision */
++    /*volatile*/ lua_Number x = cast_num(ivalue(obj));  /* avoid extra precision */
+     *n = x;
+   }
+   else {
+diff -r -u -w lua-5.3.0-original/src/lbaselib.c lua-5.3.0/src/lbaselib.c
+--- lua-5.3.0-original/src/lbaselib.c
++++ lua-5.3.0/src/lbaselib.c
+@@ -183,7 +183,7 @@
+   switch (o) {
+     case LUA_GCCOUNT: {
+       int b = lua_gc(L, LUA_GCCOUNTB, 0);
+-      lua_pushnumber(L, (lua_Number)res + ((lua_Number)b/1024));
++      lua_pushnumber(L, (lua_Number)res + ((lua_Number)b/1024.0));
+       return 1;
+     }
+     case LUA_GCSTEP: case LUA_GCISRUNNING: {
