@@ -12,9 +12,6 @@ to the need to patch many of those things. Build automation would be nice!
   - arpack-ng: `git clone https://github.com/opencollab/arpack-ng.git`
   - ceres-solver-1.13.0: `wget http://ceres-solver.org/ceres-solver-1.13.0.tar.gz`
   - eigen-eigen-3.3.4: `wget http://bitbucket.org/eigen/eigen/get/3.3.4.tar.bz2`
-  - fftw-3.3.6: `wget http://www.fftw.org/fftw-3.3.6-pl2.tar.gz`
-  - lapack-3.7.1: `wget http://www.netlib.org/lapack/lapack-3.7.1.tgz`
-  - readline-6.3: `wget https://ftp.gnu.org/gnu/readline/readline-6.3.tar.gz`
   - wxWidgets-3.1.0: `wget https://github.com/wxWidgets/wxWidgets/releases/download/v3.1.0/wxWidgets-3.1.0.tar.bz2`
 * In `common.mk`, change all instances of `SET_ME` to match your local
   configuration. Many of the paths will point to somewhere in `/tools`.
@@ -26,10 +23,16 @@ to the need to patch many of those things. Build automation would be nice!
   - In `git/stuff/toolkit/ceres-build` run `make` then `make clean` to create the
     `libceres-opt.a` library.
 * Build the eigen version of lapack:
-  - In `git/stuff/toolkit/eigen-blas-lapack-build` run `make`
-* @@@ Build instructions for
-  - fftw
-  - lapack
-  - readline
-  - wxWidgets
-
+  - In `git/stuff/toolkit/eigen-blas-lapack-build` run `make` and then `make clean`
+* Build wxWidgets:
+  - In `/tools/wxWidgets-3.1.0` patch with `patch -p1 -l < git/stuff/rama/wxwidgets_patches.txt`
+  - Copy `/tools/wxWidgets-3.1.0` to `/tools/wxWidgets-3.1.0-opt` (for the optimised build)
+    and `/tools/wxWidgets-3.1.0-dbg` (for the debug build).
+  - In `/tools/wxWidgets-3.1.0-opt` run
+    `./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9 --disable-mediactrl`
+    then run `make -j8`
+  - In `/tools/wxWidgets-3.1.0-dbg` run
+    `./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9 --disable-mediactrl --enable-debug`
+    then run `make -j8`
+* Build rama
+  - In `git/stuff/rama` run `make`.
