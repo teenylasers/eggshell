@@ -1,11 +1,17 @@
 # Things and also stuff
 
+For rama documentation refer to http://ramasimulator.org
+
 ## Build instructions
 
 Apologies in advance for the messy manual build process. This is mainly due to
 the number of 3rd party libraries and tools that are used, and in particular
 to the need to patch many of those things. Build automation would be nice!
 
+* On OSX:
+  - Install Xcode. The Xcode gcc is used to build everything here.
+    Using another gcc (e.g. from MacPorts) seems to cause hard to debug binary
+    compatibility problems.
 * Create somewhere a directory into which you will put downloaded source.
   Let's call it `/tools`.
 * Download and unpack the following into `/tools`
@@ -34,5 +40,7 @@ to the need to patch many of those things. Build automation would be nice!
   - In `/tools/wxWidgets-3.1.0-dbg` run
     `./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9 --disable-mediactrl --enable-debug`
     then run `make -j8`
-* Build rama
-  - In `git/stuff/rama` run `make`.
+* Build rama.
+  - cd to `git/stuff/rama`
+  - In the `Makefile` select an optimized build (1) or a debug build (0).
+  - Run `make`.
