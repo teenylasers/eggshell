@@ -50,6 +50,8 @@ Rama can provide design intuition in these cases.
 
 All Rama development is done on @link{https://github.com/Evenedric/stuff}{github}.
 Documentation and binaries are available here, at @link{http://ramasimulator.org}{ramasimulator.org}.
+The mathematical backbone of Rama is described in this companion document,
+@link{https://evenedric.github.io/fem.html}{The Finite Element Method}.
 
 #############################################################################
 @section{Concepts of simulation}
