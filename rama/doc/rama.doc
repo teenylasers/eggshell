@@ -46,6 +46,11 @@ Rama can provide design intuition in these cases.
 
 [TODO: maybe add a getting started guide, walk through one of the examples?]
 
+@subsection{Rama development}
+
+All Rama development is done on @link{https://github.com/Evenedric/stuff}{github}.
+Documentation and binaries are available here, at @link{http://ramasimulator.org}{ramasimulator.org}.
+
 #############################################################################
 @section{Concepts of simulation}
 
@@ -901,25 +906,6 @@ The triangle library converts shape polygons into mesh triangles.
 @* Run Inno Setup Compiler.
 }
 
-
-@subsection{Building from source on OS X}
-
-NOTES:
-@list{
-@* Use the Xcode gcc, even though it's an old 4.2. Using an up to date
-   gcc installed via e.g. MacPorts seems to cause hard to debug binary
-   compatibility problems.
-@* Select an optimized build (1) or a debug build (0) to match the
-   debug/release status of the wxWidgets library, otherwise there will be
-   hard to debug binary compatibility problems.
-@* Configuring wxWidgets with @c{--with-macosx-version-min=10.9} causes the
-   @c{-mmacosx-version-min=10.9} gcc flag to be used everywhere. This has
-   implications for the C/C++ libraries that are used. We must be careful
-   because files compiled with different min versions then linked together
-   can cause hard to debug binary compatibility problems.
-   Note that the ceres headers need at least 10.9.
-@* @link{https://iconverticons.com/online/}{Online icon conversion}.
-}
 
 @subsubsection{wxWidgets}
 
