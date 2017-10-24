@@ -86,17 +86,18 @@ endif
 
 ifeq ($(PLATFORM), osx)
   _MYCODE := /SET_ME
+  TOOLS_DIR := /SET_ME
   ifeq ($(OPTIMIZE), 1)
-    WXCONFIG := /SET_ME/wx-config
+    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
   else
-    WXCONFIG := /SET_ME/wx-config
+    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-dbg/wx-config
   endif
-  EIGEN_DIR := /SET_ME/eigen-eigen-3.3.2
-  CERES_DIR := /SET_ME/ceres-solver-1.12.0
-  ARPACK_DIR := /SET_ME/arpack-ng-3.1.5
-  LAPACK_DIR := /SET_ME/lapack-3.5.0
+  EIGEN_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
+  CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
+  ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
+  LAPACK_DIR := $(TOOLS_DIR)/lapack-3.5.0
   EIGEN_BLAS_LAPACK_LIB := $(_MYCODE)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
-  EIGEN_BLAS_LAPACK_LIB_DIR := /SET_ME/eigen-eigen-3.3.2
+  EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
   DOCCER := /SET_ME/doccer.exe
   READLINE_INC := -I/SET_ME/readline-6.3
   READLINE_LIB := /SET_ME/readline-6.3/libreadline.a \
