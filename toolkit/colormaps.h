@@ -2,7 +2,7 @@
 #ifndef __TOOLKIT_COLORMAPS_H__
 #define __TOOLKIT_COLORMAPS_H__
 
-namespace Colormap {
+namespace ColorMap {
 
   // A colormap function is given x in the range 0..1 and returns an RGB color
   // with all components in the range 0..1.
@@ -28,6 +28,6 @@ namespace Colormap {
     }
   }
 
-}  // namespace Colormap
+}  // namespace ColorMap
 
 #endif

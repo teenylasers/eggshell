@@ -22,7 +22,9 @@
   #endif
 #else
   // Linux.
+  #define GL_GLEXT_PROTOTYPES
   #include <GL/gl.h>
+  #include <GL/glext.h>
 #endif
 
 #include "Eigen/Dense"

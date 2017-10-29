@@ -136,7 +136,7 @@ class Solver : public Mesh {
     DRAW_POYNTING_VECTORS,          // Draw instantaneous power vectors
     DRAW_POYNTING_VECTORS_TA,       // Draw time averaged power vectors
   };
-  void DrawSolution(DrawMode draw_mode, Colormap::Function colormap,
+  void DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
                     int brightness, double phase_offset);
 
   // Compute the (complex) amplitudes of the outgoing waves at each port by

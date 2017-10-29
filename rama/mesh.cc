@@ -400,7 +400,7 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
   }
 }
 
-void Mesh::DrawMesh(MeshDrawType draw_type, Colormap::Function colormap,
+void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
                     int brightness, const Matrix4d &camera_transform) {
   if (draw_type == MESH_HIDE) {
     return;

@@ -33,7 +33,7 @@ class Mesh {
     MESH_DIELECTRIC_IMAG,
     MESH_DIELECTRIC_ABS,
   };
-  void DrawMesh(MeshDrawType draw_type, Colormap::Function colormap,
+  void DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
                 int brightness, const Eigen::Matrix4d &camera_transform);
 
   // For debugging draw the derivative vectors at boundary points.

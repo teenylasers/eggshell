@@ -416,15 +416,19 @@ Jet<T, N> operator*(T s, const Jet<T, N>& f) {
   return Jet<T, N>(f.a * s, f.v * s);
 }
 
-// Don't be tempted to implement "binary * with an integer", at least not on
-// all platforms. This would work for Jet/integer, but Jet/float will result in
-// the float being cast to an integer (NOT a double) if the type T is e.g.
-// complex<>. However on windows (cygwin) this is actually needed for
-// compatibility with std::complex.
-#ifdef __WINNT__
+// Don't be tempted to implement "binary * or / with an integer", at least
+// not on all platforms. This would work for Jet/integer, but Jet/float will
+// result in the float being cast to an integer (NOT a double) if the type
+// T is e.g. complex<>. However on windows (cygwin) and linux this is
+// actually needed for compatibility with std::complex.
+#if defined(__WINNT__) || defined(__linux__)
 template<typename T, int N> inline
 Jet<T, N> operator*(int s, const Jet<T, N>& f) {
   return Jet<T, N>(f.a * s, f.v * s);
+}
+template<typename T, int N> inline
+Jet<T, N> operator/(const Jet<T, N>& f, int s) {
+  return Jet<T, N>(f.a / s, f.v / s);
 }
 #endif
 

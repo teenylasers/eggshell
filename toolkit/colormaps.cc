@@ -3,7 +3,7 @@
 #include <algorithm>
 #include "colormaps.h"
 
-namespace Colormap {
+namespace ColorMap {
 
 // A function that is: 1 for |x| < 1/8
 //                     0 for |x| > 3/8
@@ -64,4 +64,4 @@ void Wheel(float x, float rgb[3]) {
   Jet(fmodf(x * 8.0f, 1.0f), rgb);
 }
 
-}  // namespace Colormap
+}  // namespace ColorMap

@@ -17,6 +17,10 @@
 #include <wx/clipbrd.h>
 #include "wx/statline.h"
 
+// Including glcanvas.h can bring in GL headers, which on windows and linux
+// will include only basic GL functionality unless this is defined:
+#define GL_GLEXT_PROTOTYPES
+
 // On linux the glcanvas include brings in X11 headers, which pollute the macro
 // namespace  with all kinds of commonly used words (e.g. Window, Complex,
 // True). Include undef_x11.h to undefine all macros found in /usr/include/X11

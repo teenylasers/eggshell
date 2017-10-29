@@ -426,7 +426,7 @@ bool Solver::UpdateDerivatives(const Shape &s) {
   return true;
 }
 
-void Solver::DrawSolution(DrawMode draw_mode, Colormap::Function colormap,
+void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
                           int brightness, double phase_offset) {
   if (!Solve()) {
     return;

@@ -121,7 +121,7 @@ class LuaModelViewer : public GLViewer {
   int LuaDrawText(lua_State *L);          // DrawText()
 
   // Accessors.
-  Colormap::Function GetColormap() const { return colormap_; }
+  ColorMap::Function GetColormap() const { return colormap_; }
   int GetBrightness() const { return brightness_; }
   wxPlot *GetMainPlot() { return plot_; }
   Lua *GetLua();
@@ -234,7 +234,7 @@ class LuaModelViewer : public GLViewer {
   bool rebuild_parameters_;
 
   // The objects that are currently being drawn, and drawing state.
-  Colormap::Function colormap_;
+  ColorMap::Function colormap_;
   int brightness_;                      // In the range 0..1000
   std::vector<DebugText> debug_text_;   // Text emitted from s:DrawText()
   bool antialiasing_;

@@ -105,18 +105,21 @@ endif
 ifeq ($(PLATFORM), windows)
   # WX libraries. The sed command is required because wx-config seems not to
   # get the proper library names in version 3.0.1 for windows:
-  CCFLAGS += -Wno-unused-local-typedefs
+  CCFLAGS += -Wno-unused-local-typedefs -Wno-inconsistent-missing-override
   LUA_EXTRA_CFLAGS =
   OBJ += rc.o
   SIZE_T_PRINTF = '"I"'
   UNDEF_X11_H =
 else
   LUA_EXTRA_CFLAGS = -DLUA_USE_POSIX
-  ifneq ($(PLATFORM), osx)
+  ifeq ($(PLATFORM), linux)
     CCFLAGS += -Wno-unused-local-typedefs
+    UNDEF_X11_H = undef_x11.h
+  else
+    CCFLAGS += -Wno-inconsistent-missing-override
+    UNDEF_X11_H =
   endif
   SIZE_T_PRINTF = '"z"'
-  UNDEF_X11_H = undef_x11.h
 endif
 
 ifdef MATLAB_INC
@@ -129,7 +132,7 @@ endif
 CC := $(shell $(WXCONFIG) --cc)
 CXX := $(shell $(WXCONFIG) --cxx)
 RESCOMP := $(shell $(WXCONFIG) --rescomp)
-MYFLAGS := -I. -I.. -Werror -Wall -MMD -Wno-sign-compare -Wno-inconsistent-missing-override
+MYFLAGS := -I. -I.. -Werror -Wall -MMD -Wno-sign-compare
 CFLAGS += $(MYFLAGS)
 CCFLAGS += $(MYFLAGS) $(shell $(WXCONFIG) --cxxflags) -D__TOOLKIT_WXWINDOWS__=1 \
   $(ENGINE_EXTRA_CFLAGS) \
@@ -200,13 +203,13 @@ libeng.a:
 .SUFFIXES:
 .PRECIOUS: %.h.gch
 
-%.o: ../%.cc $(PCH)
+%.o: ../%.cc $(PCH) $(UNDEF_X11_H)
 	$(CXX) -c $(CCFLAGS) -o $@ $<
 
 dialogblocks/%.o: ../dialogblocks/%.cc $(PCH)
 	$(CXX) -c $(CCFLAGS) -o $@ $<
 
-toolkit/%.o: ../../toolkit/%.cc $(PCH)
+toolkit/%.o: ../../toolkit/%.cc $(PCH) $(UNDEF_X11_H)
 	$(CXX) -c $(CCFLAGS) -o $@ $<
 
 %.o: ../%.c

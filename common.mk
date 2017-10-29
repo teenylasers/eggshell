@@ -125,9 +125,21 @@ endif
 
 ifeq ($(PLATFORM), linux)
   # Using gcc under linux.
-  WXCONFIG = /SET_ME/wxWidgets/bin/wx-config
-  EIGEN_DIR := /SET_ME/eigen-eigen-3.3.2
-  READLINE_LIB := -lreadline
+  _MYCODE := /SET_ME
+  TOOLS_DIR := /SET_ME
+  ifeq ($(OPTIMIZE), 1)
+    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
+  else
+    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-dbg/wx-config
+  endif
+  EIGEN_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
+  CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
+  ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
+  LAPACK_DIR := $(TOOLS_DIR)/lapack-3.7.1
+  EIGEN_BLAS_LAPACK_LIB := $(_MYCODE)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
+  EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
+  DOCCER := /SET_ME/doccer.exe
+  FORTRAN_COMPILER := gfortran
 endif
 
 CERES_INC := -I$(CERES_DIR)/include \

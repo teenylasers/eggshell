@@ -6,6 +6,12 @@
 #include <unistd.h>
 #include <execinfo.h>
 
+// Suppress warnings about write() on linux.
+#ifdef __linux__
+static int dummy_result;
+#define write dummy_result = write
+#endif
+
 // Print a message for a value of si_code
 static const char *DecodeSICode(int signum, int si_code) {
   if (signum == SIGILL) {
@@ -94,7 +100,9 @@ void SetupCrashHandling() {
     SetupSignalHandling(SIGILL );       // illegal instruction
     SetupSignalHandling(SIGTRAP);       // trace trap
     SetupSignalHandling(SIGABRT);       // abort program (formerly SIGIOT)
+    #ifdef __APPLE__
     SetupSignalHandling(SIGEMT );       // emulate instruction executed
+    #endif
     SetupSignalHandling(SIGFPE );       // floating-point exception
     SetupSignalHandling(SIGKILL);       // kill program
     SetupSignalHandling(SIGBUS );       // bus error

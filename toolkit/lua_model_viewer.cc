@@ -371,7 +371,7 @@ LuaModelViewer::LuaModelViewer(wxWindow* parent, wxWindowID id,
   num_ticked_count_ = 0;
   derivative_index_ = 0;
   rebuild_parameters_ = false;
-  colormap_ = Colormap::Jet;
+  colormap_ = ColorMap::Jet;
   brightness_ = 500;
   antialiasing_ = true;
   show_markers_ = true;
@@ -452,19 +452,19 @@ void LuaModelViewer::ToggleShowMarkers() {
 
 void LuaModelViewer::SetDisplayColorScheme(int color_scheme) {
   if (color_scheme == 0) {
-    colormap_ = Colormap::Jet;
+    colormap_ = ColorMap::Jet;
   } else if (color_scheme == 1) {
-    colormap_ = Colormap::Hot;
+    colormap_ = ColorMap::Hot;
   } else if (color_scheme == 2) {
-    colormap_ = Colormap::Gray;
+    colormap_ = ColorMap::Gray;
   } else if (color_scheme == 3) {
-    colormap_ = Colormap::HSV;
+    colormap_ = ColorMap::HSV;
   } else if (color_scheme == 4) {
-    colormap_ = Colormap::Bone;
+    colormap_ = ColorMap::Bone;
   } else if (color_scheme == 5) {
-    colormap_ = Colormap::Copper;
+    colormap_ = ColorMap::Copper;
   } else if (color_scheme == 6) {
-    colormap_ = Colormap::Wheel;
+    colormap_ = ColorMap::Wheel;
   } else {
     Panic("Internal: bad color_scheme = %d", color_scheme);
   }

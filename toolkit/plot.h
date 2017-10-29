@@ -185,10 +185,10 @@ class Plot2D {
   // mapped to colors from the given colormap function.
   template<class T, class V>
   void AddImage(const T &matrix, V minvalue, V maxvalue,
-                Colormap::Function colormap = Colormap::Jet) {
+                ColorMap::Function colormap = ColorMap::Jet) {
     uint8_t palette[256][3];
     uint8_t *rgb_data = new uint8_t[matrix.rows() * matrix.cols() * 3];
-    Colormap::ComputePalette(colormap, palette);
+    ColorMap::ComputePalette(colormap, palette);
     int index = 0;
     for (int i = 0; i < matrix.rows(); i++) {
       for (int j = 0; j < matrix.cols(); j++) {
@@ -204,7 +204,7 @@ class Plot2D {
     delete[] rgb_data;
   }
   template<class T>
-  void AddImage(const T &matrix, Colormap::Function colormap = Colormap::Jet) {
+  void AddImage(const T &matrix, ColorMap::Function colormap = ColorMap::Jet) {
     AddImage(matrix, matrix.minCoeff(), matrix.maxCoeff(), colormap);
   }
 
