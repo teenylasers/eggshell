@@ -2,10 +2,6 @@
 # * Make it clear that optimize() should return many values and that they can
 #   be negative. Don't return values like a^2+b^2+c^2, return a,b,c instead.
 # * Spell check.
-# * The optimizer can fail with "Return value %d of config.optimize() (or its
-#   derivative) is not finite. See the manual for common ways this happens."
-#   For rama a common way this happens is when using port phase when zero
-#   power is delivered to the port.
 
 @title{Rama}
 @subtitle{v@arg{version}}
@@ -259,13 +255,18 @@ the following fields:
   field.Pattern(theta)  -- antenna power (in W) at angle theta (in degrees)
   field.Directivity()   -- antenna directivity (max power / avg power)
 ]===@
-  If the @c{Magnitude}, @c{Phase} or @c{Power} functions are used where the
-  field is zero, the derivatives with respect to parameters will be undefined
-  and the optimization will fail.
-
-  The @c{Pattern} and @c{Directivity} functions requires a radiation boundary.
-  If they are used without this the derivatives with respect to parameters will
-  be undefined and the optimization will fail.
+  If the returned error or its derivatives are infinity or NaN (i.e. undefined)
+  for the current parameters then the optimizer will not step into this region.
+  If this happens too many times then the optimizer will give up and return
+  a sub optimal result. This can happen in various ways, including
+  @list{
+  @* Using port power or phase when zero power is delivered to the port, e.g.
+     because it is cut off from the excitation by a geometry error.
+  @* Using the @c{Magnitude}, @c{Phase} or @c{Power} functions where the
+     field is zero.
+  @* Using the @c{Pattern} or @c{Directivity} functions without a radiation
+     boundary.
+  }
 
   If @c{config.optimize} is defined it is also called once for each regular
   (non-optimization) run of the script, to help verify the function contains no
