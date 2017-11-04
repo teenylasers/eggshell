@@ -7,7 +7,9 @@
 #   For rama a common way this happens is when using port phase when zero
 #   power is delivered to the port.
 
-@title{Rama @subtitle{v@arg{version}} @author{Evenedric}}
+@title{Rama}
+@subtitle{v@arg{version}}
+@author{Evenedric}
 
 @emph{This is the manual for the Rama simulator. It is a work in progress and
 not all parts have been written!}
