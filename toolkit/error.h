@@ -45,8 +45,20 @@ struct wxErrorHandler : public ErrorHandler {
 
 // CHECK is like assert(), but always runs regardless of debug settings.
 #ifndef CHECK
-#define CHECK(cond) if (!(cond)) \
-  { Panic("Check failed: " #cond ", at %s:%d", __FILE__, __LINE__); }
+#define CHECK_MSG(cond, msg) if (!(cond)) \
+  { Panic("Check failed: %s: " #cond ", at %s:%d", (msg), __FILE__, __LINE__); }
+#define CHECK(cond) CHECK_MSG(cond, "")
+#endif
+
+// DBG_CHECK is like CHECK but is only used in debug builds.
+#ifndef DBG_CHECK
+  #ifdef NDEBUG
+    #define DBG_CHECK_MSG(cond)
+    #define DBG_CHECK(cond)
+  #else
+    #define DBG_CHECK_MSG(cond, msg) CHECK_MSG(cond, msg)
+    #define DBG_CHECK(cond) CHECK(cond)
+  #endif
 #endif
 
 // Convenience macros to help prevent errors.
