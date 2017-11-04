@@ -3,7 +3,10 @@
 #ifndef __TOOLKIT_THREAD_H__
 #define __TOOLKIT_THREAD_H__
 
+#include <functional>
 #include "error.h"
+
+//@@@ replace these with C++11 multithreading features?
 
 #ifdef __TOOLKIT_WXWINDOWS__
   #include <wx/thread.h>
@@ -96,5 +99,9 @@ class MutexLock {
 
 // Catch bug where variable name is omitted, e.g. MutexLock(&mu);
 #define MutexLock(x) COMPILE_ASSERT(0, mutex_lock_decl_missing_var_name)
+
+// Run the function 'fn' from 'n' threads with integer arguments in the range
+// [first..last].
+void ParallelFor(int first, int last, int n, std::function<void(int)> fn);
 
 #endif
