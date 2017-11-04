@@ -259,6 +259,12 @@ class CeresCostFunction : public ceres::CostFunction {
     if (!opt_->impl_->aborting_) {
       for (int i = 0; i < num_residuals(); i++) {
         residuals[i] = ej->errors[i];
+        if (!isfinite(residuals[i])) {
+          // Residuals that are infinite or NaN will return false to ceres,
+          // preventing stepping into this region. Too many such returns will
+          // cause an abort and sub optimal optimization.
+          return false;
+        }
       }
 
       // Supply or compute jacobian, if requested:
@@ -269,6 +275,14 @@ class CeresCostFunction : public ceres::CostFunction {
           if (ej->jacobians.size() != num_params * num_residuals()) {
             Panic("jacobians have size %d but %d*%d expected",
                   (int) ej->jacobians.size(), num_params, num_residuals());
+          }
+          for (int i = 0; i < ej->jacobians.size(); i++) {
+            if (!isfinite(ej->jacobians[i])) {
+              // Residuals that are infinite or NaN will return false to ceres,
+              // preventing stepping into this region. Too many such returns
+              // will cause an abort and sub optimal optimization.
+              return false;
+            }
           }
           memcpy(jacobians[0], ej->jacobians.data(),
                  ej->jacobians.size() * sizeof(ej->jacobians[0]));
