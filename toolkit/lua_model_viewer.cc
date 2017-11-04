@@ -766,11 +766,14 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
           for (int i = 0; i < num_optimize_outputs_; i++) {
             if (optimize_output) {
               JetNum out = lua_tonumber(lua_->L(), top + i);
-              if (!IsFinite(out)) {
-                Error("Return value %d of config.optimize() (or its "
-                      "derivative) is not finite. See the manual for common "
-                      "ways this happens.", i + 1);
-              }
+              // If any infinities or NaNs are returned from config.optimize()
+              // (either values or derivatives) we pass them directly to the
+              // optimizer to deal with. A too-conservative alternative is to
+              // bail, below:
+              //   if (!IsFinite(out)) {
+              //     Error("Return value %d of config.optimize() (or its "
+              //           "derivative) is not finite.", i + 1);
+              //   }
               optimize_output->push_back(out);
             }
           }
