@@ -6,50 +6,35 @@
 using namespace Eigen;
 
 //***************************************************************************
-// GLViewer.
+// GLViewerBase.
 
-BEGIN_EVENT_TABLE(GLViewer, wxGLCanvas)
-  EVT_PAINT(GLViewer::OnPaint)
-  EVT_SIZE(GLViewer::OnSize)
-  EVT_ERASE_BACKGROUND(GLViewer::OnEraseBackground)
-  EVT_MOUSE_EVENTS(GLViewer::OnMouseEvent)
-  EVT_MOUSE_CAPTURE_LOST(GLViewer::OnCaptureLost)
-END_EVENT_TABLE()
-
-GLViewer::GLViewer(wxWindow* parent, wxWindowID id, const wxPoint &pos,
-                   const wxSize &size, long style, int gl_type)
-    : wxGLCanvas(parent, id, gl::GetAttributeList(gl_type), pos, size,
-                 style, "") {
-  gl_type_ = gl_type;
-  context_ = new wxGLContext(this);
+GLViewerBase::GLViewerBase() {
+  have_depth_buffer_ = false;
   camera_ = &cameras_[0];
   allow_rotation_ = true;
   last_x_ = last_y_ = buttons_ = the_button_ = 0;
+  model_pt_ << 0, 0, 0;
   cmd_click_ = false;
 }
 
-GLViewer::~GLViewer() {
-  delete context_;
-}
-
-void GLViewer::SetPerspective(bool perspective) {
+void GLViewerBase::SetPerspective(bool perspective) {
   camera_->perspective = perspective;
-  Refresh();
+  Redraw();
 }
 
-void GLViewer::SetViewAngle(double angle) {
+void GLViewerBase::SetViewAngle(double angle) {
   camera_->view_angle = angle;
-  Refresh();
+  Redraw();
 }
 
-void GLViewer::ZoomExtents() {
+void GLViewerBase::ZoomExtents() {
   double bounds[6];
   GetBoundingBox(bounds);
   camera_->EnsureBoxVisible(bounds, GetAspectRatio());
-  Refresh();
+  Redraw();
 }
 
-void GLViewer::Zoom(double scale_factor) {
+void GLViewerBase::Zoom(double scale_factor) {
   int width, height;
   GetScaledClientSize(&width, &height);
   Vector3d p;
@@ -57,18 +42,18 @@ void GLViewer::Zoom(double scale_factor) {
   Zoom(scale_factor, p);
 }
 
-void GLViewer::Zoom(double scale_factor, Vector3d center) {
+void GLViewerBase::Zoom(double scale_factor, Vector3d center) {
   camera_->Zoom(scale_factor, center);
-  Refresh();
+  Redraw();
 }
 
-void GLViewer::SwitchCamera(int camera_number) {
+void GLViewerBase::SwitchCamera(int camera_number) {
   CHECK(camera_number >= 0 && camera_number < MAX_CAMERAS);
   camera_ = &cameras_[camera_number];
-  Refresh();
+  Redraw();
 }
 
-void GLViewer::Look(Direction direction) {
+void GLViewerBase::Look(Direction direction) {
   // Set the camera direction then ensure the bounding box is visible.
   switch (direction) {
     case LOOK_AT_XY_PLANE_FROM_PLUS_Z:
@@ -111,15 +96,17 @@ void GLViewer::Look(Direction direction) {
   double bounds[6];
   GetBoundingBox(bounds);
   camera_->EnsureBoxVisible(bounds, GetAspectRatio());
-  Refresh();
+  Redraw();
 }
 
-void GLViewer::PixelToModelCoords(int x, int y, Vector3d *model_pt) {
+void GLViewerBase::PixelToModelCoords(int x, int y, Vector3d *model_pt) {
   // Find the model point at x,y. If no model point was found then project the
   // far-clip-plane point returned so that the depth is in the center of the
   // object's bounding volume. This will help the camera adjustment code do
   // sensible things.
-  if (gl_type_ & gl::DepthBuffer) {
+  if (have_depth_buffer_) {
+    MakeOpenGLContextCurrent();         // So reading the depth buffer can work
+
     // A depth buffer is available to compute the full tranformation.
     if (!gl::PixelToModelCoordinates(x, y, gl::Transform(), model_pt)) {
       // x,y is at maximum depth (the far clip plane) so instead assume a depth
@@ -149,8 +136,9 @@ void GLViewer::PixelToModelCoords(int x, int y, Vector3d *model_pt) {
   }
 }
 
-bool GLViewer::ModelToPixelCoords(const Vector3d &model_pt,
-                                  double *px, double *py) {
+bool GLViewerBase::ModelToPixelCoords(const Vector3d &model_pt,
+                                      double *px, double *py) {
+  MakeOpenGLContextCurrent();           // So reading the depth buffer can work
   int width, height;
   GetScaledClientSize(&width, &height);
   Vector3d v;
@@ -163,11 +151,55 @@ bool GLViewer::ModelToPixelCoords(const Vector3d &model_pt,
   return false;
 }
 
-void GLViewer::HandleClick(int x, int y, bool button,
-                           const Vector3d &model_pt) {
+void GLViewerBase::HandleClick(int x, int y, bool button,
+                               const Vector3d &model_pt) {
 }
 
-void GLViewer::HandleDrag(int x, int y, const Vector3d &model_pt) {
+void GLViewerBase::HandleDrag(int x, int y, const Vector3d &model_pt) {
+}
+
+void GLViewerBase::ApplyViewport() {
+  int window_width, window_height;
+  GetScaledClientSize(&window_width, &window_height);
+  glViewport(0, 0, window_width, window_height);
+}
+
+void GLViewerBase::ApplyCameraTransformations(const Matrix4d &M) {
+  double bounds[6];
+  GetBoundingBox(bounds);
+  gl::ApplyTransform(M * camera_->Projection(bounds, GetAspectRatio()),
+                     camera_->ModelView());
+}
+
+double GLViewerBase::GetAspectRatio() {
+  int width, height;
+  GetScaledClientSize(&width, &height);
+  return double(width) / double(height);
+}
+
+//***************************************************************************
+// GLViewer for wxWidgets.
+
+#ifdef __TOOLKIT_WXWINDOWS__
+
+BEGIN_EVENT_TABLE(GLViewer, wxGLCanvas)
+  EVT_PAINT(GLViewer::OnPaint)
+  EVT_SIZE(GLViewer::OnSize)
+  EVT_ERASE_BACKGROUND(GLViewer::OnEraseBackground)
+  EVT_MOUSE_EVENTS(GLViewer::OnMouseEvent)
+  EVT_MOUSE_CAPTURE_LOST(GLViewer::OnCaptureLost)
+END_EVENT_TABLE()
+
+GLViewer::GLViewer(wxWindow* parent, wxWindowID id, const wxPoint &pos,
+                   const wxSize &size, long style, int gl_type)
+    : wxGLCanvas(parent, id, gl::GetAttributeList(gl_type), pos, size,
+                 style, "") {
+  have_depth_buffer_ = gl_type & gl::DepthBuffer;
+  context_ = new wxGLContext(this);
+}
+
+GLViewer::~GLViewer() {
+  delete context_;
 }
 
 void GLViewer::OnPaint(wxPaintEvent &event) {
@@ -200,6 +232,14 @@ void GLViewer::OnPaint(wxPaintEvent &event) {
 
 void GLViewer::OnSize(wxSizeEvent &evt) {
   Refresh();
+}
+
+void GLViewer::Redraw() {
+  Refresh();
+}
+
+void GLViewer::MakeOpenGLContextCurrent() {
+  // Doesn't seem to be necessary on wxWidgets.
 }
 
 void GLViewer::OnEraseBackground(wxEraseEvent &event) {
@@ -408,25 +448,6 @@ void GLViewer::OnCaptureLost(wxMouseCaptureLostEvent &event) {
   // Required to prevent capture handler from complaining.
 }
 
-double GLViewer::GetAspectRatio() {
-  int width, height;
-  GetClientSize(&width, &height);
-  return double(width) / double(height);
-}
-
-void GLViewer::ApplyViewport() {
-  int window_width, window_height;
-  GetScaledClientSize(&window_width, &window_height);
-  glViewport(0, 0, window_width, window_height);
-}
-
-void GLViewer::ApplyCameraTransformations(const Matrix4d &M) {
-  double bounds[6];
-  GetBoundingBox(bounds);
-  gl::ApplyTransform(M * camera_->Projection(bounds, GetAspectRatio()),
-                     camera_->ModelView());
-}
-
 void GLViewer::GetScaledClientSize(int *window_width, int *window_height) {
   GetClientSize(window_width, window_height);
   double scale = GetContentScaleFactor();       // Usually 1 or 2
@@ -435,7 +456,7 @@ void GLViewer::GetScaledClientSize(int *window_width, int *window_height) {
 }
 
 //***************************************************************************
-// GLViewerWithSelection.
+// GLViewerWithSelection for wxWidgets.
 
 GLViewerWithSelection::GLViewerWithSelection(wxWindow* parent, wxWindowID id,
             const wxPoint &pos, const wxSize &size, long style, int gl_type)
@@ -456,3 +477,247 @@ int GLViewerWithSelection::FindObject(int x, int y) {
   DrawForSelection(color_based_selection);
   return color_based_selection.GetSelection();
 }
+
+#endif  // __TOOLKIT_WXWINDOWS__
+
+//***************************************************************************
+// GLViewer for Qt.
+
+#ifdef QT_CORE_LIB
+
+#include "QMouseEvent"
+#include "gl_utils.h"
+
+GLViewer::GLViewer(QWidget *parent) : QOpenGLWidget(parent) {
+  have_depth_buffer_ = (QSurfaceFormat::defaultFormat().depthBufferSize() > 0);
+
+  // Set up event handling.
+  setMouseTracking(true);
+  grabGesture(Qt::PinchGesture);
+}
+
+void GLViewer::mouseDoubleClickEvent(QMouseEvent *event) {
+  MouseEvent(event, false, "d click");
+}
+
+void GLViewer::mouseMoveEvent(QMouseEvent *event) {
+  MouseEvent(event, true, "move   ");
+}
+
+void GLViewer::mousePressEvent(QMouseEvent *event) {
+  MouseEvent(event, false, "press  ");
+}
+
+void GLViewer::mouseReleaseEvent(QMouseEvent *event) {
+  MouseEvent(event, false, "release");
+}
+
+void GLViewer::wheelEvent(QWheelEvent *event) {
+  makeCurrent();                // So reading the depth buffer can work
+
+  double scale = devicePixelRatio();    // Usually 1 or 2
+  PixelToModelCoords(last_x_, last_y_, &model_pt_);
+
+  if (event->source() == Qt::MouseEventNotSynthesized) {
+    // The event comes from an actual wheel on an actual mouse. Use this for
+    // zooming.
+    double r = event->angleDelta().y() * 0.1;
+    camera_->Zoom(pow(2, -r * 0.02), model_pt_);
+  } else {
+    // The event probably comes from a scroll gesture on a touchpad. Use this
+    // for panning.
+    int dx = event->pixelDelta().x();
+    int dy = event->pixelDelta().y();
+    camera_->Pan(-dx*2, dy*2, model_pt_, width() * scale);
+  }
+  update();
+}
+
+void GLViewer::leaveEvent(QEvent *event) {
+  // If we are not dragging and the mouse leaves the window, set the "last
+  // model coordinate" to the center of the window, so that zoom in and out
+  // will operate with respect to the window center.
+  if (buttons_ == 0) {
+    double scale = devicePixelRatio();    // Usually 1 or 2
+    last_x_ = width() * scale / 2;
+    last_y_ = height() * scale / 2;
+  }
+
+  QOpenGLWidget::leaveEvent(event);
+}
+
+void GLViewer::gestureEvent(QGestureEvent *event) {
+  // OS X pinch-to-zoom events.
+  if (QGesture *gesture = event->gesture(Qt::PinchGesture)) {
+    QPinchGesture *pinch = static_cast<QPinchGesture *>(gesture);
+    double scale = pinch->scaleFactor();
+
+    makeCurrent();                // So reading the depth buffer can work
+
+    PixelToModelCoords(last_x_, last_y_, &model_pt_);
+    camera_->Zoom(1.0 / scale, model_pt_);
+    update();
+  }
+}
+
+bool GLViewer::event(QEvent *event)  {
+  if (event->type() == QEvent::Gesture) {
+    gestureEvent(static_cast<QGestureEvent*>(event));
+    return true;
+  }
+  return QOpenGLWidget::event(event);
+}
+
+void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
+                          const char *name) {
+  makeCurrent();                // So reading the depth buffer can work
+
+  // Multiple buttons held down at once have no special UI meaning here. To
+  // prevent confusion for the user (and the code below), once a button is
+  // pressed we ignore the other buttons until all buttons are released. This
+  // prevents us from having to specially handle tricky cases like LeftDown ->
+  // RightDown -> LeftUp -> RightUp, which could otherwise easily result in
+  // inconsistent UI state.
+  int last_the_button = the_button_;
+  if (buttons_ == 0 && event->buttons()) {
+    // No buttons were pressed, then one button was pressed, this will become
+    // "the button" until all buttons are released.
+    the_button_ = event->buttons();   // Will be 1, 2 or 4
+  } else if (event->buttons() == 0) {
+    the_button_ = 0;
+  }
+  buttons_ = event->buttons();
+
+  // The bits in event->modifiers() depend on the OS:
+  //
+  //                      Mac         Windows
+  //                     +-----------+-----------+
+  // Qt::ShiftModifier   |  Shift    |  Shift    |
+  // Qt::ControlModifier |  Command  |  Control  |
+  // Qt::AltModifier     |           |  Alt      |
+  // Qt::MetaModifier    |  Control  |  Windows  |
+  //                     +-----------+-----------+
+#ifdef __APPLE__
+  const int kCtrlBit = Qt::MetaModifier;
+  const int kCmdBit = Qt::ControlModifier;
+#else
+  const int kCtrlBit = Qt::ControlModifier;
+  const int kCmdBit = -1;
+#endif
+
+  // Get window properties.
+  double scale = devicePixelRatio();    // Usually 1 or 2
+
+  // Get mouse position in opengl viewport coordinates (Y inverted from window
+  // coordinates).
+  // @@@ We can possibly get the cursor position to native resolution here.
+  int x = event->x() * scale;
+  int y = (height() - 1 - event->y()) * scale;
+
+  // Compute the delta position since the last mouse event.
+  int dx = x - last_x_;
+  int dy = y - last_y_;
+
+  // Handle events.
+  if (last_the_button == 0 && the_button_) {
+    setFocus();
+
+    // Find the model point that was clicked on.
+    PixelToModelCoords(x, y, &model_pt_);
+
+    // Handle left button clicks in subclass code. On mac, cmd+left click
+    // starts a rotation.
+    cmd_click_ = false;
+    if (the_button_ == Qt::LeftButton) {
+      if (event->modifiers() == kCmdBit) {
+        cmd_click_ = true;
+      } else {
+        HandleClick(x, y, true, model_pt_);
+      }
+    }
+    last_x_ = x;
+    last_y_ = y;
+  }
+  else if (last_the_button == Qt::LeftButton && the_button_ == 0 &&
+          !cmd_click_) {
+    HandleClick(x, y, false, model_pt_);
+  }
+  else if (move_event && buttons_ != 0) {
+    if (the_button_ == Qt::LeftButton && event->modifiers() == 0) {
+      HandleDrag(x, y, model_pt_);
+    } else if (the_button_ == Qt::MidButton) {
+      // Rotating.
+      if (allow_rotation_) {
+        camera_->Trackball(dx / 100.0, dy / 100.0, model_pt_);
+        update();
+      }
+    } else if (the_button_ == Qt::RightButton && event->modifiers() == 0) {
+      // Panning.
+      camera_->Pan(dx, dy, model_pt_, width() * scale);
+      update();
+    } else if (the_button_ == Qt::RightButton &&
+               event->modifiers() == kCtrlBit) {
+      // Zooming.
+      camera_->Zoom(pow(2, -dy / 50.0), model_pt_);
+      update();
+    }
+    last_x_ = x;
+    last_y_ = y;
+  }
+  else if (move_event && buttons_ == 0) {
+    if (cmd_click_) {
+      // Rotating.
+      if (event->modifiers() == kCmdBit) {
+        if (allow_rotation_) {
+          camera_->Trackball(dx / 100.0, dy / 100.0, model_pt_);
+          update();
+        }
+      } else {
+        cmd_click_ = false;
+      }
+    }
+    last_x_ = x;
+    last_y_ = y;
+  }
+}
+
+void GLViewer::Redraw() {
+  update();
+}
+
+void GLViewer::MakeOpenGLContextCurrent() {
+  makeCurrent();
+}
+
+void GLViewer::GetScaledClientSize(int *window_width, int *window_height) {
+  const qreal retinaScale = devicePixelRatio();
+  *window_width = width() * retinaScale;
+  *window_height = height() * retinaScale;
+}
+
+void GLViewer::initializeGL() {
+}
+
+void GLViewer::resizeGL(int w, int h) {
+}
+
+void GLViewer::paintGL() {
+  // Nothing to do if the window is not visible.
+  if(!isVisible()) {
+    return;
+  }
+
+  // Reset GL state.
+  ApplyViewport();
+
+  // Draw everything.
+  Draw();
+
+  // Complain if there were OpenGL errors.
+  int err;
+  while ((err = glGetError()) != GL_NO_ERROR) {
+    Error("GL error %d (%s)", err, gl::ErrorString(err));
+  }
+}
+
+#endif  // QT_CORE_LIB

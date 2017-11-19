@@ -2,14 +2,11 @@
 #ifndef __TOOLKIT_VIEWER_H__
 #define __TOOLKIT_VIEWER_H__
 
-#include "stdwx.h"
 #include "camera.h"
-#include "gl_utils.h"
-#include "color_based_selection.h"
 #include "error.h"
 
-// An opengl canvas window that maintains camera state and allows camera motion
-// via mouse and key commands:
+// An opengl window that maintains camera state and allows camera motion via
+// mouse and key commands:
 //
 //   * Pan: Right button drag, or on a mac trackpad use cmd + two-finger swipe.
 //   * Zoom: Scroll wheel, or ctrl + right button drag, or on a mac use a
@@ -18,12 +15,9 @@
 //     rotation, continue holding down cmd and move the mouse to complete the
 //     rotation.
 
-class GLViewer : public wxGLCanvas {
+class GLViewerBase {
  public:
-  // gl_type is an argument to gl::GetAttributeList().
-  GLViewer(wxWindow* parent, wxWindowID id, const wxPoint &pos,
-           const wxSize &size, long style, int gl_type);
-  ~GLViewer();
+  GLViewerBase();
 
   // The maximum number of independently movable cameras.
   enum { MAX_CAMERAS = 10 };
@@ -108,10 +102,19 @@ class GLViewer : public wxGLCanvas {
                            const Eigen::Vector3d &model_pt);
   virtual void HandleDrag(int x, int y, const Eigen::Vector3d &model_pt);
 
- private:
+  // Trigger a windowing system redraw of the window.
+  virtual void Redraw() = 0;
+
+  // Allow use of OpenGL outside of painting functions.
+  virtual void MakeOpenGLContextCurrent() = 0;
+
+  // Return the OpenGL viewport size in raw pixels not points (e.g. on retina
+  // displays each point can be 2x2 pixels).
+  virtual void GetScaledClientSize(int *window_width, int *window_height) = 0;
+
+ protected:
   // Drawing state.
-  int gl_type_;                         // Saved constructor argument
-  wxGLContext *context_;                // OpenGL context
+  bool have_depth_buffer_;              // Property of current GL context
   Camera cameras_[MAX_CAMERAS];         // All cameras
   Camera *camera_;                      // Current camera, points into cameras_
   bool allow_rotation_;                 // Allow camera rotation
@@ -121,23 +124,42 @@ class GLViewer : public wxGLCanvas {
   Eigen::Vector3d model_pt_;            // Model coords at start of drag
   bool cmd_click_;                      // Cmd + left click mode on a mac?
 
-  // WX event handling.
-  void OnPaint(wxPaintEvent &event);
-  void OnSize(wxSizeEvent &evt);
-  void OnEraseBackground(wxEraseEvent &event);
-  void OnMouseEvent(wxMouseEvent &event);
-  void OnCaptureLost(wxMouseCaptureLostEvent &event);
-
   // Get the current window aspect ratio (width/height).
   double GetAspectRatio();
 
   // Apply the viewport transformation.
   void ApplyViewport();
+};
 
-  // Return the client size scaled by GetContentScaleFactor(). This is only
-  // different from GetClientSize() on OS X, where it returns the window size
-  // in raw pixels not points (e.g. on retina displays each point can be 2x2
-  // pixels).
+//***************************************************************************
+// wxWidgets implementation.
+
+#ifdef __TOOLKIT_WXWINDOWS__
+
+#include "stdwx.h"
+#include "gl_utils.h"
+#include "color_based_selection.h"
+
+class GLViewer : public wxGLCanvas, public GLViewerBase {
+ public:
+  // gl_type is an argument to gl::GetAttributeList().
+  GLViewer(wxWindow* parent, wxWindowID id, const wxPoint &pos,
+           const wxSize &size, long style, int gl_type);
+  ~GLViewer();
+
+ private:
+  // Drawing state.
+  wxGLContext *context_;                // OpenGL context
+
+  // WX event handling and other functionality.
+  void OnPaint(wxPaintEvent &event);
+  void OnSize(wxSizeEvent &evt);
+  void OnEraseBackground(wxEraseEvent &event);
+  void OnMouseEvent(wxMouseEvent &event);
+  void OnCaptureLost(wxMouseCaptureLostEvent &event);
+  void Redraw();
+  void MakeOpenGLContextCurrent() override;
+  // Return the client size scaled by GetContentScaleFactor().
   void GetScaledClientSize(int *window_width, int *window_height);
 
   friend class GLViewerWithSelection;
@@ -162,5 +184,43 @@ class GLViewerWithSelection : public GLViewer {
   // that intersect the much smaller selection frustum.
   virtual void DrawForSelection(const gl::ColorBasedSelection &sel) = 0;
 };
+
+#endif  // __TOOLKIT_WXWINDOWS__
+
+//***************************************************************************
+// Qt implementation.
+
+#ifdef QT_CORE_LIB
+
+#include "qopenglwidget.h"
+#include <QGestureEvent>
+
+class GLViewer : public QOpenGLWidget, public GLViewerBase {
+ public:
+  explicit GLViewer(QWidget *parent);
+
+  // Event handling functions.
+  void mouseDoubleClickEvent(QMouseEvent *event) override;
+  void mouseMoveEvent(QMouseEvent *event) override;
+  void mousePressEvent(QMouseEvent *event) override;
+  void mouseReleaseEvent(QMouseEvent *event) override;
+  void wheelEvent(QWheelEvent *event) override;
+  void leaveEvent(QEvent *event) override;
+  void gestureEvent(QGestureEvent *event);
+  bool event(QEvent *event) override;
+  void MouseEvent(QMouseEvent *event, bool move_event, const char *name);
+
+  //  Overridden virtual functions of GLViewerBase.
+  void Redraw() override;
+  void MakeOpenGLContextCurrent() override;
+  void GetScaledClientSize(int *window_width, int *window_height) override;
+
+ private:
+  void initializeGL() override;
+  void resizeGL(int w, int h) override;
+  void paintGL() override;
+};
+
+#endif  // QT_CORE_LIB
 
 #endif
