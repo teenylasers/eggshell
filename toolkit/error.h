@@ -43,6 +43,14 @@ struct wxErrorHandler : public ErrorHandler {
 };
 #endif
 
+// An error handler for Qt.
+#ifdef QT_CORE_LIB
+// This must be created after the QApplication is constructed.
+struct qtErrorHandler : public ErrorHandler {
+  void HandleError(Type type, const char *msg, va_list ap);
+};
+#endif
+
 // CHECK is like assert(), but always runs regardless of debug settings.
 #ifndef CHECK
 #define CHECK_MSG(cond, msg) if (!(cond)) \

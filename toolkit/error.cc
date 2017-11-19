@@ -185,3 +185,46 @@ void wxErrorHandler::HandleError(ErrorHandler::Type type,
 }
 
 #endif  // __TOOLKIT_WXWINDOWS__
+
+//***************************************************************************
+// qt error handling.
+
+#ifdef QT_CORE_LIB
+
+#include "qmessagebox.h"
+#include "error_window.h"
+
+void qtErrorHandler::HandleError(Type type, const char *msg, va_list ap) {
+  // Create one error window and then use it forever.
+  static ErrorWindow *errwin = 0;
+  if (!errwin) {
+    errwin = new ErrorWindow(0);
+  }
+
+  switch (type) {
+    case ErrorHandler::Error:
+      errwin->VAddLine(msg, ap, ErrorWindow::ERROR);
+      break;
+    case ErrorHandler::Warning:
+      errwin->VAddLine(msg, ap, ErrorWindow::WARNING);
+      break;
+    case ErrorHandler::Message:
+      errwin->VAddLine(msg, ap, ErrorWindow::MESSAGE);
+      break;
+    default: {
+      // Print the error message to stderr first, in case we have lost the
+      // ability to run the gui at this point. Then try to pop up a window,
+      // then exit.
+      char *s;
+      vasprintf(&s, msg, ap);
+      fprintf(stderr, "FATAL ERROR: ");
+      fprintf(stderr, "%s\n", s);
+      fflush(stdout);
+      QMessageBox::critical(0, "Fatal error", s);
+      // See the rationale in DefaultErrorHandler::HandleError() for this:
+      _exit(1);
+    }
+  }
+}
+
+#endif  // QT_CORE_LIB
