@@ -6,6 +6,7 @@
 #include "error.h"
 #include "trace.h"
 #include "platform.h"
+#include "wxgl_font.h"
 
 // Types
 typedef signed char int8;
@@ -43,8 +44,10 @@ template <class T> inline T NormalizeAngle(T a) {
 // Common fonts.
 
 // Some useful fonts, to be passed as arguments to DrawString().
-class wxFont;
-extern const wxFont *port_number_font, *s_parameter_font, *mesh_statistics_font;
+extern Font port_number_font;
+extern Font s_parameter_font;
+extern Font mesh_statistics_font;
+extern Font debug_string_font;
 
 void CreateStandardFonts(double content_scale_factor);
 

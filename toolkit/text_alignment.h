@@ -15,9 +15,10 @@ enum TextAlignment {
 // Given the width, height and descent of a text box, with x,y as the
 // coordinates of the reference point described by halign,valign, adjust x,y so
 // that it refers to the top left of the text box (or the bottom left, if
-// rotated). This is helpful to some implementations of text drawing functions.
-// The 'height' is the the total height of the rendered text box, the 'descent'
-// is the height between the bottom of that box and the baseline of the text.
+// rotated). Y coordinates increase going up. This is helpful to some
+// implementations of text drawing functions. The 'height' is the the total
+// height of the rendered text box, the 'descent' is the height between the
+// bottom of that box and the baseline of the text.
 
 inline void AlignText(double width, double height, double descent,
                       TextAlignment halign, TextAlignment valign,

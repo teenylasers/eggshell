@@ -727,7 +727,7 @@ void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
             char s[100];
             snprintf(s, sizeof(s), " %d ", pnum);
             DrawStringM(s, (x1 + x2)/2, (y1 + y2)/2, 0, camera_transform,
-                *port_number_font,
+                &port_number_font, 0,0,0,
                 (y1 < y2) ? TEXT_ALIGN_LEFT : TEXT_ALIGN_RIGHT,
                 (x1 < x2) ? TEXT_ALIGN_TOP : TEXT_ALIGN_BOTTOM);
           }

@@ -25,6 +25,9 @@ const int kMarkerSize = 5;
 extern "C" char user_script_util_dot_lua;
 extern "C" int user_script_util_dot_lua_length;
 
+// Externally defined font.
+extern Font debug_string_font;
+
 //***************************************************************************
 // Lua support.
 
@@ -360,7 +363,6 @@ LuaModelViewer::LuaModelViewer(wxWindow* parent, wxWindowID id,
   num_optimize_outputs_ = 0;
   in_rerun_script_ = false;
   emit_trace_report_ = false;
-  debug_string_font_ = 0;
   plot_type_ = 0;
   script_messages_ = 0;
   aui_notebook_ = 0;
@@ -1077,12 +1079,6 @@ void LuaModelViewer::ExportPlotMatlab(const char *filename) {
 void LuaModelViewer::Draw() {
   Trace trace(__func__);
 
-  if (!debug_string_font_) {
-    double scale = GetContentScaleFactor() * FONT_SCALE;
-    debug_string_font_ = new wxFont(10 * scale, wxFONTFAMILY_SWISS,
-                                    wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
-  }
-
   // Clear the buffer.
   if (IsModelValid()) {
     glClearColor(1, 1, 1, 0);
@@ -1119,14 +1115,15 @@ void LuaModelViewer::Draw() {
     }
   }
 
-  // Draw the debug text.
+  glUseProgram(0);
+
+  // Draw all strings.
   Eigen::Matrix4d T = gl::Transform();
   for (const auto &dt : debug_text_) {
     DrawStringM(dt.text.c_str(), dt.x, dt.y, 0, T,
-                *debug_string_font_, dt.halign, dt.valign);
+                &debug_string_font, 0,0,0, dt.halign, dt.valign);
   }
-
-  glUseProgram(0);
+  RenderDrawStrings(this);
 }
 
 void LuaModelViewer::HandleClick(int x, int y, bool button,

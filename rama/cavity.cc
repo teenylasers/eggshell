@@ -253,7 +253,7 @@ void Cavity::DrawModel() {
                    i + 1, 10*log10(ToDouble(abs(power[i]))),
                    ToDouble(arg(power[i])) * 180.0 / M_PI);
           DrawString(s, 10*scale, window_height - (10 + 20*i)*scale,
-                     *s_parameter_font, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
+                     &s_parameter_font, 0,0,0, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
         }
       }
     } else if (config_.TypeIsWaveguideMode()) {
@@ -266,7 +266,7 @@ void Cavity::DrawModel() {
           char s[100];
           snprintf(s, sizeof(s), "F%d = %.2f %cHz", i, F / mag, prefix);
           DrawString(s, 10*scale, window_height - (10 + 20*i)*scale,
-                     *s_parameter_font, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
+                     &s_parameter_font, 0,0,0, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
         }
       }
     }

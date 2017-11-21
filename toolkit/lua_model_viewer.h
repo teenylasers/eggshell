@@ -208,7 +208,6 @@ class LuaModelViewer : public GLViewer {
   int num_optimize_outputs_;            // Num values returned by optimize()
   bool in_rerun_script_;                // If RerunScript() is running
   bool emit_trace_report_;              // If printing trace report when idle
-  wxFont *debug_string_font_;
   int plot_type_;                       // Given to SelectPlot()
 
   // Connections to external controls.

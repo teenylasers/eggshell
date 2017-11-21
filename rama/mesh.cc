@@ -467,7 +467,7 @@ void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
   char s[100];
   snprintf(s, sizeof(s), "%d triangles, %d points",
            (int) triangles_.size(), (int) points_.size());
-  DrawString(s, 10, 10, *mesh_statistics_font);
+  DrawString(s, 10, 10, &mesh_statistics_font, 0,0,0);
 
   // Debug rendering. Highlight special edge kinds (e.g. ports, ABCs).
   if (kDebugMesh) {
@@ -499,7 +499,7 @@ void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
                  ToDouble(points_[it.pindex2()].p[0])) / 2,
                 (ToDouble(points_[it.pindex1()].p[1]) +
                  ToDouble(points_[it.pindex2()].p[1])) / 2, 0, camera_transform,
-                *port_number_font, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER);
+                &port_number_font, 0,0,0, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER);
       }
     }
     gl::DrawThick(10, 10, false, [&]() {
