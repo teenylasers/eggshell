@@ -71,7 +71,8 @@ class GLViewerBase {
   // buffer is available then PixelToModelCoords() chooses a depth to get a
   // model z coordinate of zero. This generally only makes sense with an
   // orthographic camera. ModelToPixelCoords() returns false if the resulting
-  // pixel/depth is outside the view frustum.
+  // pixel/depth is outside the view frustum, but in that case it will still
+  // try to return useful coordinates.
   void PixelToModelCoords(int x, int y, Eigen::Vector3d *model_pt);
   bool ModelToPixelCoords(const Eigen::Vector3d &model_pt,
                           double *px, double *py);

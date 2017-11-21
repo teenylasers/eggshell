@@ -143,9 +143,9 @@ bool GLViewerBase::ModelToPixelCoords(const Vector3d &model_pt,
   GetScaledClientSize(&width, &height);
   Vector3d v;
   gl::ModelToPixelCoordinates(model_pt, gl::Transform(), &v);
+  *px = v[0];
+  *py = v[1];
   if (v[0] >= 0 && v[0] <= width && v[1] >= 0 && v[1] <= height && v[2] > 0) {
-    *px = v[0];
-    *py = v[1];
     return true;
   }
   return false;
