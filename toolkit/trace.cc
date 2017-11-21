@@ -1,9 +1,8 @@
 
-#include "stdwx.h"
 #include "trace.h"
 #include "thread.h"
 #include "mystring.h"
-#include <myvector>
+#include "myvector"
 
 using std::vector;
 
@@ -12,8 +11,21 @@ using std::vector;
 
 #undef Trace
 
-static Mutex trace_mutex;               // Protects variables below
+#ifdef __TOOLKIT_WXWINDOWS__
+#include "stdwx.h"
 static wxStopWatch stopwatch;
+#define STOPWATCH_START stopwatch.Start();
+#define STOPWATCH_MICROSECONDS (stopwatch.TimeInMicro().ToLong())
+#endif
+
+#ifdef QT_CORE_LIB
+#include <QElapsedTimer>
+static QElapsedTimer stopwatch;
+#define STOPWATCH_START stopwatch.start();
+#define STOPWATCH_MICROSECONDS (stopwatch.nsecsElapsed() / 1000)
+#endif
+
+static Mutex trace_mutex;               // Protects variables below
 struct TraceInfo {                      // Information for each trace object
   const char *what;                     // Description of trace object
   long time_us;                         // Time taken, not counting sub levels
@@ -26,7 +38,7 @@ static int trace_level;                 // Current 'indent' level
 
 void TraceStart() {
   MutexLock lock(&trace_mutex);
-  stopwatch.Start();
+  STOPWATCH_START
   trace.clear();
   trace_level = 0;
 }
@@ -36,7 +48,7 @@ Trace::Trace(const char *what) {
   slot_ = trace.size();
   trace.resize(trace.size() + 1);
   trace.back().what = what;
-  trace.back().total_time_us = stopwatch.TimeInMicro().ToLong();
+  trace.back().total_time_us = STOPWATCH_MICROSECONDS;
   trace.back().time_us = 0;
   trace.back().level = trace_level;
   trace.back().finalized = false;       // total_time_us is just start time
@@ -49,7 +61,7 @@ Trace::~Trace() {
   CHECK(trace_level >= 0);
   CHECK(slot_ < trace.size());  // Likely TraceStart() while trace objects live
   // Compute total time taken.
-  trace[slot_].total_time_us = stopwatch.TimeInMicro().ToLong() -
+  trace[slot_].total_time_us = STOPWATCH_MICROSECONDS -
                                trace[slot_].total_time_us;
   trace[slot_].finalized = true;
   // To compute time_us, subtract the time taken by other trace objects
