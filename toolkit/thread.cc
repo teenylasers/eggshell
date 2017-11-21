@@ -43,6 +43,8 @@ void *Thread::Wait() {
   return retval;
 }
 
+#endif  // not defined: __TOOLKIT_WXWINDOWS__
+
 //***************************************************************************
 // Parallel for loops.
 
@@ -90,5 +92,3 @@ void ParallelFor(int first, int last, int n, std::function<void(int)> fn) {
     delete threads[i];
   }
 }
-
-#endif
