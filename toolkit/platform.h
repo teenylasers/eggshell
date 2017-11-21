@@ -5,7 +5,7 @@
 #define __TOOLKIT_PLATFORM_H__
 
 // Printf format specifier for size_t
-#ifdef __WXMSW__
+#if defined(__WXMSW__) || defined(Q_OS_WIN)
   #define PRINTF_SIZET "%Id"
 #else
   #define PRINTF_SIZET "%zd"

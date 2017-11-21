@@ -23,7 +23,8 @@ namespace gl {
 // GL static libraries only supply functions up to OpenGL 1.1 but the
 // underlying DLLs support much more recent OpenGL versions.
 
-#ifdef __WXMSW__
+#if defined(__WXMSW__) || defined(Q_OS_WIN)
+//@@@ Qt has a much better mechanism for dealing with this ... use it!
 
 static void *GetGLFunctionAddress(const char *name) {
   // See https://www.opengl.org/wiki/Load_OpenGL_Functions

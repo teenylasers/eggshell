@@ -10,7 +10,7 @@
 // Include OpenGL headers.
 #if defined __APPLE__
   #include <OpenGL/gl3.h>
-#elif defined __WXMSW__
+#elif defined(__WXMSW__) || defined(Q_OS_WIN)
   // Windows.
   #define GL_GLEXT_PROTOTYPES
   #include <GL/gl.h>

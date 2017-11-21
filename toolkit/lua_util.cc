@@ -46,7 +46,7 @@ int LuaError(lua_State *L, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
 
-  #ifdef __WXMSW__
+  #if defined(__WXMSW__) || defined(Q_OS_WIN)
     // Windows specific:
     int count = _vscprintf(fmt, ap) + 1;
     char *buffer = new char[count];
