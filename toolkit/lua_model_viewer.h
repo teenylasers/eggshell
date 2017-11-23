@@ -52,8 +52,7 @@ struct DebugText {
 
 class LuaModelViewer : public GLViewer {
  public:
-  LuaModelViewer(wxWindow* parent, wxWindowID id, const wxPoint &pos,
-         const wxSize &size, long style, int gl_type);
+  LuaModelViewer(wxWindow* parent, int gl_type);
   ~LuaModelViewer();
 
   // wx event handling.

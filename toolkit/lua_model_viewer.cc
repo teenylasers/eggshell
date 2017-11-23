@@ -354,10 +354,8 @@ BEGIN_EVENT_TABLE(LuaModelViewer, GLViewer)
   EVT_COMMAND(wxID_ANY, SCRIPT_MSG_EVENT, LuaModelViewer::OnScriptMessage)
 END_EVENT_TABLE()
 
-LuaModelViewer::LuaModelViewer(wxWindow* parent, wxWindowID id,
-                               const wxPoint &pos, const wxSize &size,
-                               long style, int gl_type)
-    : GLViewer(parent, id, pos, size, style, gl_type) {
+LuaModelViewer::LuaModelViewer(wxWindow* parent, int gl_type)
+    : GLViewer(parent, gl_type) {
   dragging_marker_ = -1;
   lua_ = 0;
   num_optimize_outputs_ = 0;
