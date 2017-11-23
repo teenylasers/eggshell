@@ -40,7 +40,6 @@
 
 #include "clipper.h"
 #include <cmath>
-#include <myvector>
 #include <algorithm>
 #include <stdexcept>
 #include <cstring>

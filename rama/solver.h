@@ -5,12 +5,12 @@
 #define __SOLVER_H__
 
 #include <string.h>
-#include <myvector>
+#include "../toolkit/myvector"
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 #include "shape.h"
 #include "mesh.h"
-#include "colormaps.h"
+#include "../toolkit/colormaps.h"
 
 using std::vector;
 

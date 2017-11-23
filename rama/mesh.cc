@@ -5,11 +5,11 @@
 #include <map>
 #include "common.h"
 #include "mesh.h"
-#include "gl_utils.h"
-#include "wxgl_font.h"
-#include "colormaps.h"
-#include "testing.h"
-#include "shaders.h"
+#include "../toolkit/gl_utils.h"
+#include "../toolkit/wxgl_font.h"
+#include "../toolkit/colormaps.h"
+#include "../toolkit/testing.h"
+#include "../toolkit/shaders.h"
 extern "C" {
   #include "triangle.h"
 }

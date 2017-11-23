@@ -3,10 +3,10 @@
 #define __COMMON_H__
 
 #include <complex>
-#include "error.h"
-#include "trace.h"
-#include "platform.h"
-#include "wxgl_font.h"
+#include "../toolkit/error.h"
+#include "../toolkit/trace.h"
+#include "../toolkit/platform.h"
+#include "../toolkit/wxgl_font.h"
 
 // Types
 typedef signed char int8;

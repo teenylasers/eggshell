@@ -29,8 +29,7 @@ END_EVENT_TABLE()
 
 Cavity::Cavity(wxWindow* parent, wxWindowID id, const wxPoint &pos,
                const wxSize &size, long style)
-    : LuaModelViewer(parent, id, pos, size, style,
-                     gl::DoubleBuffer | gl::MultiSampleBuffer),
+    : LuaModelViewer(parent, gl::DoubleBuffer | gl::MultiSampleBuffer),
       animation_timer_(this, ANIMATION_TIMER_ID) {
   antenna_pattern_plot_ = 0;
   valid_ = false;

@@ -2,15 +2,15 @@
 #ifndef __SHAPE_H__
 #define __SHAPE_H__
 
-#include <myvector>
-#include "lua_util.h"
+#include "../toolkit/myvector"
+#include "../toolkit/lua_util.h"
 #include "common.h"
 #include "clipper.h"
 #include "edge_type.h"
 #include "Eigen/Dense"
 #include "Eigen/Geometry"
 #include "my_jet.h"
-#include "lua_vector.h"
+#include "../toolkit/lua_vector.h"
 
 using std::vector;
 

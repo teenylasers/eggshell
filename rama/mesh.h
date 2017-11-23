@@ -3,8 +3,8 @@
 #define __MESH_H__
 
 #include "shape.h"
-#include "lua_util.h"
-#include "colormaps.h"
+#include "../toolkit/lua_util.h"
+#include "../toolkit/colormaps.h"
 #include <map>
 
 class Mesh {

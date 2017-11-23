@@ -1,13 +1,11 @@
 
-#include "stdwx.h"
 #include "solver.h"
-#include "gl_utils.h"
-#include "wxgl_font.h"
-#include "matlab_engine.h"
-#include "mat_file.h"
-#include "testing.h"
-#include "femsolver.h"
-#include "shaders.h"
+#include "../toolkit/gl_utils.h"
+#include "../toolkit/wxgl_font.h"
+#include "../toolkit/mat_file.h"
+#include "../toolkit/testing.h"
+#include "../toolkit/femsolver.h"
+#include "../toolkit/shaders.h"
 
 const double kSpeedOfLight = 299792458;         // m/s
 const int kFarFieldPoints = 500;                // Pattern points to compute

@@ -49,7 +49,7 @@
 //use_deprecated: Enables temporary support for the obsolete functions
 //#define use_deprecated
 
-#include <myvector>
+#include "../toolkit/myvector"
 #include <list>
 #include <set>
 #include <stdexcept>
