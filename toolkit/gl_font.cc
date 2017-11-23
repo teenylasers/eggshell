@@ -1,7 +1,7 @@
 
 #define GL_FONT_IMPLEMENTATION
 
-#include "wxgl_font.h"
+#include "gl_font.h"
 #include "error.h"
 #include "gl_utils.h"
 #include "shaders.h"

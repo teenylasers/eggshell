@@ -144,8 +144,8 @@ class GLViewerBase {
 class GLViewer : public wxGLCanvas, public GLViewerBase {
  public:
   // gl_type is an argument to gl::GetAttributeList().
-  GLViewer(wxWindow* parent, wxWindowID id, const wxPoint &pos,
-           const wxSize &size, long style, int gl_type);
+  typedef wxWindow ParentType;
+  GLViewer(ParentType* parent, int gl_type);
   ~GLViewer();
 
  private:
@@ -169,8 +169,7 @@ class GLViewer : public wxGLCanvas, public GLViewerBase {
 
 class GLViewerWithSelection : public GLViewer {
  public:
-  GLViewerWithSelection(wxWindow* parent, wxWindowID id, const wxPoint &pos,
-                        const wxSize &size, long style, int gl_type);
+  GLViewerWithSelection(wxWindow* parent, int gl_type);
   ~GLViewerWithSelection();
 
  protected:
@@ -198,7 +197,8 @@ class GLViewerWithSelection : public GLViewer {
 
 class GLViewer : public QOpenGLWidget, public GLViewerBase {
  public:
-  explicit GLViewer(QWidget *parent);
+  typedef QWidget ParentType;
+  explicit GLViewer(ParentType *parent);
 
   // Event handling functions.
   void mouseDoubleClickEvent(QMouseEvent *event) override;

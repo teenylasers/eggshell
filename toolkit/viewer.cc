@@ -190,10 +190,10 @@ BEGIN_EVENT_TABLE(GLViewer, wxGLCanvas)
   EVT_MOUSE_CAPTURE_LOST(GLViewer::OnCaptureLost)
 END_EVENT_TABLE()
 
-GLViewer::GLViewer(wxWindow* parent, wxWindowID id, const wxPoint &pos,
-                   const wxSize &size, long style, int gl_type)
-    : wxGLCanvas(parent, id, gl::GetAttributeList(gl_type), pos, size,
-                 style, "") {
+GLViewer::GLViewer(ParentType* parent, int gl_type)
+    : wxGLCanvas(parent, wxID_ANY, gl::GetAttributeList(gl_type),
+                 wxDefaultPosition, wxDefaultSize,
+                 wxNO_BORDER|wxCLIP_CHILDREN|wxTAB_TRAVERSAL) {
   have_depth_buffer_ = gl_type & gl::DepthBuffer;
   context_ = new wxGLContext(this);
 }
@@ -458,9 +458,8 @@ void GLViewer::GetScaledClientSize(int *window_width, int *window_height) {
 //***************************************************************************
 // GLViewerWithSelection for wxWidgets.
 
-GLViewerWithSelection::GLViewerWithSelection(wxWindow* parent, wxWindowID id,
-            const wxPoint &pos, const wxSize &size, long style, int gl_type)
-    : GLViewer(parent, id, pos, size, style, gl_type) {
+GLViewerWithSelection::GLViewerWithSelection(wxWindow* parent, int gl_type)
+    : GLViewer(parent, gl_type) {
 }
 
 GLViewerWithSelection::~GLViewerWithSelection() {

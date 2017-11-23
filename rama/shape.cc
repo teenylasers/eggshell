@@ -6,7 +6,7 @@
 #include "mesh.h"
 #include "../toolkit/gl_utils.h"
 #include "../toolkit/shaders.h"
-#include "../toolkit/wxgl_font.h"
+#include "../toolkit/gl_font.h"
 #include "../toolkit/testing.h"
 
 using ClipperLib::IntPoint;

@@ -22,7 +22,7 @@
 #include "aboutwin.h"
 #include "sweep.h"
 #include "../cavity.h"
-#include "../../toolkit/plot_wx.h"
+#include "../../toolkit/plot_gui.h"
 #include "../version.h"
 #include "../../toolkit/optimizer.h"
 

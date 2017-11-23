@@ -2,7 +2,7 @@
 #ifndef __CAVITY_H__
 #define __CAVITY_H__
 
-#include "lua_model_viewer.h"
+#include "lua_model_viewer_wx.h"
 #include "shape.h"
 #include "solver.h"
 

@@ -6,7 +6,7 @@
 #include "../toolkit/error.h"
 #include "../toolkit/trace.h"
 #include "../toolkit/platform.h"
-#include "../toolkit/wxgl_font.h"
+#include "../toolkit/gl_font.h"
 
 // Types
 typedef signed char int8;

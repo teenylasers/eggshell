@@ -1,7 +1,7 @@
 
 #include "solver.h"
 #include "../toolkit/gl_utils.h"
-#include "../toolkit/wxgl_font.h"
+#include "../toolkit/gl_font.h"
 #include "../toolkit/mat_file.h"
 #include "../toolkit/testing.h"
 #include "../toolkit/femsolver.h"

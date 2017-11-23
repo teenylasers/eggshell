@@ -1,5 +1,5 @@
 
-#include "plot_wx.h"
+#include "plot_gui.h"
 #include "error.h"
 #include <math.h>
 

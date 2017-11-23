@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <string>
 #include <stdint.h>
-#include "lua_model_viewer.h"
-#include "wxgl_font.h"
-#include "plot_wx.h"
+#include "lua_model_viewer_wx.h"
+#include "gl_font.h"
+#include "plot_gui.h"
 #include "lua_vector.h"
 #include "mystring.h"
 #include "mat_file.h"
