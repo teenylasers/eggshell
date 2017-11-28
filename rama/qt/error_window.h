@@ -29,12 +29,13 @@ private slots:
   void AddLine(QString s, int type);
 
   void on_ok_button_clicked();
-
   void on_copy_to_clipboard_button_clicked();
 
 private:
   Ui::ErrorWindow *ui;
   QIcon error_icon_, warning_icon_;
+
+  void ShowAndRaise();
 };
 
 #endif // ERROR_WINDOW_H

@@ -1,0 +1,1019 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1000</width>
+    <height>700</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Rama</string>
+  </property>
+  <property name="autoFillBackground">
+   <bool>false</bool>
+  </property>
+  <property name="documentMode">
+   <bool>false</bool>
+  </property>
+  <property name="tabShape">
+   <enum>QTabWidget::Rounded</enum>
+  </property>
+  <property name="dockOptions">
+   <set>QMainWindow::AllowNestedDocks|QMainWindow::AllowTabbedDocks|QMainWindow::AnimatedDocks</set>
+  </property>
+  <property name="unifiedTitleAndToolBarOnMac">
+   <bool>false</bool>
+  </property>
+  <widget class="QWidget" name="centralWidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
+    <item>
+     <widget class="QScrollArea" name="scrollArea">
+      <property name="widgetResizable">
+       <bool>true</bool>
+      </property>
+      <widget class="QWidget" name="left_pane">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>290</width>
+         <height>640</height>
+        </rect>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,1">
+        <property name="leftMargin">
+         <number>5</number>
+        </property>
+        <property name="topMargin">
+         <number>5</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <layout class="QHBoxLayout" name="current_model_layout">
+          <item>
+           <widget class="QLabel" name="current_model_label">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Current model:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="current_model">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Maximum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="reload_resets_parameters">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Reload resets parameters to script defaults</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Line" name="line">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="parameter_pane" native="true"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1000</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionOpen"/>
+    <addaction name="actionReload"/>
+    <addaction name="actionAutoRun"/>
+    <addaction name="separator"/>
+    <addaction name="actionExportBoundaryDXF"/>
+    <addaction name="actionExportBoundaryXY"/>
+    <addaction name="actionExportFieldAsMatlab"/>
+    <addaction name="actionExportPlotAsMatlab"/>
+    <addaction name="separator"/>
+    <addaction name="actionQuit"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionCopyParameters"/>
+   </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <widget class="QMenu" name="menuShow_boundary">
+     <property name="title">
+      <string>Show boundary</string>
+     </property>
+     <addaction name="actionViewLinesAndPorts"/>
+     <addaction name="actionViewVertices"/>
+     <addaction name="actionViewVertexDerivatives"/>
+    </widget>
+    <widget class="QMenu" name="menuDebugging">
+     <property name="title">
+      <string>Debugging</string>
+     </property>
+     <addaction name="actionEmitTrace"/>
+    </widget>
+    <addaction name="actionZoomExtents"/>
+    <addaction name="actionZoomIn"/>
+    <addaction name="actionZoomOut"/>
+    <addaction name="separator"/>
+    <addaction name="menuShow_boundary"/>
+    <addaction name="actionShowGrid"/>
+    <addaction name="actionShowMarkers"/>
+    <addaction name="actionAntialiasing"/>
+    <addaction name="separator"/>
+    <addaction name="menuDebugging"/>
+   </widget>
+   <widget class="QMenu" name="menuSolve">
+    <property name="title">
+     <string>Solve</string>
+    </property>
+    <widget class="QMenu" name="menuSelect_optimizer">
+     <property name="title">
+      <string>Select optimizer</string>
+     </property>
+     <addaction name="actionSelectLevenbergMarquardt"/>
+     <addaction name="actionSelectSubspaceDogleg"/>
+    </widget>
+    <addaction name="actionSweep"/>
+    <addaction name="menuSelect_optimizer"/>
+    <addaction name="actionStartOptimization"/>
+    <addaction name="separator"/>
+    <addaction name="actionStopSweepOrOptimization"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionRamaManual"/>
+    <addaction name="actionRamaWebsite"/>
+    <addaction name="actionLuaManual"/>
+    <addaction name="actionCheckForLatestVersion"/>
+    <addaction name="actionAbout"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuView"/>
+   <addaction name="menuSolve"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusBar"/>
+  <widget class="QDockWidget" name="dock_model">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Model</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents">
+    <layout class="QVBoxLayout" name="verticalLayout_3" stretch="0,1">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QWidget" name="controls_container" native="true">
+       <property name="minimumSize">
+        <size>
+         <width>200</width>
+         <height>0</height>
+        </size>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_4">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0,0,0,0,0,0,0,0,1">
+          <property name="spacing">
+           <number>-1</number>
+          </property>
+          <property name="sizeConstraint">
+           <enum>QLayout::SetDefaultConstraint</enum>
+          </property>
+          <property name="leftMargin">
+           <number>10</number>
+          </property>
+          <property name="rightMargin">
+           <number>10</number>
+          </property>
+          <item>
+           <widget class="QComboBox" name="mesh_type">
+            <item>
+             <property name="text">
+              <string>Hide mesh</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Show mesh</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Dielectric Re</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Dielectric Im</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Dielectric Abs</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="show_field">
+            <property name="text">
+             <string>Field</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="animate">
+            <property name="text">
+             <string>Animate</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="display_style_Ez">
+            <item>
+             <property name="text">
+              <string>Ez amplitude and phase</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Ez max amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>H &amp; Jsurf amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Vector Jsurf</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Vector H</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Poynting vector</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="display_style_Exy">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="frame">
+             <bool>true</bool>
+            </property>
+            <item>
+             <property name="text">
+              <string>Hz amplitude and phase</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Hz max amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>[Ex,Ey] max amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Rotated vector E</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Vector E, Jsurf</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Poynting vector</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="display_style_TM">
+            <item>
+             <property name="text">
+              <string>Ez</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Ez amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>[Ex,Ey] amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>[Ex,Ey]</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>[Hx,Hy]</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="display_style_TE">
+            <item>
+             <property name="text">
+              <string>Hz</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Hz amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>[Hx,Hy] amplitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>[Hx,Hy]</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>[Ex,Ey]</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="mode_label">
+            <property name="text">
+             <string>Mode</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="mode_number"/>
+          </item>
+          <item>
+           <widget class="QComboBox" name="color_map">
+            <item>
+             <property name="text">
+              <string>Color Jet</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Color Hot</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Color Gray</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Color HSV</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Color Bone</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Color Copper</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Color Wheel</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="brightness_label">
+            <property name="text">
+             <string>Brightness:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="brightness">
+            <property name="minimumSize">
+             <size>
+              <width>50</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximum">
+             <number>1000</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+            <property name="pageStep">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>500</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="invertedAppearance">
+             <bool>false</bool>
+            </property>
+            <property name="invertedControls">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="Cavity" name="model" native="true">
+       <property name="autoFillBackground">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="dock_plot">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Plot</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_2">
+    <layout class="QVBoxLayout" name="verticalLayout_5">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="qtPlot" name="plot" native="true">
+       <widget class="QComboBox" name="plot_type">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>141</width>
+          <height>26</height>
+         </rect>
+        </property>
+        <item>
+         <property name="text">
+          <string>Magnitude</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Phase</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Group delay</string>
+         </property>
+        </item>
+       </widget>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="dock_antenna">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Antenna</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_3">
+    <layout class="QVBoxLayout" name="verticalLayout_7">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="qtPlot" name="antenna_plot" native="true">
+       <widget class="QCheckBox" name="antenna_show">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>71</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Show</string>
+        </property>
+       </widget>
+       <widget class="QCheckBox" name="antenna_scale_max">
+        <property name="geometry">
+         <rect>
+          <x>90</x>
+          <y>10</y>
+          <width>171</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Scale max to 0dB</string>
+        </property>
+       </widget>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="dock_script_messages">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Script messages</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_4">
+    <layout class="QVBoxLayout" name="verticalLayout_6" stretch="0,1">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <property name="sizeConstraint">
+      <enum>QLayout::SetDefaultConstraint</enum>
+     </property>
+     <property name="leftMargin">
+      <number>5</number>
+     </property>
+     <property name="topMargin">
+      <number>5</number>
+     </property>
+     <property name="rightMargin">
+      <number>5</number>
+     </property>
+     <property name="bottomMargin">
+      <number>5</number>
+     </property>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <property name="sizeConstraint">
+        <enum>QLayout::SetDefaultConstraint</enum>
+       </property>
+       <item>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="copy_to_clipboard">
+         <property name="autoFillBackground">
+          <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>Copy to clipboard</string>
+         </property>
+         <property name="default">
+          <bool>false</bool>
+         </property>
+         <property name="flat">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="QListWidget" name="script_messages">
+       <property name="frameShadow">
+        <enum>QFrame::Sunken</enum>
+       </property>
+       <property name="editTriggers">
+        <set>QAbstractItemView::NoEditTriggers</set>
+       </property>
+       <property name="showDropIndicator" stdset="0">
+        <bool>false</bool>
+       </property>
+       <property name="selectionMode">
+        <enum>QAbstractItemView::NoSelection</enum>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>16</width>
+         <height>16</height>
+        </size>
+       </property>
+       <property name="uniformItemSizes">
+        <bool>true</bool>
+       </property>
+       <item>
+        <property name="text">
+         <string>Messages from script execution will go here.</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <action name="actionOpen">
+   <property name="text">
+    <string>Open model...</string>
+   </property>
+   <property name="toolTip">
+    <string>Open a .lua model file</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionReload">
+   <property name="text">
+    <string>Reload model</string>
+   </property>
+   <property name="toolTip">
+    <string>Reload the current model</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+R</string>
+   </property>
+  </action>
+  <action name="actionAutoRun">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto-run model on change</string>
+   </property>
+   <property name="toolTip">
+    <string>Auto-run model on an change in the .lua file</string>
+   </property>
+  </action>
+  <action name="actionExportBoundaryDXF">
+   <property name="text">
+    <string>Export boundary as DXF...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionExportBoundaryXY">
+   <property name="text">
+    <string>Export boundary as x,y list...</string>
+   </property>
+  </action>
+  <action name="actionExportFieldAsMatlab">
+   <property name="text">
+    <string>Export field as matlab data...</string>
+   </property>
+  </action>
+  <action name="actionExportPlotAsMatlab">
+   <property name="text">
+    <string>Export plot as matlab data...</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="text">
+    <string>Quit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
+   </property>
+  </action>
+  <action name="actionCopyParameters">
+   <property name="text">
+    <string>Copy parameters to clipboard</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+C</string>
+   </property>
+  </action>
+  <action name="actionZoomExtents">
+   <property name="text">
+    <string>Zoom to extents</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Z</string>
+   </property>
+  </action>
+  <action name="actionZoomIn">
+   <property name="text">
+    <string>Zoom in</string>
+   </property>
+   <property name="shortcut">
+    <string>PgDown</string>
+   </property>
+  </action>
+  <action name="actionZoomOut">
+   <property name="text">
+    <string>Zoom out</string>
+   </property>
+   <property name="shortcut">
+    <string>PgUp</string>
+   </property>
+  </action>
+  <action name="actionViewLinesAndPorts">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Lines and ports</string>
+   </property>
+   <property name="toolTip">
+    <string>View lines and ports</string>
+   </property>
+  </action>
+  <action name="actionViewVertices">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Vertices</string>
+   </property>
+   <property name="toolTip">
+    <string>View vertices</string>
+   </property>
+  </action>
+  <action name="actionViewVertexDerivatives">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Vertex derivatives w.r.t. first checked parameter</string>
+   </property>
+  </action>
+  <action name="actionShowGrid">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show grid</string>
+   </property>
+  </action>
+  <action name="actionShowMarkers">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show markers</string>
+   </property>
+  </action>
+  <action name="actionAntialiasing">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Antialiasing</string>
+   </property>
+  </action>
+  <action name="actionEmitTrace">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Emit trace report to stdout</string>
+   </property>
+  </action>
+  <action name="actionSweep">
+   <property name="text">
+    <string>Sweep</string>
+   </property>
+  </action>
+  <action name="actionSelectLevenbergMarquardt">
+   <property name="text">
+    <string>Levenberg Marquardt</string>
+   </property>
+  </action>
+  <action name="actionSelectSubspaceDogleg">
+   <property name="text">
+    <string>Subspace dogleg</string>
+   </property>
+  </action>
+  <action name="actionStartOptimization">
+   <property name="text">
+    <string>Start optimization</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+P</string>
+   </property>
+  </action>
+  <action name="actionStopSweepOrOptimization">
+   <property name="text">
+    <string>Stop sweep or optimization</string>
+   </property>
+  </action>
+  <action name="actionRamaManual">
+   <property name="text">
+    <string>Rama manual</string>
+   </property>
+   <property name="shortcut">
+    <string>F1</string>
+   </property>
+  </action>
+  <action name="actionRamaWebsite">
+   <property name="text">
+    <string>Rama website</string>
+   </property>
+  </action>
+  <action name="actionLuaManual">
+   <property name="text">
+    <string>Lua manual</string>
+   </property>
+  </action>
+  <action name="actionCheckForLatestVersion">
+   <property name="text">
+    <string>Check for latest version</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About...</string>
+   </property>
+  </action>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <customwidgets>
+  <customwidget>
+   <class>Cavity</class>
+   <extends>QWidget</extends>
+   <header>../cavity_qt.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>qtPlot</class>
+   <extends>QWidget</extends>
+   <header>../../toolkit/plot_gui.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

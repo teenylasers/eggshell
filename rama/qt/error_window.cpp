@@ -1,8 +1,9 @@
 
 #include "error_window.h"
 #include "ui_error_window.h"
-#include "qclipboard.h"
 #include "../../toolkit/error.h"
+#include <QClipboard>
+#include <QTimer>
 
 ErrorWindow::ErrorWindow(QWidget *parent) :
   QDialog(parent),
@@ -64,6 +65,15 @@ void ErrorWindow::AddLine(QString s, int type) {
   auto *list = ui->error_list;
   list->insertItem(list->count(), item);
   list->scrollToItem(item);
+
+  // Show and raise the error window. If errors are generated in the
+  // constructors of other windows before they are shown then the error window
+  // could get obscured, so to prevent this we show/raise the error window
+  // after a short delay.
+  QTimer::singleShot(0, this, &ErrorWindow::ShowAndRaise);
+}
+
+void ErrorWindow::ShowAndRaise() {
   show();
   raise();
 }

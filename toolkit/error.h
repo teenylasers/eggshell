@@ -46,8 +46,11 @@ struct wxErrorHandler : public ErrorHandler {
 // An error handler for Qt.
 #ifdef QT_CORE_LIB
 // This must be created after the QApplication is constructed.
+class ErrorWindow;
 struct qtErrorHandler : public ErrorHandler {
+  qtErrorHandler();
   void HandleError(Type type, const char *msg, va_list ap);
+  ErrorWindow *errwin;
 };
 #endif
 

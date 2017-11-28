@@ -191,16 +191,17 @@ void wxErrorHandler::HandleError(ErrorHandler::Type type,
 
 #ifdef QT_CORE_LIB
 
-#include "qmessagebox.h"
+#include <QMessageBox>
 #include "error_window.h"
 
-void qtErrorHandler::HandleError(Type type, const char *msg, va_list ap) {
-  // Create one error window and then use it forever.
-  static ErrorWindow *errwin = 0;
-  if (!errwin) {
-    errwin = new ErrorWindow(0);
-  }
+qtErrorHandler::qtErrorHandler() {
+  // We create one error window and then use it forever. This must be created
+  // in the main GUI thread so the error windows has the correct thread
+  // affinity, so we can reliably handle errors that originate from any thread.
+  errwin = new ErrorWindow(0);
+}
 
+void qtErrorHandler::HandleError(Type type, const char *msg, va_list ap) {
   switch (type) {
     case ErrorHandler::Error:
       errwin->VAddLine(msg, ap, ErrorWindow::ERROR);

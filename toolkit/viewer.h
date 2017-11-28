@@ -192,7 +192,7 @@ class GLViewerWithSelection : public GLViewer {
 
 #ifdef QT_CORE_LIB
 
-#include "qopenglwidget.h"
+#include <QOpenGLWidget>
 #include <QGestureEvent>
 
 class GLViewer : public QOpenGLWidget, public GLViewerBase {
