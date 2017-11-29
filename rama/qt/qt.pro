@@ -51,7 +51,7 @@ DEFINES += EIGEN_DEFAULT_DENSE_INDEX_TYPE=int
 # Cleanup extra things.
 QMAKE_CLEAN += -r text2bin.exe* user_script_util.c *.o *.app
 
-QT       += core gui
+QT += core gui network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -101,7 +101,8 @@ SOURCES += \
     ../clipper.cc \
     ../triangle.c \
     ../../toolkit/lua_model_viewer_qt.cc \
-    ../cavity_qt.cc
+    ../cavity_qt.cc \
+    ../../toolkit/crash_handler.cc
 
 SOURCES += $${LUA_SOURCES}
 OBJECTS += user_script_util.o

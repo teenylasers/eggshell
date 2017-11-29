@@ -8,8 +8,8 @@
 // the Inno Setup Compiler does not understand the full C preprocessor syntax
 // and can not stringify the major and minor numbers.
 #define __APP_VERSION_MAJOR__ 0
-#define __APP_VERSION_MINOR__ 31
-#define __APP_VERSION__ "0.31"
+#define __APP_VERSION_MINOR__ 32
+#define __APP_VERSION__ "0.32"
 #define __APP_NAME__ "Rama"
 #define __APP_EXE_NAME__ "rama.exe"
 #define __APP_PUBLISHER__ ""

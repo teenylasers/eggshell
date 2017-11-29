@@ -6,6 +6,7 @@
 #include <QByteArray>
 #include <QTimer>
 #include <QClipboard>
+#include <QNetworkReply>
 
 #include "main_window.h"
 #include "ui_main_window.h"
@@ -13,6 +14,12 @@
 #include "sweep.h"
 #include "../version.h"
 #include "../../toolkit/error.h"
+
+#ifdef __APPLE__
+#define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_MAC__
+#else
+#define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_WIN__
+#endif
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent), ui(new Ui::MainWindow), autorun_(true),
@@ -46,6 +53,17 @@ MainWindow::MainWindow(QWidget *parent) :
   // Set up the file watcher.
   QObject::connect(&watcher_, &QFileSystemWatcher::fileChanged,
                    this, &MainWindow::OnFileChanged);
+
+  // Asynchronously retrieve the latest application version number and
+  // display a message if there is a newer version available.
+  QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+  connect(manager, SIGNAL(finished(QNetworkReply*)),
+          this, SLOT(VersionReplyAvailable(QNetworkReply*)));
+  QNetworkRequest request(QUrl(__APP_URL__ __APP_LATEST_VERSION_PATH__));
+  // A user agent is necessary otherwise the security module on an apache
+  // server denies the request.
+  request.setRawHeader("User-Agent", "Rama");
+  manager->get(request);
 }
 
 MainWindow::~MainWindow() {
@@ -388,4 +406,20 @@ void MainWindow::on_copy_to_clipboard_clicked() {
     s += list->item(i)->text() + "\n";
   }
   QGuiApplication::clipboard()->setText(s);
+}
+
+void MainWindow::VersionReplyAvailable(QNetworkReply *reply) {
+  QByteArray b = reply->readAll();
+  int major, minor;
+  if (sscanf(b.data(), "%d.%d", &major, &minor) == 2) {
+    int latest = (major << 16) | minor;
+    int current = (__APP_VERSION_MAJOR__ << 16) | __APP_VERSION_MINOR__;
+    if (latest > current) {
+      Message("A newer version of " __APP_NAME__ " is available (current "
+              "version is " __APP_VERSION__ ", latest version is %d.%d). "
+              "Use 'Help/Install Latest' to install the latest version.",
+              major, minor);
+    }
+  }
+  reply->deleteLater();
 }

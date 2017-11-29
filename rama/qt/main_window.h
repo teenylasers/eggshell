@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QFileSystemWatcher>
+#include <QNetworkAccessManager>
 
 namespace Ui {
   class MainWindow;
@@ -67,6 +68,7 @@ private slots:
   void on_display_style_TM_currentIndexChanged(int index);
   void on_display_style_TE_currentIndexChanged(int index);
   void on_copy_to_clipboard_clicked();
+  void VersionReplyAvailable(QNetworkReply *reply);
 
 private:
   Ui::MainWindow *ui;
