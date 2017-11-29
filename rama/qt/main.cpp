@@ -12,9 +12,9 @@ int main(int argc, char *argv[]) {
   // internal contexts are created using the correct version and profile.
   QSurfaceFormat format;
   format.setDepthBufferSize(24);
-  format.setVersion(3, 3);
+  format.setVersion(3, 3);  // OpenGL 3.3 core profile or later
   format.setProfile(QSurfaceFormat::CoreProfile);
-  format.setSamples(0);   //@@@ enable multisampling
+  format.setSamples(4);     // Multisampling
   QSurfaceFormat::setDefaultFormat(format);
 
   // Set some attributes, start the application. We need to share opengl

@@ -706,6 +706,11 @@ void GLViewer::paintGL() {
     return;
   }
 
+  // Reset the opengl error state in case the caller did something bad. We want
+  // to trap errors that our own code generates and not worry about any bad
+  // things the gui library did.
+  glGetError();
+
   // Reset GL state.
   ApplyViewport();
 
