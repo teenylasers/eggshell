@@ -4,12 +4,11 @@
 #
 #-------------------------------------------------
 
+# Include other files.
 include(qt.pri)
-
 QMAKE_EXTRA_INCLUDES += ../qt/rama.mk
 
-LIBS += -L$${CERES_LIB_DIR} -L$${ARPACK_LIB_DIR} -L$${EIGEN_BLAS_LAPACK_LIB_DIR}
-
+# Differences between debug and release builds.
 CONFIG(release, debug|release) {
   # Release mode.
   LIBS += -lceres-opt
@@ -23,19 +22,14 @@ CONFIG(debug, debug|release) {
   # libraries that use STL, as it changes the layout of STL data structures.
   DEFINES += _GLIBCXX_DEBUG
 }
+
+# Libraries.
+LIBS += -L$${CERES_LIB_DIR} -L$${ARPACK_LIB_DIR} -L$${EIGEN_BLAS_LAPACK_LIB_DIR}
 LIBS += -lz
 LIBS += -larpack
 LIBS += -lBlasAndLapack
 
-DEFINES += __TOOLKIT_USE_CERES__
-DEFINES += __TOOLKIT_MAT_FILE_USE_ZLIB__
-
-INCLUDEPATH += $$EIGEN_DIR
-INCLUDEPATH += ../lua-5.3.0/src
-INCLUDEPATH += $$CERES_INC
-
-QMAKE_CXXFLAGS_WARN_ON += -Wno-sign-compare -Wno-unused-parameter
-
+# Defines.
 # -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int reduces sparse matrix memory usage in
 # 64 bit builds, as the default is ptrdiff_t. IMPORTANT NOTE: This flag
 # affects the Eigen ABI without actually altering the mangled names of C++
@@ -47,27 +41,29 @@ QMAKE_CXXFLAGS_WARN_ON += -Wno-sign-compare -Wno-unused-parameter
 # functions. Therefore we define a single value of this flag here, for all to
 # use.
 DEFINES += EIGEN_DEFAULT_DENSE_INDEX_TYPE=int
+DEFINES += __TOOLKIT_USE_CERES__
+DEFINES += __TOOLKIT_MAT_FILE_USE_ZLIB__
+
+# Include paths.
+INCLUDEPATH += $$EIGEN_DIR
+INCLUDEPATH += ../lua-5.3.0/src
+INCLUDEPATH += $$CERES_INC
+
+# Compiler flags.
+QMAKE_CXXFLAGS_WARN_ON += -Wno-sign-compare -Wno-unused-parameter
 
 # Cleanup extra things.
 QMAKE_CLEAN += -r text2bin.exe* user_script_util.c *.o *.app
 
+# QT configuration.
 QT += core gui network
-
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-
 TARGET = Rama
 TEMPLATE = app
 
-# The following define makes your compiler emit warnings if you use
-# any feature of Qt which has been marked as deprecated (the exact warnings
-# depend on your compiler). Please consult the documentation of the
-# deprecated API in order to know how to port your code away from it.
+# It's an error if we use Qt features deprecated before Qt 6.0.0.
 DEFINES += QT_DEPRECATED_WARNINGS
-
-# You can also make your code fail to compile if you use deprecated APIs.
-# In order to do so, uncomment the following line.
-# You can also select to disable deprecated APIs only up to a certain version of Qt.
-DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
+DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000
 
 SOURCES += \
         main.cpp \

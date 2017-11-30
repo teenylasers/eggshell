@@ -1,4 +1,7 @@
 
+# Included from the qmake-generated Makefile to add some per-target
+# configuration and other rules.
+
 # In case this in included before the default rule of the parent makefile:
 default: all
 
