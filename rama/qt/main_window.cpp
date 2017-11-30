@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QClipboard>
 #include <QNetworkReply>
+#include <QMessageBox>
 
 #include "main_window.h"
 #include "ui_main_window.h"
@@ -284,6 +285,19 @@ void MainWindow::on_actionStopSweepOrOptimization_triggered() {
 
 void MainWindow::on_actionRamaManual_triggered() {
   /*@@@ link to manual that is in the resource bundle or installed location
+
+    // From http://doc.qt.io/qt-5/osx-issues.html:
+#ifdef Q_OS_MAC
+    CFURLRef appUrlRef = CFBundleCopyBundleURL(CFBundleGetMainBundle());
+    CFStringRef macPath = CFURLCopyFileSystemPath(appUrlRef,
+                                           kCFURLPOSIXPathStyle);
+    const char *pathPtr = CFStringGetCStringPtr(macPath,
+                                           CFStringGetSystemEncoding());
+    qDebug("Path = %s", pathPtr);
+    CFRelease(appUrlRef);
+    CFRelease(macPath);
+#endif
+
   wxString path = wxStandardPaths::Get().GetResourcesDir();
   wxURI url("file://" + path + "/rama.html");
   wxLaunchDefaultBrowser(url.BuildURI(), wxBROWSER_NEW_WINDOW);
@@ -301,20 +315,22 @@ void MainWindow::on_actionLuaManual_triggered() {
 }
 
 void MainWindow::on_actionCheckForLatestVersion_triggered() {
-  /*@@@ deal with this:
-  wxMessageDialog dlg (this, "Clicking 'Yes' will quit the application and start "
-      "downloading the installer for the latest version of " __APP_NAME__
-      ". Do you want to proceed?", "Install latest version?",
-      wxYES_NO | wxNO_DEFAULT | wxCENTRE);
-  if (dlg.ShowModal() == wxID_YES) {
-      #if __APPLE__
-      wxLaunchDefaultBrowser(__APP_URL__ __APP_LATEST_MAC_DOWNLOAD_PATH__, wxBROWSER_NEW_WINDOW);
-      #else
-      wxLaunchDefaultBrowser(__APP_URL__ __APP_LATEST_WINDOWS_DOWNLOAD_PATH__, wxBROWSER_NEW_WINDOW);
-      #endif
-      exit(0);
+  QMessageBox box;
+  box.setText("Do you want to install the latest software?");
+  box.setInformativeText("Clicking 'Yes' will quit the application and start "
+      "downloading the installer for the latest version of " __APP_NAME__);
+  box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+  box.setDefaultButton(QMessageBox::No);
+  if (box.exec() == QMessageBox::Yes) {
+    #if __APPLE__
+      QDesktopServices::openUrl(
+            QUrl(__APP_URL__ __APP_LATEST_MAC_DOWNLOAD_PATH__));
+    #else
+      QDesktopServices::openUrl(
+            QUrl(__APP_URL__ __APP_LATEST_WINDOWS_DOWNLOAD_PATH__));
+    #endif
+    exit(0);
   }
-  */
 }
 
 void MainWindow::on_reload_resets_parameters_stateChanged(int arg1) {
