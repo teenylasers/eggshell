@@ -174,7 +174,10 @@
 #include <limits>
 #include <string>
 
+#if !defined(__WINNT__)
 #include <alloca.h>
+#endif
+
 #include "Eigen/Core"
 // #include "ceres/fpclassify.h"
 // #include "ceres/internal/port.h"
