@@ -1,10 +1,27 @@
 
-# Included from the qmake-generated Makefile to add some per-target
-# configuration and other rules.
+# This is the top level makefile. We define add some per-target configuration
+# and other rules that can't be expressed easily in qmake, then include the
+# qmake-generated makefile below.
 
 # In case this in included before the default rule of the parent makefile:
 default: all
 
+# Determine the OS we're building on.
+ifeq ($(OS), Windows_NT)
+  # OS is defined in the environment in cygwin builds.
+  PLATFORM := windows
+else
+  # OS X and linux don't seem to have anything useful in the environment to
+  # distinguish them, so we need to run a shell command.
+  OSTYPE := $(shell uname -s)
+  ifeq ($(OSTYPE), Darwin)
+    PLATFORM := osx
+  else
+    PLATFORM := linux
+  endif
+endif
+
+# Include some variables that are common between the qmake file and this one.
 include ../qt/qt.pri
 
 # Lua C files need to be compiled as C++ to make use of JetNum.
@@ -35,5 +52,12 @@ text2bin.exe: ../text2bin.cc
 	$(CC) $(CXXFLAGS) -o $@ $<
 
 user_script_util.o: ../user_script_util.lua text2bin.exe
+ifeq ($(PLATFORM), windows)
+	text2bin.exe < $< > user_script_util.c
+else
 	./text2bin.exe < $< > user_script_util.c
+endif
 	$(CC) $(CFLAGS) -c user_script_util.c
+
+# Now include the qmake-generated makefile.
+include Makefile

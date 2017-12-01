@@ -6,7 +6,6 @@
 
 # Include other files.
 include(qt.pri)
-QMAKE_EXTRA_INCLUDES += ../qt/rama.mk
 
 # Differences between debug and release builds.
 CONFIG(release, debug|release) {
@@ -57,6 +56,7 @@ QMAKE_CLEAN += -r text2bin.exe* user_script_util.c *.o *.app
 
 # QT configuration.
 QT += core gui network
+CONFIG -= debug_and_release
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = Rama
 TEMPLATE = app
