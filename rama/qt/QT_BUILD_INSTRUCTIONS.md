@@ -19,14 +19,6 @@ Instructions:
   [windows building](http://doc.qt.io/qt-5/windows-building.html) instructions.
 * Install [cygwin64](https://www.cygwin.com/install.html) and its 
   `x86_64-w64-mingw32` package.
-* Modify the cygwin installation so that gcc and g++ map to our chosen compiler
-  (*Fixme: this assumes that the regular gcc is not installed and anyway is a 
-  clunky method, find something better - a QMAKE configuration?*):
-  ```
-  cd /usr/bin
-  cp x86_64-w64-mingw32-g++.exe g++.exe
-  cp x86_64-w64-mingw32-gcc.exe gcc.exe
-  ```
 * Install [msys2](http://www.msys2.org/).
 * Install the msys2 `make` using `pacman -S make` from the msys2 command line, 
   or `c:\msys64\usr\bin\pacman -S make` from the windows command line.
@@ -38,6 +30,6 @@ Instructions:
   the target to
   `%SystemRoot%\system32\cmd.exe /E:ON /V:ON /k C:\path_to_your\qt5vars.cmd`. 
   Modify the 'Start in' directory to your build directory.
-* In the build directory, run: 
-  `..\Qt592_src\configure -prefix c:\russ\tools\Qt592_debug -platform win32-g++ -shared -make-tool make -opensource -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -nomake examples QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
+* Run that shortcut to get a command prompt. Then run: 
+  `..\Qt592_src\configure -prefix c:\russ\tools\Qt592_debug -platform win32-g++ -xplatform win32-g++ -device-option CROSS_COMPILE=x86_64-w64-mingw32- -shared -make-tool make -opensource -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -nomake examples QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
 * Run `make`
