@@ -13,7 +13,7 @@ cygwin.
 
 Instructions:
 * Install Qt source (installing [Qt Creator](https://www1.qt.io/download/) 
-  is the simplest way)
+  is the simplest way).
 * Install the prerequisites according to Qt's 
   [windows requirements](http://doc.qt.io/qt-5/windows-requirements.html) and 
   [windows building](http://doc.qt.io/qt-5/windows-building.html) instructions.
@@ -22,14 +22,22 @@ Instructions:
 * Install [msys2](http://www.msys2.org/).
 * Install the msys2 `make` using `pacman -S make` from the msys2 command line, 
   or `c:\msys64\usr\bin\pacman -S make` from the windows command line.
-* Download `qt5vars.cmd`. Modify the SET variables at the top to match your 
-  configuration.
+* Add the following line to the source file
+  `qtbase/mkspecs/win32-g++/qmake.conf` after the `include' line:
+  ```
+  CROSS_COMPILE=x86_64-w64-mingw32-
+  ```
+  This lets the build process find the mingw compiler. There are supposed to
+  be Qt configure script options available that do the same thing but they
+  don't appear to work consistently.
 * Select a build and install directory that is different from the Qt source 
   directory (both should be empty initially).
+* Download `qt5vars.cmd`. Modify the SET variables at the top to match your 
+  configuration.
 * Create a desktop shortcut to `qt5vars.cmd`. In the shortcut properties modify 
   the target to
   `%SystemRoot%\system32\cmd.exe /E:ON /V:ON /k C:\path_to_your\qt5vars.cmd`. 
   Modify the 'Start in' directory to your build directory.
 * Run that shortcut to get a command prompt. Then run: 
-  `..\Qt592_src\configure -prefix c:\russ\tools\Qt592_debug -platform win32-g++ -xplatform win32-g++ -device-option CROSS_COMPILE=x86_64-w64-mingw32- -shared -make-tool make -opensource -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -nomake examples QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
-* Run `make`
+  `..\Qt592_src\configure -prefix c:\russ\tools\Qt592_debug -platform win32-g++ -shared -opensource -confirm-license -make-tool make -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -nomake examples QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
+* Run `make -j4`
