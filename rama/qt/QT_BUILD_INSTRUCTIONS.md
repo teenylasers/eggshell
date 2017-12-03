@@ -22,7 +22,6 @@ Instructions:
 * Install [msys2](http://www.msys2.org/) into its default location (`C:\msys64`).
 * Install the msys2 `make` using `pacman -S make` from the msys2 command line, 
   or `c:\msys64\usr\bin\pacman -S make` from the windows command line.
-* In `C:\msys64\usr\bin` run `cp make mingw32-make`.
 * Add the following line to the source file
   `qtbase/mkspecs/win32-g++/qmake.conf` after the `include' line:
   ```
@@ -41,6 +40,6 @@ Instructions:
   Modify the 'Start in' directory to your build directory.
 * Run that shortcut to get a command prompt. Then run the following
   (changing the `-prefix` path to where your install directory is): 
-  `..\Qt592_src\configure -prefix c:\path_to_install_directory -platform win32-g++ -shared -opensource -confirm-license -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -skip qtlocation -nomake examples -nomake tests QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
+  `..\Qt592_src\configure -prefix c:\path_to_install_directory -platform win32-g++ -shared -opensource -confirm-license -make-tool make -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -skip qtlocation -nomake examples -nomake tests QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
 * Run `make -j4`
 * Run `make install`
