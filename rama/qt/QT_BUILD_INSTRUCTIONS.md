@@ -20,9 +20,9 @@ Instructions:
 * Install [cygwin64](https://www.cygwin.com/install.html) and its 
   `x86_64-w64-mingw32` package.
 * Install [msys2](http://www.msys2.org/) into its default location (`C:\msys64`).
-* In `C:\msys64\usr\bin` run `cp make mingw32-make`.
 * Install the msys2 `make` using `pacman -S make` from the msys2 command line, 
   or `c:\msys64\usr\bin\pacman -S make` from the windows command line.
+* In `C:\msys64\usr\bin` run `cp make mingw32-make`.
 * Add the following line to the source file
   `qtbase/mkspecs/win32-g++/qmake.conf` after the `include' line:
   ```
