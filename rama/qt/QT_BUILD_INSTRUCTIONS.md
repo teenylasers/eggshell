@@ -38,6 +38,9 @@ Instructions:
   the target to
   `%SystemRoot%\system32\cmd.exe /E:ON /V:ON /k C:\path_to_your\qt5vars.cmd`. 
   Modify the 'Start in' directory to your build directory.
-* Run that shortcut to get a command prompt. Then run: 
-  `..\Qt592_src\configure -prefix c:\russ\tools\Qt592_debug -platform win32-g++ -shared -opensource -confirm-license -make-tool make -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -skip qtlocation -nomake examples -nomake tests QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
+* Run that shortcut to get a command prompt. Then run the following
+  (changing the `-prefix` path to where your install directory is): 
+  `..\Qt592_src\configure -prefix c:\path_to_install_directory -platform win32-g++ -shared -opensource -confirm-license -make-tool make -debug -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -skip qtlocation -nomake examples -nomake tests QMAKE_LFLAGS_CONSOLE+=-static-libstdc++`
 * Run `make -j4`
+* Run `make install`
+
