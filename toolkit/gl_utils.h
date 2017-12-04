@@ -8,23 +8,19 @@
 #include <functional>
 
 // Include OpenGL headers.
-#if defined __APPLE__
-  #include <OpenGL/gl3.h>
-#elif defined(__WXMSW__) || defined(Q_OS_WIN)
-  // Windows.
-  #define GL_GLEXT_PROTOTYPES
-  #include <GL/gl.h>
-  #include <GL/glext.h>
-
-  // Some stuff not defined by windows OpenGL headers:
-  #ifndef GL_MULTISAMPLE
-  #define GL_MULTISAMPLE 0x809D
-  #endif
+#ifdef QT_CORE_LIB
+  #include <QOpenGLFunctions_3_3_Core>
+  #include "undef.h"
 #else
-  // Linux.
-  #define GL_GLEXT_PROTOTYPES
-  #include <GL/gl.h>
-  #include <GL/glext.h>
+  #if defined __APPLE__
+    #include <OpenGL/gl3.h>
+  #else
+    // Linux.
+    #define GL_GLEXT_PROTOTYPES
+    #include <GL/gl.h>
+    #include <GL/glext.h>
+  #endif
+  #define GL(fn) gl##fn
 #endif
 
 #include "Eigen/Dense"
@@ -32,7 +28,7 @@
 // For pinpointing OpenGL errors sprinkle this macro throughout your code.
 #define __SEE_IF_OPENGL_ERROR { \
   int err; \
-  while ((err = glGetError()) != GL_NO_ERROR) { \
+  while ((err = GL(GetError)()) != GL_NO_ERROR) { \
     printf("GL error %d (%s) at %s:%d\n", err, gl::ErrorString(err), \
            __FILE__, __LINE__); \
     gl::FoundError();   /* Put a breakpoint in this fn to catch errors */ \
@@ -40,6 +36,17 @@
 }
 
 namespace gl {
+
+#ifdef QT_CORE_LIB
+  extern QOpenGLFunctions_3_3_Core gl_functions;
+  #ifdef __WINNT__
+    #define GL(fn) gl::gl_functions.gl##fn
+  #else
+    #define GL(fn) gl##fn
+  #endif
+  void SetDefaultOpenGLSurfaceFormat();
+  void InitializeOpenGLFunctions(QOpenGLContext *context);
+#endif
 
 // Return an attribute list that can be passed to the constructor of
 // wxGLContext. The 'type' is an OR of the buffer type constants below. This
@@ -88,35 +95,35 @@ inline Eigen::Matrix4d Scale(double s) {
 
 // Set uniform values in the current program.
 inline void SetUniform(const char *name, float value) {
-  GLuint loc = glGetUniformLocation(CurrentProgram(), name);
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
   CHECK(loc != -1);
-  glUniform1f(loc, value);
+  GL(Uniform1f)(loc, value);
 }
 inline void SetUniformi(const char *name, int value) {
-  GLuint loc = glGetUniformLocation(CurrentProgram(), name);
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
   CHECK(loc != -1);
-  glUniform1i(loc, value);
+  GL(Uniform1i)(loc, value);
 }
 inline void SetUniform(const char *name, float v0, float v1) {
-  GLuint loc = glGetUniformLocation(CurrentProgram(), name);
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
   CHECK(loc != -1);
-  glUniform2f(loc, v0, v1);
+  GL(Uniform2f)(loc, v0, v1);
 }
 inline void SetUniform(const char *name, float v0, float v1, float v2) {
-  GLuint loc = glGetUniformLocation(CurrentProgram(), name);
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
   CHECK(loc != -1);
-  glUniform3f(loc, v0, v1, v2);
+  GL(Uniform3f)(loc, v0, v1, v2);
 }
 inline void SetUniform(const char *name, float v0, float v1, float v2,
                        float v3) {
-  GLuint loc = glGetUniformLocation(CurrentProgram(), name);
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
   CHECK(loc != -1);
-  glUniform4f(loc, v0, v1, v2, v3);
+  GL(Uniform4f)(loc, v0, v1, v2, v3);
 }
 inline void SetUniform(const char *name, const Eigen::Matrix4f &M) {
-  GLuint loc = glGetUniformLocation(CurrentProgram(), name);
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
   CHECK(loc != -1);
-  glUniformMatrix4fv(loc, 1, GL_FALSE, M.data());
+  GL(UniformMatrix4fv)(loc, 1, GL_FALSE, M.data());
 }
 
 // Set the "normal" pixel packing modes.
@@ -194,11 +201,11 @@ void DrawThick(int x_steps, int y_steps, bool full,
 class VertexArray {
  public:
   VertexArray() : ok_(false), vao_(0) {}
-  ~VertexArray() { if (ok_) glDeleteVertexArrays(1, &vao_); }
+  ~VertexArray() { if (ok_) GL(DeleteVertexArrays)(1, &vao_); }
   void Bind() {
-    if (!ok_) glGenVertexArrays(1, &vao_);
+    if (!ok_) GL(GenVertexArrays)(1, &vao_);
     ok_ = true;
-    glBindVertexArray(vao_);
+    GL(BindVertexArray)(vao_);
   }
   bool Initialized() const { return ok_; }
  private:
@@ -215,19 +222,19 @@ class Buffer {
          int kind = GL_ARRAY_BUFFER, int usage = GL_STATIC_DRAW)
       : ok_(false), size1_(size1), size2_(size2), kind_(kind), usage_(usage),
         data1_(data1), data2_(data2), buf_(0) {}
-  ~Buffer() { if (ok_) glDeleteBuffers(1, &buf_); }
+  ~Buffer() { if (ok_) GL(DeleteBuffers)(1, &buf_); }
   void Bind() {
     if (!ok_) {
-      glGenBuffers(1, &buf_);
+      GL(GenBuffers)(1, &buf_);
       ok_ = true;
-      glBindBuffer(kind_, buf_);
-      glBufferData(kind_, size1_ + (data2_ ? size2_ : 0), 0, usage_);
-      glBufferSubData(kind_, 0, size1_, data1_);
+      GL(BindBuffer)(kind_, buf_);
+      GL(BufferData)(kind_, size1_ + (data2_ ? size2_ : 0), 0, usage_);
+      GL(BufferSubData)(kind_, 0, size1_, data1_);
       if (data2_) {
-        glBufferSubData(kind_, size1_, size2_, data2_);
+        GL(BufferSubData)(kind_, size1_, size2_, data2_);
       }
     } else {
-      glBindBuffer(kind_, buf_);
+      GL(BindBuffer)(kind_, buf_);
     }
   }
   bool Initialized() const { return ok_; }
@@ -283,13 +290,13 @@ class VertexBuffer {
   // and count indicate which vertices to emit, the default is all vertices.
   void Draw(int mode, int start = 0, int count = -1) {
     vao_.Bind();
-    glDrawArrays(mode, start, count >= 0 ? count : vertex_count_);
+    GL(DrawArrays)(mode, start, count >= 0 ? count : vertex_count_);
   }
   // Emit geometry in the buffer via indexes contained in the IndexBuffer.
   void DrawIndexed(int mode, IndexBuffer *index_buffer) {
     vao_.Bind();
     index_buffer->Bind();
-    glDrawElements(mode, index_buffer->IndexCount(), GL_UNSIGNED_INT, 0);
+    GL(DrawElements)(mode, index_buffer->IndexCount(), GL_UNSIGNED_INT, 0);
   }
  private:
   VertexArray vao_;
@@ -298,11 +305,11 @@ class VertexBuffer {
   void Specify(const char *name, int count, int type, int stride, int offset) {
     vao_.Bind();
     buffer_.Bind();
-    GLint loc = glGetAttribLocation(CurrentProgram(), name);
+    GLint loc = GL(GetAttribLocation)(CurrentProgram(), name);
     CHECK(loc != -1);
-    glVertexAttribPointer(loc, count, type, GL_FALSE, stride,
-                          ((char*)0) + offset);
-    glEnableVertexAttribArray(loc);
+    GL(VertexAttribPointer)(loc, count, type, GL_FALSE, stride,
+                            ((char*)0) + offset);
+    GL(EnableVertexAttribArray)(loc);
   }
 };
 
@@ -327,7 +334,7 @@ class Texture2D {
  public:
   Texture2D(int width, int height, unsigned char *data);
   ~Texture2D();
-  void Bind() const { glBindTexture(GL_TEXTURE_2D, tex_); }
+  void Bind() const { GL(BindTexture)(GL_TEXTURE_2D, tex_); }
 
  private:
   GLuint tex_;
@@ -338,7 +345,7 @@ class TextureRectangle {
  public:
   TextureRectangle(int width, int height, unsigned char *data);
   ~TextureRectangle();
-  void Bind() const { glBindTexture(GL_TEXTURE_RECTANGLE, tex_); }
+  void Bind() const { GL(BindTexture)(GL_TEXTURE_RECTANGLE, tex_); }
 
  private:
   GLuint tex_;

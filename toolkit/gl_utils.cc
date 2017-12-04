@@ -17,49 +17,6 @@ using namespace Eigen;
 namespace gl {
 
 //***************************************************************************
-// Windows support for some OpenGL >v1.1 functions.
-
-// Get the address of a GL entry point. This is needed on windows, where the
-// GL static libraries only supply functions up to OpenGL 1.1 but the
-// underlying DLLs support much more recent OpenGL versions.
-
-#if defined(__WXMSW__) || defined(Q_OS_WIN)
-//@@@ Qt has a much better mechanism for dealing with this ... use it!
-
-static void *GetGLFunctionAddress(const char *name) {
-  // See https://www.opengl.org/wiki/Load_OpenGL_Functions
-  void *p = (void *) wglGetProcAddress(name);
-  if(p == 0 ||
-     (p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) ||
-     (p == (void*)-1) ) {
-    // wglGetProcAddress() failed, try a different strategy:
-    HMODULE module = LoadLibraryA("opengl32.dll");
-    p = (void *)GetProcAddress(module, name);
-  }
-  CHECK(p);
-  return p;
-}
-
-#define SUPPORT(name, proto, arguments) \
-  void my ## name proto { \
-    typedef void (*fn) proto; \
-    static void *entry = 0; \
-    if (!entry) { \
-      entry = GetGLFunctionAddress(#name); \
-    } \
-    (*(fn)entry)arguments; \
-  }
-
-#else
-
-#define SUPPORT(name, proto, arguments) \
-  void my ## name proto { \
-    name arguments; \
-  }
-
-#endif
-
-//***************************************************************************
 // Public functions.
 
 #ifdef __TOOLKIT_WXWINDOWS__
@@ -139,9 +96,43 @@ const int *GetAttributeList(int type) {
 }
 #endif  // __TOOLKIT_WXWINDOWS__
 
+#ifdef QT_CORE_LIB
+
+QOpenGLFunctions_3_3_Core gl_functions;
+
+// We want OpenGL 3.3 core profile or later.
+const int kGLMajorVersion = 3;
+const int kGLMinorVersion = 3;
+
+void SetDefaultOpenGLSurfaceFormat() {
+  // From the QOpenGLWidget class documentation:
+  // Calling QSurfaceFormat::setDefaultFormat() before constructing the
+  // QApplication instance is mandatory on some platforms (for example,
+  // macOS) when an OpenGL core profile context is requested. This is to
+  // ensure that resource sharing between contexts stays functional as all
+  // internal contexts are created using the correct version and profile.
+  QSurfaceFormat format;
+  format.setDepthBufferSize(24);
+  format.setVersion(kGLMajorVersion, kGLMinorVersion);
+  format.setProfile(QSurfaceFormat::CoreProfile);
+  format.setSamples(4);     // Multisampling
+  QSurfaceFormat::setDefaultFormat(format);
+}
+
+void InitializeOpenGLFunctions(QOpenGLContext *context) {
+  if (!gl_functions.initializeOpenGLFunctions()) {
+    Panic("OpenGL could not be initialized. Desired version is %d.%d, "
+          "available version is %d.%d", kGLMajorVersion, kGLMinorVersion,
+          context->format().majorVersion(),
+          context->format().minorVersion());
+  }
+}
+
+#endif  // QT_CORE_LIB
+
 GLint CurrentProgram() {
   GLint program = 0;
-  glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+  GL(GetIntegerv)(GL_CURRENT_PROGRAM, &program);
   CHECK(program);
   return program;
 }
@@ -164,20 +155,20 @@ void ApplyTransform(const Eigen::Matrix4d &P, const Eigen::Matrix4d &M) {
 
 void ReapplyTransform() {
   GLint program = CurrentProgram();
-  int transform_loc = glGetUniformLocation(program, "transform");
+  int transform_loc = GL(GetUniformLocation)(program, "transform");
   if (transform_loc != -1) {
-    glUniformMatrix4fv(transform_loc, 1, GL_FALSE, last_T.data());
+    GL(UniformMatrix4fv)(transform_loc, 1, GL_FALSE, last_T.data());
   }
 
-  int modelview_loc = glGetUniformLocation(program, "modelview");
+  int modelview_loc = GL(GetUniformLocation)(program, "modelview");
   if (modelview_loc != -1) {
-    glUniformMatrix4fv(modelview_loc, 1, GL_FALSE, last_M.data());
+    GL(UniformMatrix4fv)(modelview_loc, 1, GL_FALSE, last_M.data());
   }
 
-  int normalmatrix_loc = glGetUniformLocation(program, "normalmatrix");
+  int normalmatrix_loc = GL(GetUniformLocation)(program, "normalmatrix");
   if (normalmatrix_loc != -1) {
     Matrix3f Nf = last_M.block(0, 0, 3, 3);
-    glUniformMatrix3fv(normalmatrix_loc, 1, GL_FALSE, Nf.data());
+    GL(UniformMatrix3fv)(normalmatrix_loc, 1, GL_FALSE, Nf.data());
   }
 }
 
@@ -232,17 +223,17 @@ Matrix4d Scale(Vector3d scale_xyz) {
 }
 
 void SetNormalPixelPacking() {
-  glPixelStorei(GL_PACK_SWAP_BYTES, 0);
-  glPixelStorei(GL_PACK_ROW_LENGTH, 0);
-  glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
-  glPixelStorei(GL_PACK_SKIP_ROWS, 0);
-  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  GL(PixelStorei)(GL_PACK_SWAP_BYTES, 0);
+  GL(PixelStorei)(GL_PACK_ROW_LENGTH, 0);
+  GL(PixelStorei)(GL_PACK_SKIP_PIXELS, 0);
+  GL(PixelStorei)(GL_PACK_SKIP_ROWS, 0);
+  GL(PixelStorei)(GL_PACK_ALIGNMENT, 1);
 
-  glPixelStorei(GL_UNPACK_SWAP_BYTES, 0);
-  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-  glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-  glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  GL(PixelStorei)(GL_UNPACK_SWAP_BYTES, 0);
+  GL(PixelStorei)(GL_UNPACK_ROW_LENGTH, 0);
+  GL(PixelStorei)(GL_UNPACK_SKIP_PIXELS, 0);
+  GL(PixelStorei)(GL_UNPACK_SKIP_ROWS, 0);
+  GL(PixelStorei)(GL_UNPACK_ALIGNMENT, 1);
 }
 
 bool PixelToModelCoordinates(int x, int y, const Matrix4d &transform,
@@ -250,7 +241,7 @@ bool PixelToModelCoordinates(int x, int y, const Matrix4d &transform,
   // Find the depth of this pixel. Note that glReadPixels() returns undefined
   // values for pixels outside the window.
   float depth;
-  glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+  GL(ReadPixels)(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
   bool found_good_depth = (depth != 1.0);
   Vector3d xyd(x, y, depth);
   PixelToModelCoordinates(xyd, transform, p);
@@ -260,14 +251,14 @@ bool PixelToModelCoordinates(int x, int y, const Matrix4d &transform,
 void PixelToModelCoordinates(const Vector3d &xyd, const Matrix4d &transform,
                              Vector3d *p, Vector3d *dp_by_dd) {
   GLint viewport[4];
-  glGetIntegerv(GL_VIEWPORT, viewport);
+  GL(GetIntegerv)(GL_VIEWPORT, viewport);
   UnProject(xyd[0], xyd[1], xyd[2], transform, viewport, p, dp_by_dd);
 }
 
 void ModelToPixelCoordinates(const Vector3d &m,
                              const Eigen::Matrix4d &transform, Vector3d *v) {
   GLint viewport[4];
-  glGetIntegerv(GL_VIEWPORT, viewport);
+  GL(GetIntegerv)(GL_VIEWPORT, viewport);
   Project(m[0], m[1], m[2], transform, viewport, v);
 }
 
@@ -392,7 +383,7 @@ void DrawThick(int x_steps, int y_steps, bool full,
   // Save state
   Eigen::Matrix4d P = gl::Projection(), MV = gl::ModelView();
   int v[4];
-  glGetIntegerv(GL_VIEWPORT, v);
+  GL(GetIntegerv)(GL_VIEWPORT, v);
 
   // Draw the scene repeatedly, each time adjusting the viewport and projection
   // matrix to shift everything horizontally / vertically by some number of
@@ -416,16 +407,16 @@ void DrawThick(int x_steps, int y_steps, bool full,
 
 Texture2D::Texture2D(int width, int height, unsigned char *data) {
   SetNormalPixelPacking();
-  glGenTextures(1, &tex_);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, tex_);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
-               GL_RGB, GL_UNSIGNED_BYTE, data);
-  glGenerateMipmap(GL_TEXTURE_2D);
+  GL(GenTextures)(1, &tex_);
+  GL(ActiveTexture)(GL_TEXTURE0);
+  GL(BindTexture)(GL_TEXTURE_2D, tex_);
+  GL(TexImage2D)(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
+                 GL_RGB, GL_UNSIGNED_BYTE, data);
+  GL(GenerateMipmap)(GL_TEXTURE_2D);
 }
 
 Texture2D::~Texture2D() {
-  glDeleteTextures(1, &tex_);
+  GL(DeleteTextures)(1, &tex_);
 }
 
 //***************************************************************************
@@ -433,15 +424,15 @@ Texture2D::~Texture2D() {
 
 TextureRectangle::TextureRectangle(int width, int height, unsigned char *data) {
   SetNormalPixelPacking();
-  glGenTextures(1, &tex_);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_RECTANGLE, tex_);
-  glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB, width, height, 0,
-               GL_RGB, GL_UNSIGNED_BYTE, data);
+  GL(GenTextures)(1, &tex_);
+  GL(ActiveTexture)(GL_TEXTURE0);
+  GL(BindTexture)(GL_TEXTURE_RECTANGLE, tex_);
+  GL(TexImage2D)(GL_TEXTURE_RECTANGLE, 0, GL_RGB, width, height, 0,
+                 GL_RGB, GL_UNSIGNED_BYTE, data);
 }
 
 TextureRectangle::~TextureRectangle() {
-  glDeleteTextures(1, &tex_);
+  GL(DeleteTextures)(1, &tex_);
 }
 
 }  // namespace gl

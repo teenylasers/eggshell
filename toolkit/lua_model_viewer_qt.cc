@@ -1080,15 +1080,15 @@ void LuaModelViewer::Draw() {
 
   // Clear the buffer.
   if (IsModelValid()) {
-    glClearColor(1, 1, 1, 0);
+    GL(ClearColor)(1, 1, 1, 0);
   } else {
-    glClearColor(0.75, 0.75, 0.75, 0);
+    GL(ClearColor)(0.75, 0.75, 0.75, 0);
   }
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  GL(Clear)(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   DrawModel();
 
-  glDisable(GL_MULTISAMPLE);
+  GL(Disable)(GL_MULTISAMPLE);
 
   // Draw the markers.
   if (show_markers_) {
@@ -1104,7 +1104,7 @@ void LuaModelViewer::Draw() {
 
     double scale = devicePixelRatio();
     for (int j = 0; j <= 1; j++) {
-      glPointSize((kMarkerSize - j) * 2 * scale);
+      GL(PointSize)((kMarkerSize - j) * 2 * scale);
       gl::SetUniform("color", j, j, j);
       buffer.Draw(GL_POINTS);
     }
@@ -1114,7 +1114,7 @@ void LuaModelViewer::Draw() {
     }
   }
 
-  glUseProgram(0);
+  GL(UseProgram)(0);
 
   // Draw all strings.
   Eigen::Matrix4d T = gl::Transform();

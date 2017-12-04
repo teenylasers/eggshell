@@ -26,7 +26,11 @@ include ../qt/qt.pri
 
 # Lua C files need to be compiled as C++ to make use of JetNum.
 LUA_OBJECTS = $(patsubst %.c,%.o,$(notdir $(LUA_SOURCES)))
-$(LUA_OBJECTS): CFLAGS += -x c++ -std=gnu++11 -DLUA_USE_POSIX=1 -I$(EIGEN_DIR)
+LUA_FLAGS = -x c++ -std=gnu++11 -I$(EIGEN_DIR)
+ifneq ($(PLATFORM), windows)
+  LUA_FLAGS += -DLUA_USE_POSIX=1
+endif
+$(LUA_OBJECTS): CFLAGS += $(LUA_FLAGS)
 
 # Allow including my_jet.h:
 lua_vector.o: CXXFLAGS += -I..
@@ -52,11 +56,7 @@ text2bin.exe: ../text2bin.cc
 	$(CC) $(CXXFLAGS) -o $@ $<
 
 user_script_util.o: ../user_script_util.lua text2bin.exe
-ifeq ($(PLATFORM), windows)
-	text2bin.exe < $< > user_script_util.c
-else
 	./text2bin.exe < $< > user_script_util.c
-endif
 	$(CC) $(CFLAGS) -c user_script_util.c
 
 # Now include the qmake-generated makefile.

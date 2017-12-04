@@ -3,12 +3,15 @@
 #include "../../toolkit/crash_handler.h"
 #include "../../toolkit/testing.h"
 #include "../../toolkit/mystring.h"
+#include "../../toolkit/gl_utils.h"
 #include "../version.h"
 #include <QApplication>
 #include <QSurfaceFormat>
 
 int main(int argc, char *argv[]) {
-  SetupCrashHandling();
+  #if !defined(__WINNT__)
+    SetupCrashHandling();
+  #endif
 
   // If the -test flag is given on the command line, run all tests and exit.
   for (int i = 1; i < argc; i++) {
@@ -30,12 +33,7 @@ int main(int argc, char *argv[]) {
   // macOS) when an OpenGL core profile context is requested. This is to
   // ensure that resource sharing between contexts stays functional as all
   // internal contexts are created using the correct version and profile.
-  QSurfaceFormat format;
-  format.setDepthBufferSize(24);
-  format.setVersion(3, 3);  // OpenGL 3.3 core profile or later
-  format.setProfile(QSurfaceFormat::CoreProfile);
-  format.setSamples(4);     // Multisampling
-  QSurfaceFormat::setDefaultFormat(format);
+  gl::SetDefaultOpenGLSurfaceFormat();
 
   // Set some attributes, start the application. We need to share opengl
   // contexts because otherwise if we undock an QDockWidget containing an
@@ -46,6 +44,9 @@ int main(int argc, char *argv[]) {
   QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
   QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
   QApplication app(argc, argv);
+  #if defined(__WINNT__)
+    app.setStyle("fusion");
+  #endif
 
   // Setup the qt error handler. This must be done after the QApplication is
   // constructed.

@@ -465,15 +465,6 @@ Jet<T, N> operator/(const Jet<T, N>& f, T s) {
   return Jet<T, N>(f.a * s_inverse, f.v * s_inverse);
 }
 
-// See comment above for "binary * with an integer".
-#ifdef __WINNT__
-template<typename T, int N> inline
-Jet<T, N> operator/(const Jet<T, N>& f, int s) {
-  const T s_inverse = 1.0 / s;
-  return Jet<T, N>(f.a * s_inverse, f.v * s_inverse);
-}
-#endif
-
 // Binary comparison operators for both scalars and jets.
 #define CERES_DEFINE_JET_COMPARISON_OPERATOR(op) \
 template<typename T, int N> inline \

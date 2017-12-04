@@ -216,12 +216,12 @@ void qtErrorHandler::HandleError(Type type, const char *msg, va_list ap) {
       // Print the error message to stderr first, in case we have lost the
       // ability to run the gui at this point. Then try to pop up a window,
       // then exit.
-      char *s;
-      vasprintf(&s, msg, ap);
+      std::string s;
+      StringAppendV(&s, msg, ap);
       fprintf(stderr, "FATAL ERROR: ");
-      fprintf(stderr, "%s\n", s);
+      fprintf(stderr, "%s\n", s.c_str());
       fflush(stdout);
-      QMessageBox::critical(0, "Fatal error", s);
+      QMessageBox::critical(0, "Fatal error", s.c_str());
       // See the rationale in DefaultErrorHandler::HandleError() for this:
       _exit(1);
     }

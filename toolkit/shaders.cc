@@ -9,49 +9,49 @@ namespace gl {
 
 GLuint CreateProgramFromShaders(const char *vertex_shader,
                                 const char *fragment_shader) {
-  GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
-  GLuint fshader = glCreateShader(GL_FRAGMENT_SHADER);
+  GLuint vshader = GL(CreateShader)(GL_VERTEX_SHADER);
+  GLuint fshader = GL(CreateShader)(GL_FRAGMENT_SHADER);
   CHECK(vshader && fshader);
   GLint result = GL_FALSE;
   int log_length;
 
   // Compile and check vertex shader.
-  glShaderSource(vshader, 1, &vertex_shader, NULL);
-  glCompileShader(vshader);
-  glGetShaderiv(vshader, GL_COMPILE_STATUS, &result);
-  glGetShaderiv(vshader, GL_INFO_LOG_LENGTH, &log_length);
+  GL(ShaderSource)(vshader, 1, &vertex_shader, NULL);
+  GL(CompileShader)(vshader);
+  GL(GetShaderiv)(vshader, GL_COMPILE_STATUS, &result);
+  GL(GetShaderiv)(vshader, GL_INFO_LOG_LENGTH, &log_length);
   if (log_length > 0) {
     vector<char> msg(log_length + 1);
-    glGetShaderInfoLog(vshader, log_length, NULL, &msg[0]);
+    GL(GetShaderInfoLog)(vshader, log_length, NULL, &msg[0]);
     Panic("GLSL vertex shader: %s", &msg[0]);
   }
 
   // Compile and check fragment shader.
-  glShaderSource(fshader, 1, &fragment_shader, NULL);
-  glCompileShader(fshader);
-  glGetShaderiv(fshader, GL_COMPILE_STATUS, &result);
-  glGetShaderiv(fshader, GL_INFO_LOG_LENGTH, &log_length);
+  GL(ShaderSource)(fshader, 1, &fragment_shader, NULL);
+  GL(CompileShader)(fshader);
+  GL(GetShaderiv)(fshader, GL_COMPILE_STATUS, &result);
+  GL(GetShaderiv)(fshader, GL_INFO_LOG_LENGTH, &log_length);
   if (log_length > 0) {
     vector<char> msg(log_length + 1);
-    glGetShaderInfoLog(fshader, log_length, NULL, &msg[0]);
+    GL(GetShaderInfoLog)(fshader, log_length, NULL, &msg[0]);
     Panic("GLSL fragment shader: %s", &msg[0]);
   }
 
   // Link and check the program.
-  GLuint program = glCreateProgram();
-  glAttachShader(program, vshader);
-  glAttachShader(program, fshader);
-  glLinkProgram(program);
-  glGetProgramiv(program, GL_LINK_STATUS, &result);
-  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &log_length);
+  GLuint program = GL(CreateProgram)();
+  GL(AttachShader)(program, vshader);
+  GL(AttachShader)(program, fshader);
+  GL(LinkProgram)(program);
+  GL(GetProgramiv)(program, GL_LINK_STATUS, &result);
+  GL(GetProgramiv)(program, GL_INFO_LOG_LENGTH, &log_length);
   if (log_length > 0) {
     vector<char> msg(log_length + 1);
-    glGetProgramInfoLog(program, log_length, NULL, &msg[0]);
+    GL(GetProgramInfoLog)(program, log_length, NULL, &msg[0]);
     Panic("GLSL program: %s", &msg[0]);
   }
 
-  glDeleteShader(vshader);
-  glDeleteShader(fshader);
+  GL(DeleteShader)(vshader);
+  GL(DeleteShader)(fshader);
   return program;
 }
 

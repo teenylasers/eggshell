@@ -11,25 +11,26 @@
 
 namespace std {
 
-template <class T> struct myvector : public vector<T> {
-  typedef typename vector<T>::size_type _size;
-  typedef typename vector<T>::reference _ref;
-  typedef typename vector<T>::const_reference _const_ref;
-  myvector() : vector<T>() {}
-  myvector(_size sz) : vector<T>(sz) {}
-  myvector(_size sz, const T& value) : vector<T>(sz, value) {}
+template <class T, class A = std::allocator<T> >
+struct myvector : public vector<T,A> {
+  typedef typename vector<T,A>::size_type _size;
+  typedef typename vector<T,A>::reference _ref;
+  typedef typename vector<T,A>::const_reference _const_ref;
+  myvector() : vector<T,A>() {}
+  myvector(_size sz) : vector<T,A>(sz) {}
+  myvector(_size sz, const T& value) : vector<T,A>(sz, value) {}
   _ref operator[](_size pos) {
     #ifdef _GLIBCXX_DEBUG
-      return vector<T>::at(pos);
+      return vector<T,A>::at(pos);
     #else
-      return vector<T>::operator[](pos);
+      return vector<T,A>::operator[](pos);
     #endif
   }
   _const_ref operator[](_size pos) const {
     #ifdef _GLIBCXX_DEBUG
-      return vector<T>::at(pos);
+      return vector<T,A>::at(pos);
     #else
-      return vector<T>::operator[](pos);
+      return vector<T,A>::operator[](pos);
     #endif
   }
 };

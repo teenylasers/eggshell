@@ -2,6 +2,8 @@
 #ifndef __TOOLKIT_COLORMAPS_H__
 #define __TOOLKIT_COLORMAPS_H__
 
+#include <stdint.h>
+
 namespace ColorMap {
 
   // A colormap function is given x in the range 0..1 and returns an RGB color

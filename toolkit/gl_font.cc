@@ -41,7 +41,7 @@ void DrawStringM(const char *s, double x, double y, double z,
                  float red, float green, float blue,
                  TextAlignment halign, TextAlignment valign) {
   GLint viewport[4];
-  glGetIntegerv(GL_VIEWPORT, viewport);
+  GL(GetIntegerv)(GL_VIEWPORT, viewport);
   Eigen::Vector3d win;
   gl::Project(x, y, z, T, viewport, &win);
   DrawString(s, win[0], win[1], font, red, green, blue, halign, valign);

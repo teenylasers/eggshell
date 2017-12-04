@@ -161,7 +161,7 @@ void GLViewerBase::HandleDrag(int x, int y, const Vector3d &model_pt) {
 void GLViewerBase::ApplyViewport() {
   int window_width, window_height;
   GetScaledClientSize(&window_width, &window_height);
-  glViewport(0, 0, window_width, window_height);
+  GL(Viewport)(0, 0, window_width, window_height);
 }
 
 void GLViewerBase::ApplyCameraTransformations(const Matrix4d &M) {
@@ -695,6 +695,7 @@ void GLViewer::GetScaledClientSize(int *window_width, int *window_height) {
 }
 
 void GLViewer::initializeGL() {
+  gl::InitializeOpenGLFunctions(context());
 }
 
 void GLViewer::resizeGL(int w, int h) {
@@ -709,7 +710,7 @@ void GLViewer::paintGL() {
   // Reset the opengl error state in case the caller did something bad. We want
   // to trap errors that our own code generates and not worry about any bad
   // things the gui library did.
-  glGetError();
+  GL(GetError)();
 
   // Reset GL state.
   ApplyViewport();
@@ -719,7 +720,7 @@ void GLViewer::paintGL() {
 
   // Complain if there were OpenGL errors.
   int err;
-  while ((err = glGetError()) != GL_NO_ERROR) {
+  while ((err = GL(GetError)()) != GL_NO_ERROR) {
     Error("GL error %d (%s)", err, gl::ErrorString(err));
   }
 }

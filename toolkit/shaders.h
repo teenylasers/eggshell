@@ -23,10 +23,10 @@ class Shader {
  public:
   Shader(const char *vertex, const char *fragment) :
       vertex_(vertex), fragment_(fragment), program_(0) {}
-  ~Shader() { glDeleteProgram(program_); }
+  ~Shader() { GL(DeleteProgram)(program_); }
   void Use() {
     if (!program_) program_ = CreateProgramFromShaders(vertex_, fragment_);
-    glUseProgram(program_);
+    GL(UseProgram)(program_);
   }
  private:
   const char *vertex_, *fragment_;      // Program source
@@ -40,11 +40,11 @@ class Shader {
 class PushShader {
  public:
   explicit PushShader(Shader &shader) {
-    glGetIntegerv(GL_CURRENT_PROGRAM, &program_);
+    GL(GetIntegerv)(GL_CURRENT_PROGRAM, &program_);
     shader.Use();
     ReapplyTransform();
   }
-  ~PushShader() { glUseProgram(program_); }
+  ~PushShader() { GL(UseProgram)(program_); }
  private:
   GLint program_;
 };

@@ -744,7 +744,7 @@ void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
   // Third pass: draw vertices.
   if (show_vertices) {
     gl::SetUniform("color", 0, 0, 0);
-    glPointSize(5);
+    GL(PointSize)(5);
     vector<Vector3f> p;
     for (int i = 0; i < polys_.size(); i++) {
       for (int j = 0; j < polys_[i].p.size(); j++) {

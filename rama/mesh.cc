@@ -510,7 +510,7 @@ void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
 
 void Mesh::DrawPointDerivatives(double scale) {
   gl::SetUniform("color", 0, 0, 1);
-  glPointSize(5);
+  GL(PointSize)(5);
   vector<Vector3f> p;
   for (int i = 0; i < points_.size(); i++) {
     if (points_[i].original_piece >= 0) {

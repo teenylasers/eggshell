@@ -65,7 +65,7 @@ void StringAppendF(std::string *buffer, const char *msg, ...) {
 }
 
 void StringAppendV(std::string *buffer, const char *msg, va_list ap) {
-  #if defined(__WXMSW__) || defined(Q_OS_WIN)
+  #if defined(__WINNT__)
     // Windows specific:
     // We need separate copies of 'ap' for all users, as users will mutate it.
     va_list ap2;

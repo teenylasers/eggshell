@@ -188,13 +188,13 @@ void Cavity::CreateArgumentsToOptimize(bool optimize_output_requested) {
 }
 
 void Cavity::DrawModel() {
-  glDisable(GL_BLEND);
-  glDisable(GL_CULL_FACE);
-  glDisable(GL_DEPTH_TEST);
-  glCullFace(GL_BACK);
-  glFrontFace(GL_CCW);
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-  glPointSize(1);
+  GL(Disable)(GL_BLEND);
+  GL(Disable)(GL_CULL_FACE);
+  GL(Disable)(GL_DEPTH_TEST);
+  GL(CullFace)(GL_BACK);
+  GL(FrontFace)(GL_CCW);
+  GL(PolygonMode)(GL_FRONT_AND_BACK, GL_FILL);
+  GL(PointSize)(1);
 
   gl::FlatShader().Use();
   ApplyCameraTransformations();
@@ -205,7 +205,7 @@ void Cavity::DrawModel() {
   }
 
   if (AntiAliasing()) {
-    glEnable(GL_MULTISAMPLE);
+    GL(Enable)(GL_MULTISAMPLE);
   }
 
   // Anti-aliased drawing.
