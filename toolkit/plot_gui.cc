@@ -415,11 +415,12 @@ void wxPlot::DeleteSnapshot() {
 #include <QMouseEvent>
 #include <QRubberBand>
 #include <QImage>
+#include "platform.h"
 
 namespace Plot {
 
-const int kLabelFontSize = 16;
-const int kLabelSmallFontSize = 12;
+const int kLabelFontSize = 9 * FONT_SCALE;
+const int kLabelSmallFontSize = 6 * FONT_SCALE;
 const int kNumFonts = 2;
 
 class PlotWindow : public Plot::Window {

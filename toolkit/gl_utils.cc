@@ -240,7 +240,7 @@ bool PixelToModelCoordinates(int x, int y, const Matrix4d &transform,
                              Vector3d *p) {
   // Find the depth of this pixel. Note that glReadPixels() returns undefined
   // values for pixels outside the window.
-  float depth;
+  float depth = 0;  // Must initialize, buggy OpenGLs fail if this is NaN
   GL(ReadPixels)(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
   bool found_good_depth = (depth != 1.0);
   Vector3d xyd(x, y, depth);
