@@ -22,6 +22,9 @@ doccer_parser.cc doccer_parser.h: doccer.y
 doccer.o: doccer_parser.h
 
 clean:
-	rm -f *.o *.d $(GENERATED_FILES) $(APP)
+	rm -f *.o *.d $(GENERATED_FILES)
+
+realclean: clean
+	rm -f $(APP)
 
 -include *.d

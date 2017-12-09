@@ -110,7 +110,7 @@ ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
 LAPACK_DIR := $(TOOLS_DIR)/lapack-3.7.1
 EIGEN_BLAS_LAPACK_LIB := $(STUFF_DIR)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
 EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-3.3.4
-DOCCER := $(STUFF_DIR)/doccer/doccer.exe
+DOCCER := $(STUFF_DIR)/doccer/doccer.exe -t $(STUFF_DIR)/doccer/template.html
 FFTW_INC := $(TOOLS_DIR)/fftw-3.3.6/api
 FFTW_LIB := $(TOOLS_DIR)/fftw-3.3.6/.libs/libfftw3.a
 
@@ -206,3 +206,6 @@ endif
 
 # C flags are also C++ flags.
 CCFLAGS += $(CFLAGS) -std=gnu++11
+
+# Public mathjax server.
+MATHJAX_PUBLIC=https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-AMS-MML_SVG

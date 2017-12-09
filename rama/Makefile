@@ -58,7 +58,7 @@ lua: dirs
 docs: dirs
 	$(MAKE) $(MY_MAKEFLAGS) docs2
 docs2:
-	$(DOCCER) -t ../doc/template.html -Dversion=$(VERSION) ../doc/rama.doc > rama.html
+	$(DOCCER) -Dversion=$(VERSION) ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama.html
 	cp ../doc/*.{png,gif} .       # So locally viewing the manual works
 
 test: all
