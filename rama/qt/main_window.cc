@@ -288,24 +288,14 @@ void MainWindow::on_actionStopSweepOrOptimization_triggered() {
 }
 
 void MainWindow::on_actionRamaManual_triggered() {
-  /*@@@ link to manual that is in the resource bundle or installed location
-
-    // From http://doc.qt.io/qt-5/osx-issues.html:
-#ifdef Q_OS_MAC
-    CFURLRef appUrlRef = CFBundleCopyBundleURL(CFBundleGetMainBundle());
-    CFStringRef macPath = CFURLCopyFileSystemPath(appUrlRef,
-                                           kCFURLPOSIXPathStyle);
-    const char *pathPtr = CFStringGetCStringPtr(macPath,
-                                           CFStringGetSystemEncoding());
-    qDebug("Path = %s", pathPtr);
-    CFRelease(appUrlRef);
-    CFRelease(macPath);
-#endif
-
-  wxString path = wxStandardPaths::Get().GetResourcesDir();
-  wxURI url("file://" + path + "/rama.html");
-  wxLaunchDefaultBrowser(url.BuildURI(), wxBROWSER_NEW_WINDOW);
-  */
+  // Open the manual from the installed location.
+  QDir dir = QDir(QCoreApplication::applicationDirPath());
+  #ifdef __APPLE__
+    // Navigate within the bundle.
+    dir.cd("../../Contents/Resources");
+  #endif
+  QString path = dir.absoluteFilePath("rama.html");
+  QDesktopServices::openUrl(QUrl("file://" + path));
 }
 
 void MainWindow::on_actionRamaWebsite_triggered() {
