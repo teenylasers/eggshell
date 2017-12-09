@@ -66,11 +66,11 @@ DEFINES += QT_DEPRECATED_WARNINGS
 DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000
 
 SOURCES += \
-        main.cpp \
-        main_window.cpp \
-    about.cpp \
-    sweep.cpp \
-    error_window.cpp \
+        main.cc \
+        main_window.cc \
+    about.cc \
+    sweep.cc \
+    error_window.cc \
     ../../toolkit/error.cc \
     ../../toolkit/viewer.cc \
     ../../toolkit/camera.cc \
