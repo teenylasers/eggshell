@@ -9,11 +9,6 @@
 # Top level configuration that can be overridden by setting environment
 # variables:
 
-# STUFF_DIR is the root of the 'stuff' repository.
-ifndef STUFF_DIR
-  STUFF_DIR := $(HOME)/stuff
-endif
-
 # TOOLS_DIR is where 3rd party libraries are collected.
 ifndef TOOLS_DIR
   TOOLS_DIR := $(HOME)/tools
@@ -99,6 +94,9 @@ endif
 #############################################################################
 # Paths dependent on the top level configuration. These can be changed if you
 # have things in different places.
+
+# Set STUFF_DIR to the root of the 'stuff' repository.
+STUFF_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 ifeq ($(OPTIMIZE), 1)
   WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
