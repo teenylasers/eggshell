@@ -269,10 +269,14 @@ void MainWindow::on_actionEmitTrace_triggered() {
 
 void MainWindow::on_actionSelectLevenbergMarquardt_triggered() {
   ui->model->SetOptimizer(LEVENBERG_MARQUARDT);
+  ui->actionSelectLevenbergMarquardt->setChecked(true);
+  ui->actionSelectSubspaceDogleg->setChecked(false);
 }
 
 void MainWindow::on_actionSelectSubspaceDogleg_triggered() {
   ui->model->SetOptimizer(SUBSPACE_DOGLEG);
+  ui->actionSelectLevenbergMarquardt->setChecked(false);
+  ui->actionSelectSubspaceDogleg->setChecked(true);
 }
 
 void MainWindow::on_actionStartOptimization_triggered() {

@@ -948,11 +948,20 @@
    </property>
   </action>
   <action name="actionSelectLevenbergMarquardt">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Levenberg Marquardt</string>
    </property>
   </action>
   <action name="actionSelectSubspaceDogleg">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Subspace dogleg</string>
    </property>
