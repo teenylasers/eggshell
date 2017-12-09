@@ -1,0 +1,70 @@
+\documentclass [11pt] {article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{times}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{xspace}
+\usepackage[bookmarks=true,letterpaper,colorlinks,linkcolor=blue,anchorcolor=blue,urlcolor=blue,bookmarksnumbered]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[margin=2em,font=small,format=plain,labelfont=bf,up,textfont=it,up]{caption}
+\usepackage[utf8]{inputenc}
+\usepackage{animate}
+\usepackage{fancyvrb}
+\usepackage{tabu}
+\usepackage{longtable}
+
+\oddsidemargin=-0.5in
+\evensidemargin=-0.5in
+\topmargin=-0.5in
+\textwidth=7.5in
+\textheight=9in
+\setlength{\parindent}{0in}
+\setlength{\parskip}{0.1in}
+
+% Headers and footers.
+\fancypagestyle{plain}{%
+\fancyhf{} % clear all header and footer fields
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}}
+\pagestyle{fancy}
+
+% Logical document structures.
+\newcommand{\TheAuthor}[1]{\\ \vspace{0.5em} \normalsize #1}
+\newcommand{\Items}[1]{\begin{itemize} #1 \end{itemize}}
+\newcommand{\NumItems}[1]{\begin{enumerate} #1 \end{enumerate}}
+\newcommand{\Eqns}[1]{\begin{eqnarray} #1 \end{eqnarray}}
+\newcommand{\Title}[1]{\title{\renewcommand{\rmdefault}{pbk}\rmfamily\normalfont\Huge\bfseries
+        #1} \date{} \maketitle}
+\newcommand{\Contents}[0]{}
+\newcommand{\Figure}[2]{
+        \begin{center}
+        \includegraphics[width=10cm]{#1}
+        \end{center}}
+\newcommand{\Link}[2]{\href{#1}{#2}\footnote{\nolinkurl{#1}}}
+
+% Some mathematics stuff.
+\newcommand{\del}[0]{\partial\:}
+\newcommand{\by}[0]{\over}
+\newcommand{\mymatrix}[1]{\left[ \begin{array}{cccccccccccccccccccc} #1
+        \end{array} \right]}
+
+% Reference things.
+\newcommand{\figref}[1] {\autoref{fig:#1}}
+% \newcommand{\eqref}[1] {equation~\ref{eq:#1}}
+% \newcommand{\Eqref}[1] {Equation~\ref{eq:#1}}
+\newcommand{\secref}[1] {\autoref{sec:#1}}
+\newcommand{\tabref}[1] {\autoref{tab:#1}}
+\renewcommand{\figureautorefname}[0] {figure}
+\renewcommand{\tableautorefname}[0] {table}
+\renewcommand{\sectionautorefname}[0] {section}
+\renewcommand{\subsectionautorefname}[0] {section}
+\renewcommand{\subsubsectionautorefname}[0] {section}
+
+\begin{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{document}

@@ -1,0 +1,66 @@
+
+@title{Doccer Commands @author{Evenedric}}
+
+@contents{}
+
+@section{Formatting commands}
+
+A blank line is treated as a paragraph break.
+Commands have one of two forms:
+@numlist{
+@*      @c{@@<symbol>}    (a command with no arguments)
+@*      @c{@@command@{arguments or affected text@}}
+}
+Curly braces are like TeX, they remember the external state and restore it
+on exit. Comment lines, written with a @# at the start of the line, are
+entirely deleted, e.g. so a comment line is not treated as a paragraph break.
+
+@subsection{Non-nestable formatting commands}
+@===[
+      @[ ... @]               Verbatim text (e.g. source code)
+      @m{...}                 LaTeX math (inline)
+      @M{...}                 LaTeX math (display)
+      @newcommands{...}       Define new LaTeX math commands
+      @title{...}             Set the title of the document
+      @author{...}            Set the author of the document, used within @title{}
+      @contents{}             Add a table of contents here
+      @figure{filename}{parameters}  Add inline figure
+      @eqref{...}             Reference to the named equation
+      @table{...}             Table
+      @arg{name}              Value of the -Dname=value command line argument
+]===@
+
+@subsection{@label{nestable} Nestable formatting commands}
+
+@list{
+@* @c{@@emph@{...@}}              - @emph{Add emphasis to text}
+@* @c{@@b@{...@}}                 - @b{Bold}
+@* @c{@@c@{...@}}                 - @c{Source code symbol}
+@* @c{@@list@{bulleted list@}}
+@* @c{@@numlist@{numbered list@}}
+@* @c{@@section@{...@}}           - Start a new section.
+@* @c{@@section@{@@label@{word@} ...@}}
+   - Start a new section with the given label, for use by @c{@@link}.
+     The label command must appear immediately after the section command and
+     the label must be a single word. The label can be used also with the other
+     sectioning commands, below.
+@* @c{@@subsection@{...@}}        - Start a new subsection.
+@* @c{@@subsubsection@{...@}}     - Start a new subsubsection.
+@* @c{@@link@{url@}@{text@}}
+   - Web link. If URL does not start with 'http:' it means a
+     @link{nestable}{section label} in this document.
+}
+
+@subsection{No-argument commands}
+@[
+      @*                      Prefixes each item in a list or row in a table
+      @|                      Separates each cell in a table
+      @_                      Explicit line break
+]@
+
+@subsection{Single character commands}
+@[
+      @@                      Symbol: @
+      @{                      Symbol: {
+      @}                      Symbol: }
+]@
