@@ -2,7 +2,11 @@
 #############################################################################
 # Top level configuration
 
+# OPTIMIZE is 1 for optimizations on, or 0 for debug features on.
 OPTIMIZE := 1
+# GUI is either wx or qt
+GUI := wx
+
 default: all
 -include ../common.mk           # For top level invocation
 -include ../../common.mk        # For invocation in the build directory
@@ -11,19 +15,31 @@ default: all
 # Rules that can be run from the top level directory (all other rules need
 # to be run from the build directory).
 
+# Check that GUI is set correctly.
+ifeq ($(GUI), qt)
+else ifeq ($(GUI), wx)
+else
+  $(error Bad value for GUI)
+endif
+
 # Extract the version number from version.h.
 ifndef VERSION
 VERSION := $(shell $(TOOL_PREFIX)cpp -dM version.h|grep __APP_VERSION__|cut -d '"' -f 2)
 endif
 
 # Build directories
-DIRS=build/lua build/dialogblocks build/toolkit
+DIRS = build/lua build/toolkit
+ifeq ($(GUI), qt)
+  DIRS += build/qt
+else
+  DIRS += build/dialogblocks
+endif
 
 # -R means no-builtin-variables and no-builtin-rules:
 MAKEFLAGS += -R
 MY_MAKEFLAGS = -C build -f ../Makefile VERSION=$(VERSION)
 
-.PHONY: dirs all run lua docs test winrelease macrelease clean cleanapp
+.PHONY: dirs all run lua docs test windeploy macdeploy clean cleanapp
 
 dirs:
 	mkdir -p $(DIRS)
@@ -48,17 +64,17 @@ docs2:
 test: all
 	./build/$(APP) -test
 
-winrelease: all test
-	$(MAKE) $(MY_MAKEFLAGS) winrelease2
-winrelease2: $(APP) docs2
+windeploy: all test
+	$(MAKE) $(MY_MAKEFLAGS) windeploy2
+windeploy2: $(APP) docs2
 	$(TOOL_PREFIX)strip $(APP)
 	$(INNO_SETUP) /cc ../release/rama_setup.iss
 	echo $(VERSION) > latest_version.txt
 	scp setup_rama.exe rama.html *.png *.gif latest_version.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
 
-macrelease: all test
-	$(MAKE) $(MY_MAKEFLAGS) macrelease2
-macrelease2: $(APP) docs2
+macdeploy: all test
+	$(MAKE) $(MY_MAKEFLAGS) macdeploy2
+macdeploy2: $(APP) docs2
 	$(TOOL_PREFIX)strip $(APP)
 	rm -rf Rama.app && cp -av ../release/Rama.app .
 	mkdir Rama.app/Contents/MacOS
@@ -81,45 +97,86 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
       toolkit/optimizer.o toolkit/testing.o toolkit/md5.o toolkit/lua_util.o \
       toolkit/gl_utils.o toolkit/gl_font.o toolkit/plot.o toolkit/plot_gui.o \
       toolkit/viewer.o toolkit/camera.o toolkit/femsolver.o toolkit/mystring.o \
-      toolkit/lua_model_viewer_wx.o toolkit/lua_vector.o toolkit/trace.o \
+      toolkit/lua_vector.o toolkit/trace.o \
       toolkit/shaders.o toolkit/color_based_selection.o \
-      cavity.o app.o common.o shape.o mesh.o solver.o \
-      clipper.o triangle.o user_script_util.o \
-      dialogblocks/mainwin.o dialogblocks/aboutwin.o dialogblocks/sweep.o
+      common.o shape.o mesh.o solver.o \
+      clipper.o triangle.o user_script_util.o
+
+ifeq ($(GUI), qt)
+  OBJ += toolkit/thread.o cavity_qt.o qt/main.o qt/main_window.o qt/about.o \
+         qt/sweep.o qt/error_window.o toolkit/lua_model_viewer_qt.o \
+         qt/moc_main_window.o qt/moc_about.o  qt/moc_sweep.o \
+         qt/moc_error_window.o qt/moc_lua_model_viewer_qt.o \
+         qt/plugin_import.o
+  UI_HEADERS = qt/ui_about.h qt/ui_error_window.h qt/ui_main_window.h \
+               qt/ui_sweep.h
+else
+  OBJ += cavity.o app.o toolkit/lua_model_viewer_wx.o \
+         dialogblocks/mainwin.o dialogblocks/aboutwin.o dialogblocks/sweep.o
+  # Precompiled headers, are most useful for speeding up the windows compile,
+  # they don't seem to have much speed impact on mac and linux.
+  ifeq ($(PLATFORM), windows)
+    PCH = ../stdwx.h.gch
+  endif
+endif
+
 APP = rama.exe
 
 ifneq ($(PLATFORM), windows)
-OBJ += toolkit/crash_handler.o
-endif
-
-# Precompiled headers, are most useful for speeding up the windows compile,
-# they don't seem to have much speed impact on mac and linux.
-ifeq ($(OS), Windows_NT)
-PCH = ../stdwx.h.gch
+  OBJ += toolkit/crash_handler.o
 endif
 
 #############################################################################
 # Compiler configuration: directories, files and flags.
 
-# Per-OS configuration.
-ifeq ($(PLATFORM), windows)
-  # WX libraries. The sed command is required because wx-config seems not to
-  # get the proper library names in version 3.0.1 for windows:
-  CCFLAGS += -Wno-unused-local-typedefs -Wno-inconsistent-missing-override
-  LUA_EXTRA_CFLAGS =
-  OBJ += rc.o
-  SIZE_T_PRINTF = '"I"'
-  UNDEF_X11_H =
-else
+# Per-OS configuration that is common across GUI toolkits.
+ifneq ($(PLATFORM), windows)
   LUA_EXTRA_CFLAGS = -DLUA_USE_POSIX
-  ifeq ($(PLATFORM), linux)
-    CCFLAGS += -Wno-unused-local-typedefs
-    UNDEF_X11_H = undef_x11.h
-  else
-    CCFLAGS += -Wno-inconsistent-missing-override
-    UNDEF_X11_H =
+endif
+
+ifeq ($(GUI), qt)
+  CC := gcc
+  CXX := g++
+  GUI_DEF = -DQT_DEPRECATED_WARNINGS -DQT_DISABLE_DEPRECATED_BEFORE=0x060000 \
+            -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB
+  GUI_INC = -I$(QT_DIR)/include -I$(QT_DIR)/include/QtWidgets \
+            -I$(QT_DIR)/include/QtGui -I$(QT_DIR)/include/QtNetwork \
+            -I$(QT_DIR)/include/QtCore
+  CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
+  ifeq ($(OPTIMIZE), 1)
+    CCFLAGS += -DQT_NO_DEBUG
+    #@@@ what about debug flags?
   endif
-  SIZE_T_PRINTF = '"z"'
+  GUI_LIBS = -framework OpenGL -framework AGL -framework IOKit \
+    -framework Carbon -framework AppKit -framework SystemConfiguration \
+    -framework Security \
+    -L$(QT_DIR)/lib \
+    -lQt5Widgets -lQt5Gui -lQt5Core -lQt5Network -lQt5ClipboardSupport \
+    -lQt5GraphicsSupport -lQt5PrintSupport -lQt5FontDatabaseSupport \
+    -lQt5CglSupport -lQt5ThemeSupport -lQt5AccessibilitySupport \
+    -lqtlibpng -lqtharfbuzz -lqtpcre2 -lqtfreetype -lz -lcups \
+    -L/Users/russ/tools/Qt-5.9.2/plugins/platforms -lqcocoa
+
+else
+  # wxWidgets.
+  CC := $(shell $(WXCONFIG) --cc)
+  CXX := $(shell $(WXCONFIG) --cxx)
+  RESCOMP := $(shell $(WXCONFIG) --rescomp)
+  ifeq ($(PLATFORM), windows)
+    CCFLAGS += -Wno-unused-local-typedefs -Wno-inconsistent-missing-override
+    OBJ += rc.o
+    UNDEF_X11_H =
+  else
+    ifeq ($(PLATFORM), linux)
+      CCFLAGS += -Wno-unused-local-typedefs
+      UNDEF_X11_H = undef_x11.h
+    else
+      CCFLAGS += -Wno-inconsistent-missing-override
+      UNDEF_X11_H =
+    endif
+  endif
+  CCFLAGS += $(shell $(WXCONFIG) --cxxflags) -D__TOOLKIT_WXWINDOWS__=1
+  GUI_LIBS = $(shell $(WXCONFIG) --libs core,base,gl,aui,net $(WX_LIBS_SED))
 endif
 
 ifdef MATLAB_INC
@@ -128,15 +185,10 @@ ifdef MATLAB_INC
   OBJ += matlab_engine.o
 endif
 
-# Compiler configuration.
-CC := $(shell $(WXCONFIG) --cc)
-CXX := $(shell $(WXCONFIG) --cxx)
-RESCOMP := $(shell $(WXCONFIG) --rescomp)
-MYFLAGS := -I. -I.. -Werror -Wall -MMD -Wno-sign-compare
-CFLAGS += $(MYFLAGS)
-CCFLAGS += $(MYFLAGS) $(shell $(WXCONFIG) --cxxflags) -D__TOOLKIT_WXWINDOWS__=1 \
-  $(ENGINE_EXTRA_CFLAGS) \
-  $(ZLIB_CFLAGS) -D__TOOLKIT_MAT_FILE_USE_ZLIB__ -D__TOOLKIT_USE_CERES__ \
+# More compiler configuration.
+CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare
+CCFLAGS += $(ENGINE_EXTRA_CFLAGS) $(ZLIB_CFLAGS) \
+  -D__TOOLKIT_MAT_FILE_USE_ZLIB__ -D__TOOLKIT_USE_CERES__ \
   $(EIGEN_FLAGS) $(CERES_INC) -I../../toolkit
 
 #############################################################################
@@ -201,34 +253,53 @@ libeng.a:
 # Rules.
 
 .SUFFIXES:
-.PRECIOUS: %.h.gch
+.PRECIOUS: %.h.gch qt/moc_%.cc qt/ui_%.h
+
+CC_COMPILE = $(CXX) -c $(CCFLAGS) -o $@ $<
+C_COMPILE = $(CC) -c $(CFLAGS) -o $@ $<
 
 %.o: ../%.cc $(PCH) $(UNDEF_X11_H)
-	$(CXX) -c $(CCFLAGS) -o $@ $<
+	$(CC_COMPILE)
 
 dialogblocks/%.o: ../dialogblocks/%.cc $(PCH)
-	$(CXX) -c $(CCFLAGS) -o $@ $<
+	$(CC_COMPILE)
+
+qt/%.o: ../qt/%.cc $(UI_HEADERS) $(PCH)
+	$(CC_COMPILE)
+
+qt/%.o: qt/%.cc $(UI_HEADERS) $(PCH)
+	$(CC_COMPILE)
 
 toolkit/%.o: ../../toolkit/%.cc $(PCH) $(UNDEF_X11_H)
-	$(CXX) -c $(CCFLAGS) -o $@ $<
+	$(CC_COMPILE)
 
 %.o: ../%.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	$(C_COMPILE)
 
 lua/%.o: $(LUA_DIR)/%.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	$(C_COMPILE)
 
 %.h.gch: %.h $(UNDEF_X11_H)
 	$(CXX) $(CCFLAGS) $<
 
+qt/moc_%.cc: ../qt/%.h
+	$(QT_DIR)/bin/moc $(F5) $< -o $@
+
+qt/moc_%.cc: ../../toolkit/%.h
+	$(QT_DIR)/bin/moc $(F5) $< -o $@
+
+qt/ui_%.h: ../qt/%.ui
+	$(QT_DIR)/bin/uic $< -o $@
+
 rc.o: ../dialogblocks/rama.rc
 	$(RESCOMP) -i $< -o $@
 
+# The sed command is required for wxWidgets on windows because wx-config seems
+# not to get the proper library names in version 3.0.1.
 $(APP): $(OBJ) $(LUA_OBJ) $(ENGINE_LIBS)
-	$(CXX) $(CCFLAGS) -o $(APP) $(WINDOWS_STATIC_LINK) \
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $(APP) $(WINDOWS_STATIC_LINK) \
             $(OBJ) $(LUA_OBJ) $(ENGINE_LIBS) $(CERES_LIB) \
-            $(ARPACK_LIB) $(EIGEN_BLAS_LAPACK_LIB) \
-            $(shell $(WXCONFIG) --libs core,base,gl,aui,net $(WX_LIBS_SED))
+            $(ARPACK_LIB) $(EIGEN_BLAS_LAPACK_LIB) $(GUI_LIBS)
 
 text2bin.exe: ../text2bin.cc
 	$(TOOL_PREFIX)gcc$(TOOL_SUFFIX) -o $@ $<

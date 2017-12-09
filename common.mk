@@ -4,12 +4,28 @@
 # purpose. The OPTIMIZE variable is expected to be defined externally to
 # select an optimized build (1) or a debug build (0), which will influence
 # some of the libraries and flags that are picked.
-#
-# All instances of SET_ME below should be changed to match your local
-# configuration.
 
-# The following variables are defined here:
+#############################################################################
+# Top level configuration that can be overridden by setting environment
+# variables:
+
+# STUFF_DIR is the root of the 'stuff' repository.
+ifndef STUFF_DIR
+  STUFF_DIR := $(HOME)/stuff
+endif
+
+# TOOLS_DIR is where 3rd party libraries are collected.
+ifndef TOOLS_DIR
+  TOOLS_DIR := $(HOME)/tools
+endif
+
+#############################################################################
+# The default rule prints all variables that are exported.
+
 show_configuration:
+	# Top level configuration:
+	@echo "STUFF_DIR   = $(STUFF_DIR)"
+	@echo "TOOLS_DIR   = $(TOOLS_DIR)"
 	# osx, windows or linux:
 	@echo "PLATFORM    = $(PLATFORM)"
 	# Prefix for gcc and binutils:
@@ -18,8 +34,11 @@ show_configuration:
 	# No library-specific stuff is added.
 	@echo "CFLAGS      = $(CFLAGS)"
 	@echo "CCFLAGS     = $(CCFLAGS)"
+	@echo "LDFLAGS     = $(LDFLAGS)"
 	# Path to the wxWidgets wxconfig tool, e.g. '/foo/bar/wx-config' :
 	@echo "WXCONFIG    = $(WXCONFIG)"
+	# Path to the Qt distribution.
+	@echo "QT_DIR      = $(QT_DIR)"
 	# Eigen include directory:
 	@echo "EIGEN_DIR   = $(EIGEN_DIR)"
 	# Eigen g++ flags to match the optimization level:
@@ -49,8 +68,6 @@ show_configuration:
 	@echo "LAPACK_DIR  = $(LAPACK_DIR)"
 	# Path to the documentation system
 	@echo "DOCCER      = $(DOCCER)"
-	# Static linking flags on windows only:
-	@echo "WINDOWS_STATIC_LINK = $(WINDOWS_STATIC_LINK)"
 	# sed command to fix the output of wx-config --libs as necessary:
 	@echo "WX_LIBS_SED = $(WX_LIBS_SED)"
 	# Includes and link for a good version of readline.
@@ -80,77 +97,57 @@ else
 endif
 
 #############################################################################
-# Paths to things.
+# Paths dependent on the top level configuration. These can be changed if you
+# have things in different places.
 
-# _MYCODE is the root of the 'stuff' repository.
-
-ifeq ($(PLATFORM), osx)
-  _MYCODE := /SET_ME
-  TOOLS_DIR := /SET_ME
-  ifeq ($(OPTIMIZE), 1)
-    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
-  else
-    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-dbg/wx-config
-  endif
-  EIGEN_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
-  CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
-  ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
-  LAPACK_DIR := $(TOOLS_DIR)/lapack-3.5.0
-  EIGEN_BLAS_LAPACK_LIB := $(_MYCODE)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
-  EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
-  DOCCER := /SET_ME/doccer.exe
-  READLINE_INC := -I/SET_ME/readline-6.3
-  READLINE_LIB := /SET_ME/readline-6.3/libreadline.a \
-                  /SET_ME/readline-6.3/libhistory.a -lcurses
-  FFTW_INC := /SET_ME/fftw-3.3.4/api
-  FFTW_LIB := /SET_ME/fftw-3.3.4/.libs/libfftw3.a
-  FORTRAN_COMPILER := gfortran -mmacosx-version-min=10.9
+ifeq ($(OPTIMIZE), 1)
+  WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
+else
+  WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-dbg/wx-config
 endif
+QT_DIR := $(TOOLS_DIR)/Qt-5.9.2
+EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.4
+CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
+ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
+LAPACK_DIR := $(TOOLS_DIR)/lapack-3.7.1
+EIGEN_BLAS_LAPACK_LIB := $(STUFF_DIR)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
+EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-3.3.4
+DOCCER := $(STUFF_DIR)/doccer/doccer.exe
+FFTW_INC := $(TOOLS_DIR)/fftw-3.3.6/api
+FFTW_LIB := $(TOOLS_DIR)/fftw-3.3.6/.libs/libfftw3.a
 
+# Per-OS configuration.
+ifeq ($(PLATFORM), osx)
+  READLINE_INC := -I$(TOOLS_DIR)/readline-6.3
+  READLINE_LIB := $(TOOLS_DIR)/readline-6.3/libreadline.a \
+                  $(TOOLS_DIR)/readline-6.3/libhistory.a -lcurses
+  # Note the -mmacosx-version-min is passed explicitly to the assembler as well
+  # since homebrew gfortran appears to have a bug that prevents passing this
+  # flag. If the flag is not passed the object files will not have the correct
+  # version.
+  FORTRAN_COMPILER := gfortran -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
+endif
 ifeq ($(PLATFORM), windows)
-  _MYCODE := /SET_ME
-  WXCONFIG = /SET_ME/wxWidgets-3.1.0/wx-config
-  EIGEN_DIR := /SET_ME/eigen-eigen-3.3.2
-  ZLIB_CFLAGS := -I/SET_ME/zlib-1.2.8
-  CERES_DIR := /SET_ME/ceres-solver-1.12.0
-  ARPACK_DIR := /SET_ME/arpack-ng-3.1.5
-  LAPACK_DIR := /SET_ME/lapack-3.5.0
-  EIGEN_BLAS_LAPACK_LIB := $(_MYCODE)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
-  EIGEN_BLAS_LAPACK_LIB_DIR := /SET_ME/eigen-eigen-3.3.2
   INNO_SETUP := '/c/Program Files (x86)/Inno Setup 5/Compil32.exe'
-  DOCCER := /SET_ME/doccer.exe
+  #MATLAB_LIB := /c/Program Files/MATLAB/R2013a/extern/lib/win64/microsoft
+  #MATLAB_INC := /c/Program\ Files/MATLAB/R2013a/extern/include
   READLINE_LIB := -lreadline
   FORTRAN_COMPILER := x86_64-w64-mingw32-gfortran.exe
 endif
-
 ifeq ($(PLATFORM), linux)
   # Using gcc under linux.
-  _MYCODE := /SET_ME
-  TOOLS_DIR := /SET_ME
-  ifeq ($(OPTIMIZE), 1)
-    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
-  else
-    WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-dbg/wx-config
-  endif
-  EIGEN_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
-  CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
-  ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
-  LAPACK_DIR := $(TOOLS_DIR)/lapack-3.7.1
-  EIGEN_BLAS_LAPACK_LIB := $(_MYCODE)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
-  EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-eigen-3.3.4
-  DOCCER := /SET_ME/doccer.exe
   FORTRAN_COMPILER := gfortran
 endif
 
 CERES_INC := -I$(CERES_DIR)/include \
   -I$(CERES_DIR)/internal/ceres/miniglog -I$(CERES_DIR)/config
-CERES_LIB := $(_MYCODE)/toolkit/ceres-build
+CERES_LIB := $(STUFF_DIR)/toolkit/ceres-build
 ifeq ($(OPTIMIZE), 1)
   CERES_LIB := $(CERES_LIB)/libceres-opt.a
 else
   CERES_LIB := $(CERES_LIB)/libceres-dbg.a
 endif
-ARPACK_LIB := $(_MYCODE)/toolkit/arpack-build/libarpack.a
+ARPACK_LIB := $(STUFF_DIR)/toolkit/arpack-build/libarpack.a
 
 #############################################################################
 # Flags.
@@ -165,14 +162,20 @@ else
 endif
 
 ifeq ($(PLATFORM), windows)
-  # On some versions of GCC the -mms-bitfields option is enabled by default and
-  # breaks packed structures.
-  CFLAGS += -mno-ms-bitfields
-endif
-
-ifeq ($(PLATFORM), windows)
   TOOL_PREFIX := x86_64-w64-mingw32-
-  CFLAGS += -mno-ms-bitfields
+
+  # On windows GCC the -mms-bitfields option is enabled by default. This has
+  # broken packed structures on older compilers/code, so this is the option to
+  # disable it if that becomes necessary.
+  #   CFLAGS += -mno-ms-bitfields
+
+  # Statically link windows binaries to prevent dependence on mingw DLLs that
+  # wont be distributed with the application.
+  LDFLAGS += -static -static-libgcc -static-libstdc++
+
+  # wx-config seems not to get the proper library names in version 3.0.1, this
+  # sed command fixes that up.
+  WX_LIBS_SED = | sed 's/\-3\.0\.a/-3.0-x86_64-w64-mingw32.a/g'
 endif
 
 ifeq ($(PLATFORM), osx)
@@ -195,13 +198,12 @@ endif
 # use.
 EIGEN_FLAGS += -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int
 
-ifeq ($(PLATFORM), windows)
-  WINDOWS_STATIC_LINK := -static -static-libgcc -static-libstdc++
-endif
-
-ifeq ($(PLATFORM), windows)
-  # wx-config seems not to get the proper library names in version 3.0.1.
-  WX_LIBS_SED = | sed 's/\-3\.0\.a/-3.0-x86_64-w64-mingw32.a/g'
+# Dead code elimination.  This only works on non-OSX platforms if
+# -ffunction-sections is used.
+ifeq ($(PLATFORM), osx)
+  LDFLAGS += -Wl,-dead_strip
+else
+  LDFLAGS += -Wl,--gc-sections
 endif
 
 # C flags are also C++ flags.
