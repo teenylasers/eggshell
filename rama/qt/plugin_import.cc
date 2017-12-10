@@ -2,7 +2,13 @@
 
 #include <QtPlugin>
 
-Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin)
+#ifdef __APPLE__
+  Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin)
+#endif
+
+#ifdef __WINNT__
+  Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
+#endif
 
 // Some others that might come in handy later:
 //   Q_IMPORT_PLUGIN(QGifPlugin)

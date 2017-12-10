@@ -5,7 +5,7 @@
 # OPTIMIZE is 1 for optimizations on, or 0 for debug features on.
 OPTIMIZE := 1
 # GUI is either wx or qt
-GUI := wx
+GUI := qt
 
 default: all
 -include ../common.mk           # For top level invocation
@@ -98,7 +98,7 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
       toolkit/gl_utils.o toolkit/gl_font.o toolkit/plot.o toolkit/plot_gui.o \
       toolkit/viewer.o toolkit/camera.o toolkit/femsolver.o toolkit/mystring.o \
       toolkit/lua_vector.o toolkit/trace.o \
-      toolkit/shaders.o toolkit/color_based_selection.o \
+      toolkit/shaders.o \
       common.o shape.o mesh.o solver.o \
       clipper.o triangle.o user_script_util.o
 
@@ -135,28 +135,39 @@ ifneq ($(PLATFORM), windows)
 endif
 
 ifeq ($(GUI), qt)
-  CC := gcc
-  CXX := g++
+  CC := $(TOOL_PREFIX)gcc
+  CXX := $(TOOL_PREFIX)g++
   GUI_DEF = -DQT_DEPRECATED_WARNINGS -DQT_DISABLE_DEPRECATED_BEFORE=0x060000 \
             -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB
   GUI_INC = -I$(QT_DIR)/include -I$(QT_DIR)/include/QtWidgets \
             -I$(QT_DIR)/include/QtGui -I$(QT_DIR)/include/QtNetwork \
             -I$(QT_DIR)/include/QtCore
-  CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
   ifeq ($(OPTIMIZE), 1)
     CCFLAGS += -DQT_NO_DEBUG
     #@@@ what about debug flags?
   endif
-  GUI_LIBS = -framework OpenGL -framework AGL -framework IOKit \
-    -framework Carbon -framework AppKit -framework SystemConfiguration \
-    -framework Security \
-    -L$(QT_DIR)/lib \
-    -lQt5Widgets -lQt5Gui -lQt5Core -lQt5Network -lQt5ClipboardSupport \
-    -lQt5GraphicsSupport -lQt5PrintSupport -lQt5FontDatabaseSupport \
-    -lQt5CglSupport -lQt5ThemeSupport -lQt5AccessibilitySupport \
-    -lqtlibpng -lqtharfbuzz -lqtpcre2 -lqtfreetype -lz -lcups \
-    -L/Users/russ/tools/Qt-5.9.2/plugins/platforms -lqcocoa
-
+  GUI_LIBS = -L$(QT_DIR)/lib -L$(TOOLS_DIR)/Qt-5.9.2/plugins/platforms \
+    -lQt5Widgets -lQt5Gui -lQt5Core -lQt5Network -lqtlibpng \
+    -lqtharfbuzz -lqtpcre2 -lqtfreetype \
+    -lQt5FontDatabaseSupport -lQt5ThemeSupport
+  ifeq ($(PLATFORM), osx)
+    GUI_LIBS += -lqcocoa -lcups -lz -lQt5PrintSupport -lQt5ClipboardSupport \
+      -lQt5AccessibilitySupport -lQt5CglSupport -lQt5GraphicsSupport \
+      -framework OpenGL -framework AGL -framework IOKit \
+      -framework Carbon -framework AppKit -framework SystemConfiguration \
+      -framework Security
+  endif
+  ifeq ($(PLATFORM), windows)
+    GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -mthreads -lmingw32 \
+      -lqtmain -lqwindows -lQt5EventDispatcherSupport -lQt5FontDatabaseSupport \
+      -lqtfreetype -lQt5ThemeSupport -lQt5Gui -lQt5Core \
+      -ldwmapi -loleaut32 -limm32 -lopengl32 -lgdi32 -liphlpapi -lversion \
+      -lws2_32 -luuid -lole32 -lwinmm
+    GUI_DEF += -DUNICODE -D_UNICODE -DQT_NEEDS_QMAIN
+    CFLAGS += -mthreads
+    CCFLAGS += -fno-keep-inline-dllexport -fexceptions
+  endif
+  CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
 else
   # wxWidgets.
   CC := $(shell $(WXCONFIG) --cc)
@@ -204,7 +215,7 @@ mainwin.o: CCFLAGS += -Wno-error=unused-variable
 # The -fwrapv is because part of the triangle library relies on the behavior
 # of signed overflow.
 triangle.o: CFLAGS += -DNO_TIMER -DTRILIBRARY \
-  -DANSI_DECLARATORS -DEXTERNAL_TEST -fwrapv
+  -DANSI_DECLARATORS -DEXTERNAL_TEST -fwrapv -Wno-maybe-uninitialized
 
 #############################################################################
 # Lua.
@@ -283,10 +294,10 @@ lua/%.o: $(LUA_DIR)/%.c
 	$(CXX) $(CCFLAGS) $<
 
 qt/moc_%.cc: ../qt/%.h
-	$(QT_DIR)/bin/moc $(F5) $< -o $@
+	$(QT_DIR)/bin/moc $(GUI_DEFS) $< -o $@
 
 qt/moc_%.cc: ../../toolkit/%.h
-	$(QT_DIR)/bin/moc $(F5) $< -o $@
+	$(QT_DIR)/bin/moc $(GUI_DEFS) $< -o $@
 
 qt/ui_%.h: ../qt/%.ui
 	$(QT_DIR)/bin/uic $< -o $@

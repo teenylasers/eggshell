@@ -165,7 +165,7 @@ ifeq ($(PLATFORM), windows)
   # On windows GCC the -mms-bitfields option is enabled by default. This has
   # broken packed structures on older compilers/code, so this is the option to
   # disable it if that becomes necessary.
-  #   CFLAGS += -mno-ms-bitfields
+  CFLAGS += -mno-ms-bitfields
 
   # Statically link windows binaries to prevent dependence on mingw DLLs that
   # wont be distributed with the application.
