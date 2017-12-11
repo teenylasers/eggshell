@@ -144,28 +144,34 @@ ifeq ($(GUI), qt)
             -I$(QT_DIR)/include/QtCore
   ifeq ($(OPTIMIZE), 1)
     CCFLAGS += -DQT_NO_DEBUG
-    #@@@ what about debug flags?
+    D :=
+  else
+    CCFLAGS += -DQT_QML_DEBUG
+    D := d
   endif
   GUI_LIBS = -L$(QT_DIR)/lib -L$(TOOLS_DIR)/Qt-5.9.2/plugins/platforms \
-    -lQt5Widgets -lQt5Gui -lQt5Core -lQt5Network -lqtlibpng \
-    -lqtharfbuzz -lqtpcre2 -lqtfreetype \
-    -lQt5FontDatabaseSupport -lQt5ThemeSupport
+    -lQt5Widgets$(D) -lQt5Gui$(D) -lQt5Core$(D) -lQt5Network$(D) \
+    -lqtlibpng$(D) -lqtharfbuzz$(D) -lqtpcre2$(D) -lqtfreetype$(D) \
+    -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D)
   ifeq ($(PLATFORM), osx)
-    GUI_LIBS += -lqcocoa -lcups -lz -lQt5PrintSupport -lQt5ClipboardSupport \
-      -lQt5AccessibilitySupport -lQt5CglSupport -lQt5GraphicsSupport \
+    GUI_LIBS += -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
+      -lQt5ClipboardSupport$(D) -lQt5AccessibilitySupport$(D) \
+      -lQt5CglSupport$(D) -lQt5GraphicsSupport$(D) \
       -framework OpenGL -framework AGL -framework IOKit \
       -framework Carbon -framework AppKit -framework SystemConfiguration \
       -framework Security
   endif
   ifeq ($(PLATFORM), windows)
-    GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -mthreads -lmingw32 \
-      -lqtmain -lqwindows -lQt5EventDispatcherSupport -lQt5FontDatabaseSupport \
-      -lqtfreetype -lQt5ThemeSupport -lQt5Gui -lQt5Core \
+    GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -lmingw32 \
+      -lqtmain$(D) -lqwindows$(D) -lQt5EventDispatcherSupport$(D) \
+      -lQt5FontDatabaseSupport$(D) -lqtfreetype$(D) -lQt5ThemeSupport$(D) \
+      -lQt5Gui$(D) -lQt5Core$(D) \
       -ldwmapi -loleaut32 -limm32 -lopengl32 -lgdi32 -liphlpapi -lversion \
       -lws2_32 -luuid -lole32 -lwinmm
     GUI_DEF += -DUNICODE -D_UNICODE -DQT_NEEDS_QMAIN
     CFLAGS += -mthreads
     CCFLAGS += -fno-keep-inline-dllexport -fexceptions
+    CCFLAGS += -Wa,-mbig-obj
   endif
   CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
 else
