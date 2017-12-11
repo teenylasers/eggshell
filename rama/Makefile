@@ -147,7 +147,11 @@ ifeq ($(GUI), qt)
     D :=
   else
     CCFLAGS += -DQT_QML_DEBUG
-    D := d
+    ifeq ($(PLATFORM), osx)
+      D := _debug
+    else
+      D := d
+    endif
   endif
   GUI_LIBS = -L$(QT_DIR)/lib -L$(TOOLS_DIR)/Qt-5.9.2/plugins/platforms \
     -lQt5Widgets$(D) -lQt5Gui$(D) -lQt5Core$(D) -lQt5Network$(D) \
