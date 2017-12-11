@@ -215,7 +215,7 @@ mainwin.o: CCFLAGS += -Wno-error=unused-variable
 # The -fwrapv is because part of the triangle library relies on the behavior
 # of signed overflow.
 triangle.o: CFLAGS += -DNO_TIMER -DTRILIBRARY \
-  -DANSI_DECLARATORS -DEXTERNAL_TEST -fwrapv -Wno-maybe-uninitialized
+  -DANSI_DECLARATORS -DEXTERNAL_TEST -fwrapv -Wno-uninitialized
 
 #############################################################################
 # Lua.
