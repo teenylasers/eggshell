@@ -104,7 +104,7 @@ vbox_no_para:
   | FIGURE WORD ENDBLOCK STARTBLOCK
       { printf(html ? "<center><img src='%s' "
                     : "\\Figure{%s}{", ImageFilename($2)); }
-    opt_hbox_list ENDBLOCK { printf(html ? "></center>\n" : "}\n") }
+    opt_hbox_list ENDBLOCK { printf(html ? "></center>\n" : "}\n"); }
   | TABLE { printf(html ? "<table>\n" :
                    "\\begin{longtabu*} to \\textwidth {|X|X|}\n"); }
     opt_space_or_blankline

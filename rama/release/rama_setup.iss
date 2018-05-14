@@ -16,8 +16,8 @@ AppSupportURL={#__APP_URL__}
 AppUpdatesURL={#__APP_URL__}
 DefaultDirName={pf}\{#__APP_NAME__}
 DefaultGroupName={#__APP_NAME__}
-OutputDir=.
-OutputBaseFilename=..\build\setup_rama
+OutputDir=../build
+OutputBaseFilename=setup_rama
 Compression=lzma
 SolidCompression=yes
 
@@ -32,11 +32,12 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 Source: "..\build\rama.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\model_ALMA_coupler_Exy.lua"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\model_antenna_pattern_test.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_horn.lua"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\model_horn_Ez.lua"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\model_schrodinger_test.lua"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\model_waveguide_Exy.lua"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\model_waveguide_Ez.lua"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\model_waveguide_bend.lua"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\model_waveguide_modes.lua"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\doc\*.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\doc\*.gif"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build\rama.html"; DestDir: "{app}"; Flags: ignoreversion

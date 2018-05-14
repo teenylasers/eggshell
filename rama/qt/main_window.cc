@@ -299,7 +299,11 @@ void MainWindow::on_actionRamaManual_triggered() {
     dir.cd("../../Contents/Resources");
   #endif
   QString path = dir.absoluteFilePath("rama.html");
-  QDesktopServices::openUrl(QUrl("file://" + path));
+  #ifndef __WXMSW__
+    QDesktopServices::openUrl(QUrl("file:///" + path));
+  #else
+    QDesktopServices::openUrl(QUrl("file://" + path));
+  #endif
 }
 
 void MainWindow::on_actionRamaWebsite_triggered() {

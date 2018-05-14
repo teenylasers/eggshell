@@ -26,6 +26,9 @@ EXAMPLES = \
 # Rules that can be run from the top level directory (all other rules need
 # to be run from the build directory).
 
+# Make sure that any failures in piped commands are recognized.
+SHELL=/bin/bash -o pipefail
+
 # Check that GUI is set correctly.
 ifeq ($(GUI), qt)
 else ifeq ($(GUI), wx)
@@ -177,6 +180,7 @@ ifeq ($(GUI), qt)
       -framework OpenGL -framework AGL -framework IOKit \
       -framework Carbon -framework AppKit -framework SystemConfiguration \
       -framework Security
+    CCFLAGS += -D__TOOLKIT_MAT_FILE_USE_ZLIB__
   endif
   ifeq ($(PLATFORM), windows)
     GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -lmingw32 \
@@ -222,7 +226,7 @@ endif
 # More compiler configuration.
 CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare
 CCFLAGS += $(ENGINE_EXTRA_CFLAGS) $(ZLIB_CFLAGS) \
-  -D__TOOLKIT_MAT_FILE_USE_ZLIB__ -D__TOOLKIT_USE_CERES__ \
+  -D__TOOLKIT_USE_CERES__ \
   $(EIGEN_FLAGS) $(CERES_INC) -I../../toolkit
 
 #############################################################################
