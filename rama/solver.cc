@@ -6,6 +6,7 @@
 #include "../toolkit/testing.h"
 #include "../toolkit/femsolver.h"
 #include "../toolkit/shaders.h"
+#include "../toolkit/thread.h"
 
 const double kSpeedOfLight = 299792458;         // m/s
 const int kFarFieldPoints = 500;                // Pattern points to compute
@@ -94,7 +95,7 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
     }
     if (s->config_.schrodinger) {
       // For Schrodinger cavities, "epsilon" is actually the potential.
-      epsilon = JetComplex(1.0) - epsilon / (2.0 * M_PI * s->config_.frequency);
+      epsilon = JetComplex(1.0) - epsilon / (2.0 * M_PI * s->frequency_);
     }
     return JetComplex(vacuum_k2) * epsilon;
   }
@@ -319,10 +320,17 @@ ScriptConfig::Type ScriptConfig::StringToType(const char *name) {
 //***************************************************************************
 // Solver.
 
-Solver::Solver(const Shape &s, const ScriptConfig &config, Lua *lua)
-    : Mesh(s, config.mesh_edge_length, lua), shape_(s), config_(config),
-      solver_(0), ed_solver_(0), mode_solver_(0), solver_solution_(0)
-{
+void Solver::Setup(int frequencies_index) {
+  solver_ = 0;
+  ed_solver_ = 0;
+  mode_solver_ = 0;
+  solver_solution_ = 0;
+  frequency_ = 0;
+  if (frequencies_index >= 0 &&
+      frequencies_index < config_.frequencies.size()) {
+    frequency_ = config_.frequencies[frequencies_index];
+  }
+
   if (config_.TypeIsElectrodynamic()) {
     ed_solver_ = new EDSolverType;
     solver_ = ed_solver_;
@@ -368,6 +376,19 @@ Solver::Solver(const Shape &s, const ScriptConfig &config, Lua *lua)
     // other code. IsValid() will return false.
     Error("Can not solve zero sized system");
   }
+}
+
+Solver::Solver(const Shape &s, const ScriptConfig &config, Lua *lua,
+               int frequencies_index)
+    : Mesh(s, config.mesh_edge_length, lua), shape_(s), config_(config)
+{
+  Setup(frequencies_index);
+}
+
+Solver::Solver(Solver *solver, int frequencies_index)
+    : Mesh(*solver), shape_(solver->shape_), config_(solver->config_)
+{
+  Setup(frequencies_index);
 }
 
 Solver::~Solver() {
@@ -425,14 +446,58 @@ bool Solver::UpdateDerivatives(const Shape &s) {
 }
 
 void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
-                          int brightness, double phase_offset) {
+                          int brightness, double phase_offset,
+                          Solvers *solvers) {
   if (!Solve()) {
     return;
   }
-  const auto &solution = *solver_solution_;
+  if (solvers && !solvers->Solve()) {
+    return;
+  }
+
+  // Fix up some draw modes that don't make sense for a wideband pulse.
+  if (solvers && draw_mode == DRAW_AMPLITUDE_REAL) {
+    draw_mode = DRAW_AMPLITUDE;
+  }
 
   // Create the phasor that all solution points get multiplied by.
   Complex phasor = exp(Complex(0, phase_offset));
+
+  // If we have a single solver then use the already-computed solution. If we
+  // have multiple solvers then add together all solutions, scaled by a
+  // different phasor for each frequency. We do this on-demand, below.
+  #define CREATE_SOLUTION \
+    VectorXcd multi_solution; \
+    if (solvers) { \
+      solvers->CombinedField(&multi_solution, phase_offset); \
+      phasor = 1; \
+    } \
+    const auto &solution = solvers ? multi_solution : *solver_solution_;
+
+  // Ditto for the spatial gradient.
+  #define CREATE_SPATIAL_GRADIENT \
+    Eigen::MatrixXcd multi_Pgradient; \
+    if (solvers) { \
+      if (!solvers->CombinedSpatialGradient(&multi_Pgradient, phase_offset)) { \
+        return; \
+      } \
+      phasor = 1; \
+    } else {\
+      if (!ComputeSpatialGradient()) return; \
+    } \
+    const auto &Pgradient = solvers ? multi_Pgradient : Pgradient_;
+
+  // Ditto for the spatial gradient max amplitude.
+  #define CREATE_SPATIAL_GRADIENT_MAX_AMPLITUDE \
+    Eigen::VectorXd multi_Mgradient; \
+    if (solvers) { \
+      if (!solvers->CombinedSpatialGradientMaxAmplitude(&multi_Mgradient)) { \
+        return; \
+      } \
+    } else { \
+      if (!ComputeSpatialGradientMaxAmplitude()) return; \
+    } \
+    const auto &Mgradient = solvers ? multi_Mgradient : Mgradient_;
 
   // For electrodynamic cavities we scale the gradient so it is similar to the
   // scalar field. Assuming the scalar field has a form sin(2*pi*x/lambda_g),
@@ -443,7 +508,7 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
   // directly compared across different frequencies.
   double gscale = 1;
   if (config_.TypeIsElectrodynamic()) {
-    double max_gradient = (2 * sqrt(5) * M_PI * config_.frequency) /
+    double max_gradient = (2 * sqrt(5) * M_PI * frequency_) /
                           (3*kSpeedOfLight);
     gscale = 1.0 / max_gradient;
   }
@@ -453,9 +518,7 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
       draw_mode == DRAW_ROTATED_GRADIENT_VECTORS ||
       draw_mode == DRAW_POYNTING_VECTORS ||
       draw_mode == DRAW_POYNTING_VECTORS_TA) {
-    if (!ComputeSpatialGradient()) {
-      return;
-    }
+    CREATE_SPATIAL_GRADIENT
     // Compute scale.
     double arbitrary_scale = pow((brightness + 1) / 250.0, 3);
 
@@ -470,25 +533,27 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
                                 ToDouble(points_[i].p[1]) + (vy) * gscale, 0));
     if (draw_mode == DRAW_GRADIENT_VECTORS) {
       for (int i = 0; i < points_.size(); i++) {
-        Vector2cd gradient = Pgradient_.row(i) * phasor;
+        Vector2cd gradient = Pgradient.row(i) * phasor;
         DRAWVECTOR(gradient[0].real(), gradient[1].real());
       }
     } else if (draw_mode == DRAW_ROTATED_GRADIENT_VECTORS) {
       for (int i = 0; i < points_.size(); i++) {
-        Vector2cd gradient = Pgradient_.row(i) * phasor;
+        Vector2cd gradient = Pgradient.row(i) * phasor;
         DRAWVECTOR(-gradient[1].real(), gradient[0].real());
       }
     } else if (draw_mode == DRAW_POYNTING_VECTORS) {
+      CREATE_SOLUTION
       for (int i = 0; i < points_.size(); i++) {
-        Complex field = solution[i] * phasor;           // In Z
-        Vector2cd gradient = Pgradient_.row(i) * phasor;    // In X,Y
+        Complex field = solution[i] * phasor;               // In Z
+        Vector2cd gradient = Pgradient.row(i) * phasor;    // In X,Y
         DRAWVECTOR(field.imag() * gradient[0].real(),
                    field.imag() * gradient[1].real());
       }
     } else {  // if draw_mode == DRAW_POYNTING_VECTORS_TA
+      CREATE_SOLUTION
       for (int i = 0; i < points_.size(); i++) {
-        DRAWVECTOR((conj(Pgradient_(i, 0)) * solution[i]).imag(),
-                   (conj(Pgradient_(i, 1)) * solution[i]).imag());
+        DRAWVECTOR((conj(Pgradient(i, 0)) * solution[i]).imag(),
+                   (conj(Pgradient(i, 1)) * solution[i]).imag());
       }
     }
     gl::Draw(points, GL_LINES);
@@ -520,28 +585,27 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
         } \
       }
     if (draw_mode == DRAW_REAL) {
+      CREATE_SOLUTION
       DRAWLOOP(phasor.real() * solution[k].real() -
                phasor.imag() * solution[k].imag(), -scale, scale)
     } else if (draw_mode == DRAW_AMPLITUDE) {
+      CREATE_SOLUTION
       DRAWLOOP(abs(solution[k]), 0.0, scale)
     } else if (draw_mode == DRAW_AMPLITUDE_REAL) {
+      CREATE_SOLUTION
       DRAWLOOP(fabs(phasor.real() * solution[k].real() -
                     phasor.imag() * solution[k].imag()), 0.0, scale)
     } else if (draw_mode == DRAW_GRADIENT_AMPLITUDE) {
       scale /= gscale;
-      if (!ComputeSpatialGradientMaxAmplitude()) {
-        return;
-      }
-      DRAWLOOP( Mgradient_[k], 0.0, scale)
+      CREATE_SPATIAL_GRADIENT_MAX_AMPLITUDE
+      DRAWLOOP( Mgradient[k], 0.0, scale)
     } else if (draw_mode == DRAW_GRADIENT_AMPLITUDE_REAL) {
       scale /= gscale;
-      if (!ComputeSpatialGradient()) {
-        return;
-      }
-      DRAWLOOP( sqrt(sqr(phasor.real() * Pgradient_(k, 0).real() -
-                         phasor.imag() * Pgradient_(k, 0).imag()) +
-                     sqr(phasor.real() * Pgradient_(k, 1).real() -
-                         phasor.imag() * Pgradient_(k, 1).imag())), 0.0, scale)
+      CREATE_SPATIAL_GRADIENT
+      DRAWLOOP( sqrt(sqr(phasor.real() * Pgradient(k, 0).real() -
+                         phasor.imag() * Pgradient(k, 0).imag()) +
+                     sqr(phasor.real() * Pgradient(k, 1).real() -
+                         phasor.imag() * Pgradient(k, 1).imag())), 0.0, scale)
     } else {
       Panic("Unsupported DrawMode");
     }
@@ -689,7 +753,7 @@ bool Solver::ComputePortOutgoingPower(vector<JetComplex> *result) {
     JetNum power_scale = 1;
     if (config_.type == ScriptConfig::EZ) {
       JetNum a = port_lengths_[port_number];     // Waveguide A-dimension
-      double k = 2.0 * M_PI * config_.frequency / kSpeedOfLight;
+      double k = 2.0 * M_PI * frequency_ / kSpeedOfLight;
       JetComplex beta = sqrt(JetComplex(sqr(k) - sqr(M_PI / a)));
       power_scale = a * beta.real();
     } else if (config_.type == ScriptConfig::EXY) {
@@ -1145,9 +1209,9 @@ bool Solver::ComputeSpatialGradientMaxAmplitude() {
 
 double Solver::ComputeKSquared() {
   double k2 = 0;
-  double lambda = kSpeedOfLight / config_.frequency;
+  double lambda = kSpeedOfLight / frequency_;
   if (config_.schrodinger) {
-    k2 = 2.0 * M_PI * config_.frequency;
+    k2 = 2.0 * M_PI * frequency_;
   } else if (config_.type == ScriptConfig::EXY) {
     // For Exy cavities we need to compute the effective k, which is a function
     // of the depth. If k^2 is negative then k is imaginary and travelling
@@ -1187,6 +1251,108 @@ JetComplex Solver::SolutionJet(int i) const {
   realpart.Derivative() = solution_derivative_[i].real();
   imagpart.Derivative() = solution_derivative_[i].imag();
   return JetComplex(realpart, imagpart);
+}
+
+//***************************************************************************
+// Solvers.
+
+const int kNumThreads = 8;
+
+bool Solvers::Solve() {
+  // If there is no work for the Solver to do, we can run this paraller solve
+  // several thousands times per second (at 50 solves per iteration). That is
+  // the thread setup overhead, and it seems acceptable compared to the other
+  // overheads. If it becomes a problem we might want to first check if there
+  // is any actual solving work to do before launching all these threads.
+  bool ok = true;
+  ParallelFor(0, solvers_.size()-1, kNumThreads, [&](int i) mutable {
+    if (!solvers_[i]->Solve()) {
+      ok = false;
+    }
+  });
+  return ok;
+}
+
+bool Solvers::UpdateDerivatives(const Shape &s) {
+  bool ok = true;
+  ParallelFor(0, solvers_.size()-1, kNumThreads, [&](int i) mutable {
+    if (!solvers_[i]->UpdateDerivatives(s)) {
+      ok = false;
+    }
+  });
+  return ok;
+}
+
+void Solvers::CombinedField(VectorXcd *f, double phase_offset) {
+  if (solvers_.empty() || solvers_[0]->solver_solution_->size() == 0) {
+    return;
+  }
+  vector<Complex> phasors;
+  Phasors(phase_offset, &phasors);
+  f->resize(solvers_[0]->solver_solution_->size());
+  f->setZero();
+  for (int i = 0; i < solvers_.size(); i++) {
+    *f += *solvers_[i]->solver_solution_ * phasors[i];
+  }
+}
+
+bool Solvers::CombinedSpatialGradient(Eigen::MatrixXcd *f,
+                                      double phase_offset) {
+  if (solvers_.empty() || solvers_[0]->solver_solution_->size() == 0) {
+    return false;
+  }
+  vector<Complex> phasors;
+  Phasors(phase_offset, &phasors);
+  for (int i = 0; i < solvers_.size(); i++) {
+    if (!solvers_[i]->ComputeSpatialGradient()) {
+      return false;
+    }
+  }
+  f->resize(solvers_[0]->Pgradient_.rows(), solvers_[0]->Pgradient_.cols());
+  f->setZero();
+  for (int i = 0; i < solvers_.size(); i++) {
+    *f += solvers_[i]->Pgradient_ * phasors[i];
+  }
+  return true;
+}
+
+bool Solvers::CombinedSpatialGradientMaxAmplitude(Eigen::VectorXd *f) {
+  if (solvers_.empty() || solvers_[0]->solver_solution_->size() == 0) {
+    return false;
+  }
+  for (int i = 0; i < solvers_.size(); i++) {
+    if (!solvers_[i]->ComputeSpatialGradientMaxAmplitude()) {
+      return false;
+    }
+  }
+  f->resize(solvers_[0]->Mgradient_.size());
+  f->setZero();
+  for (int i = 0; i < solvers_.size(); i++) {
+    *f += solvers_[i]->Mgradient_;      // Note that phasor not used (assumed 1)
+  }
+  *f /= solvers_.size();
+  return true;
+}
+
+// Return a vector of complex numbers to scale each solution by.
+void Solvers::Phasors(double phase_offset, vector<Complex> *n) {
+  // Compute the center frequency.
+  double fcenter = 0;
+  for (int i = 0; i < solvers_.size(); i++) {
+    fcenter += solvers_[i]->frequency_ / solvers_.size();
+  }
+
+  // Compute phasors.
+  auto window = solvers_[0]->config_.wideband_window;
+  n->resize(solvers_.size());
+  for (int i = 0; i < solvers_.size(); i++) {
+    (*n)[i] = exp(Complex(0, phase_offset * solvers_[i]->frequency_ / fcenter))
+              / double(solvers_.size());
+    if (window == ScriptConfig::HAMMING) {
+      double scale = 0.5 - 0.5*cos((i+1) * 2*M_PI / (solvers_.size()+1));
+      (*n)[i] *= scale;
+    }
+  }
 }
 
 //***************************************************************************
@@ -1231,10 +1397,10 @@ TEST_FUNCTION(GetField_and_Friends) {
   config.mesh_edge_length = 10;
   config.port_excitation.resize(2);
   config.port_excitation[0] = 1;
-  config.frequency = 70e9;
+  config.frequencies.push_back(70e9);
 
   // Solve.
-  Solver solver(s, config, NULL);
+  Solver solver(s, config, NULL, 0);
 
   // Check the interpolated solution matches what we expect.
   double max_value_error = 0, max_dx_error = 0, max_dy_error = 0,

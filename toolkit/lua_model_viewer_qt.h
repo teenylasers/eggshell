@@ -65,6 +65,8 @@ class LuaModelViewer : public GLViewer {
  public slots:
   void IdleProcessing();
 public:
+  // Is the model good enough to simulate?
+  bool IsModelValid() { return valid_; }
 
   // Handling for menu and control commands.
   void ZoomToExtents();
@@ -163,12 +165,6 @@ public:
   // something.
   virtual bool IsModelEmpty()=0;
 
-  // Is the model good enough to simulate?
-  virtual bool IsModelValid()=0;
-
-  // Set the model-valid flag
-  virtual void SetModelValid(bool v)=0;
-
   // We are running a new script. Reset everything in preparation for a new
   // model being built. A fresh lua state has been constructed so populate it
   // with the required functions etc.
@@ -206,6 +202,7 @@ public:
   virtual void PrepareForOptimize()=0;
 
  private:
+  bool valid_;                          // Is the model valid?
   int dragging_marker_;                 // >= 0 if now dragging a marker
   std::string script_;                  // The last script we ran
   MyLua *lua_;                          // Lua context for last script, 0=none
@@ -254,7 +251,7 @@ public:
     enum State { OFF, SWEEPING, OPTIMIZING } state;
     std::string sweep_parameter_name;         // Parameter name we're sweeping
     int sweep_index;                          // Current parameter value index
-    std::vector<double> sweep_values;           // All values of parameter to use
+    std::vector<double> sweep_values;         // All values of parameter to use
     std::vector<std::vector<JetComplex> > sweep_output;
     OptimizerType optimizer_type;             // Algorithm to use
     CeresInteractiveOptimizer *optimizer;     // Nonzero if currently optimizing

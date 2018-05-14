@@ -22,6 +22,8 @@ namespace FEM {
 struct HelmholtzFEMProblem;
 struct WaveguideModeFEMProblem;
 
+class Solvers;
+
 // Solver configuration. These values are extracted from the script's 'config'
 // table. This is everything required to generate a solution that is not
 // related to the geometry of the computational domain. -1 for any of these
@@ -37,16 +39,20 @@ struct ScriptConfig {
     SCHRODINGER,                // Returned by StringToType but changed to EZ
   };
 
+  // Values for wideband_window.
+  enum Window { RECTANGLE, HAMMING };
+
   Type type;                    // Cavity type: EZ, EXY etc.
   bool schrodinger;             // EZ cavities for Schrodinger simulation
   double unit;                  // One script-distance-unit is this many meters
   double mesh_edge_length;      // In units of 'unit'
   int mesh_refines;
   vector<JetNum> port_excitation;  // Magnitudes and phases of port excitations
-  double frequency;             // In Hz
+  vector<double> frequencies;   // All frequencies to simulate
   double depth;                 // In units of 'unit'
   double boresight;             // Boresight angle for plotting antenna patterns
   int max_modes;                // TE or TM: Number of modes to compute
+  Window wideband_window;       // A WINDOW_nnn constant
 
   ScriptConfig() {
     type = UNKNOWN;
@@ -54,10 +60,10 @@ struct ScriptConfig {
     unit = -1;
     mesh_edge_length = -1;
     mesh_refines = -1;
-    frequency = -1;
     depth = -1;
     boresight = 0;
     max_modes = 1;
+    wideband_window = RECTANGLE;
   }
 
   bool operator==(const ScriptConfig &c) const {
@@ -67,10 +73,11 @@ struct ScriptConfig {
         && mesh_edge_length == c.mesh_edge_length
         && mesh_refines     == c.mesh_refines
         && port_excitation  == c.port_excitation
-        && frequency        == c.frequency
+        && frequencies      == c.frequencies
         && depth            == c.depth
         && boresight        == c.boresight
-        && max_modes        == c.max_modes;
+        && max_modes        == c.max_modes
+        && wideband_window  == c.wideband_window;
   }
   bool operator!=(const ScriptConfig &c) const { return !operator==(c); }
 
@@ -78,7 +85,8 @@ struct ScriptConfig {
   static Type StringToType(const char *name);
 
   // Convenience functions to test the type.
-  bool TypeIsElectrodynamic() const { return type == EZ || type == EXY; }
+  bool TypeIsElectrodynamic() const { return type == EZ || type == EXY ||
+                                             type == SCHRODINGER; }
   bool TypeIsWaveguideMode() const { return type == TE || type == TM; }
 
   // Return the excitation magnitude and phase for a particular port number.
@@ -103,8 +111,13 @@ class Solver : public Mesh {
   // data but does not yet compute the full solution. That's done on demand by
   // other functions. If 'lua' is provided the dielectric callback functions
   // can be called.
-  explicit Solver(const Shape &s, const ScriptConfig &config, Lua *lua);
+  Solver(const Shape &s, const ScriptConfig &config, Lua *lua,
+         int frequencies_index);
   ~Solver();
+
+  // This constructor creates a copy of the given solver, but with a different
+  // frequency. Any existing solver solutions are discarded.
+  Solver(Solver *solver, int frequencies_index);
 
   // Did mesh creation succeed and is the shape and config valid?
   bool IsValid() const;
@@ -124,7 +137,8 @@ class Solver : public Mesh {
 
   // Draw the solution to OpenGL. This computes the solution on demand. All
   // drawing modes other than DRAW_AMPLITUDE are phase dependent and can be
-  // animated by adjusting the phase_offset.
+  // animated by adjusting the phase_offset. If 'solvers' is given then the
+  // sum of all solutions for all frequencies is drawn (a wideband pulse).
   enum DrawMode {
     DRAW_AMPLITUDE,                 // Color = |solution|
     DRAW_REAL,                      // Color =  Re{solution}
@@ -137,7 +151,7 @@ class Solver : public Mesh {
     DRAW_POYNTING_VECTORS_TA,       // Draw time averaged power vectors
   };
   void DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
-                    int brightness, double phase_offset);
+                    int brightness, double phase_offset, Solvers *solvers);
 
   // Compute the (complex) amplitudes of the outgoing waves at each port by
   // fitting to a TE10 field. Return true on success. This computes the
@@ -156,7 +170,7 @@ class Solver : public Mesh {
   // Retrieve the field values and other quantities from the solution at the
   // point (x,y) which is in config.unit. This interpolates across mesh
   // elements. It is assumed that the solution and derivative is valid (e.g.
-  // because it has already been computed). Some function (e.g.
+  // because it has already been computed). Some functions (e.g.
   // GetFieldPoynting) are not meaningful when solving for waveguide modes, but
   // will still compute a value.
   void GetField(JetNum x, JetNum y, JetComplex *value);
@@ -186,17 +200,20 @@ class Solver : public Mesh {
 
   // If we are solving for waveguide modes, return the cutoff frequencies of
   // all modes. Return true on success or false on failure. Note that
-  // JetComplex is returned even though the result is really 'double' for
+  // JetComplex is returned even though the result is really 'double', for
   // compatibility with ComputePortOutgoingField().
   bool ComputeModeCutoffFrequencies(vector<JetComplex> *cutoff) MUST_USE_RESULT;
 
- public:
+ private:
+  void Setup(int frequencies_index);    // Called by constructor
+
   // Only one of ed_solver_ or mode_solver_ will be used, depending on the
   // config_.type. If ed_solver_ is used then solver_solution_ will point to a
   // vector within it. If mode_solver_ is used then solver_solution_ will be a
   // separately allocated vector that contains a copy of the eigenvector.
   Shape shape_;
   ScriptConfig config_;
+  double frequency_;                    // One of the config.frequencies
   vector<JetNum> port_lengths_;         // Lengths of all ports. Slot 0 unused
   typedef FEM::FEMSolver<HelmholtzFEMProblem> EDSolverType;
   typedef FEM::FEMSolver<WaveguideModeFEMProblem> ModeSolverType;
@@ -247,6 +264,67 @@ class Solver : public Mesh {
 
   friend struct HelmholtzFEMProblem;
   friend struct WaveguideModeFEMProblem;
+  friend class Solvers;
+};
+
+// For each frequency we keep multiple copies of a Solver in this vector,
+// duplicating (but not recomputing) the mesh. An alternative more efficient
+// strategy is to have the Solver contain solutions for multiple frequencies,
+// without duplication of the mesh, but the mesh can store derivative state
+// that will not necessarily be the same between Solvers (e.g. via calls of
+// Mesh::UpdateDerivatives).
+
+class Solvers {
+ public:
+  ~Solvers() { Clear(); }
+
+  int Size() const { return solvers_.size(); }
+  void PushBack(Solver *s) { solvers_.push_back(s); }
+  bool Valid() const { return !solvers_.empty(); }
+  Solver *First() const { return solvers_[0]; }
+  Solver *At(int i) const {
+    CHECK(i >= 0 && i < solvers_.size());
+    return solvers_[i];
+  }
+
+  void Clear() {
+    for (int i = 0; i < solvers_.size(); i++) {
+      delete solvers_[i];
+    }
+    solvers_.clear();
+  }
+
+  // All solvers must be the SameAs:
+  bool SameAs(const Shape &s, const ScriptConfig &config, Lua *lua) {
+    for (int i = 0; i < solvers_.size(); i++) {
+      if (!solvers_[i]->SameAs(s, config, lua)) return false;
+    }
+    return true;
+  }
+
+  // All solvers must be Valid:
+  bool IsValid() const {
+    for (int i = 0; i < solvers_.size(); i++) {
+      if (!solvers_[i]->IsValid()) return false;
+    }
+    return true;
+  }
+
+  // Solve all solvers (multi-threaded).
+  bool Solve() MUST_USE_RESULT;
+
+  // Update all derivatives (multi-threaded).
+  bool UpdateDerivatives(const Shape &s) MUST_USE_RESULT;
+
+  // Combine all solver's fields together into single fields.
+  void CombinedField(Eigen::VectorXcd *f, double phase_offset);
+  bool CombinedSpatialGradient(Eigen::MatrixXcd *f, double phase_offset)
+                               MUST_USE_RESULT;
+  bool CombinedSpatialGradientMaxAmplitude(Eigen::VectorXd *f) MUST_USE_RESULT;
+  void Phasors(double phase_offset, vector<Complex> *n);
+
+ private:
+  std::vector<Solver*> solvers_;
 };
 
 #endif

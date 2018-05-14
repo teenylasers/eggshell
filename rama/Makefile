@@ -11,6 +11,17 @@ default: all
 -include ../common.mk           # For top level invocation
 -include ../../common.mk        # For invocation in the build directory
 
+# Examples distributed along with the binary.
+EXAMPLES = \
+  model_ALMA_coupler_Exy.lua \
+  model_antenna_pattern_test.lua \
+  model_horn_Ez.lua \
+  model_schrodinger_test.lua \
+  model_waveguide_Exy.lua \
+  model_waveguide_Ez.lua \
+  model_waveguide_bend.lua \
+  model_waveguide_modes.lua
+
 #############################################################################
 # Rules that can be run from the top level directory (all other rules need
 # to be run from the build directory).
@@ -80,6 +91,8 @@ macdeploy2: $(APP) docs2
 	mkdir Rama.app/Contents/MacOS
 	cp $(APP) Rama.app/Contents/MacOS
 	cp rama.html ../doc/*.{png,gif} Rama.app/Contents/Resources
+	mkdir Rama.app/Examples
+	cp $(addprefix ../,$(EXAMPLES)) Rama.app/Examples
 	hdiutil create -volname Rama -srcfolder Rama.app -ov -format UDZO Rama.dmg
 	echo $(VERSION) > latest_version_mac.txt
 	scp Rama.dmg rama.html *.png *.gif latest_version_mac.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator

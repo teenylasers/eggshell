@@ -34,6 +34,7 @@ MainWindow::MainWindow(QWidget *parent) :
   // Configure docked windows.
   setTabPosition(Qt::AllDockWidgetAreas, QTabWidget::North);
   tabifyDockWidget(ui->dock_model, ui->dock_plot);
+  tabifyDockWidget(ui->dock_model, ui->dock_sparams);
   tabifyDockWidget(ui->dock_model, ui->dock_antenna);
   tabifyDockWidget(ui->dock_model, ui->dock_script_messages);
   resizeDocks({ui->dock_model}, {650}, Qt::Horizontal);   //@@@ scale width by main window size
@@ -49,7 +50,7 @@ MainWindow::MainWindow(QWidget *parent) :
   // Connect the model viewer to other controls.
   ui->model->Connect(ui->script_messages, ui->parameter_pane, ui->plot,
                      ui->dock_model, ui->dock_plot, ui->dock_script_messages);
-  ui->model->Connect2(ui->antenna_plot);
+  ui->model->Connect2(ui->antenna_plot, ui->sparam_plot, ui->time_dial);
 
   // Set up the file watcher.
   QObject::connect(&watcher_, &QFileSystemWatcher::fileChanged,
@@ -131,6 +132,9 @@ bool MainWindow::ReloadScript(bool rerun_even_if_same) {
   ui->mode_number->setMinimum(0);
   ui->mode_number->setMaximum(std::max(0, ui->model->NumWaveguideModes() - 1));
   ui->model->SetWaveguideModeDisplayed(ui->mode_number->value());
+  SetNumFrequencies(ui->model->GetNumFrequencies());
+  SetWidebandControlsEnabledState();
+  ui->model->SetFrequencyIndex(ui->frequency_index_slider->value() - 1);
 
   return true;
 }
@@ -432,4 +436,52 @@ void MainWindow::VersionReplyAvailable(QNetworkReply *reply) {
     }
   }
   reply->deleteLater();
+}
+
+void MainWindow::on_frequency_index_spinner_valueChanged(int arg1) {
+  ui->frequency_index_slider->setValue(arg1);
+  ui->model->SetFrequencyIndex(arg1 - 1);
+}
+
+void MainWindow::on_frequency_index_slider_valueChanged(int value) {
+  ui->frequency_index_spinner->setValue(value);
+  ui->model->SetFrequencyIndex(value - 1);
+}
+
+void MainWindow::on_wideband_pulse_stateChanged(int arg1) {
+  ui->model->ToggleWidebandPulse();
+  SetWidebandControlsEnabledState();
+}
+
+void MainWindow::SetNumFrequencies(int n) {
+  ui->frequency_index_slider->setMinimum(1);
+  ui->frequency_index_slider->setMaximum(n);
+  ui->frequency_index_spinner->setMinimum(1);
+  ui->frequency_index_spinner->setMaximum(n);
+}
+
+void MainWindow::SetWidebandControlsEnabledState() {
+  int n = ui->model->GetNumFrequencies();
+  bool wb = ui->model->GetWidebandPulse();
+  ui->wideband_pulse->setEnabled(n > 1);
+  ui->frequency_index_slider->setEnabled(!wb && n > 1);
+  ui->frequency_index_spinner->setEnabled(!wb && n > 1);
+  ui->frequency_label->setEnabled(!wb && n > 1);
+}
+
+void MainWindow::on_sparam_plot_type_currentIndexChanged(int index) {
+  ui->model->SelectSParamPlot(index);
+}
+
+void MainWindow::on_show_sparams_stateChanged(int arg1) {
+  ui->model->ToggleShowSParams();
+}
+
+void MainWindow::on_time_dial_valueChanged(int value) {
+  ui->model->TimeDialChanged(value);
+}
+
+void MainWindow::on_actionSet_animation_time_to_0_triggered() {
+  ui->time_dial->setValue(0);
+  ui->model->TimeDialToZero();
 }

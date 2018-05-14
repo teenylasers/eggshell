@@ -53,7 +53,7 @@
          <x>0</x>
          <y>0</y>
          <width>290</width>
-         <height>640</height>
+         <height>661</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,1">
@@ -189,6 +189,8 @@
     <addaction name="actionZoomIn"/>
     <addaction name="actionZoomOut"/>
     <addaction name="separator"/>
+    <addaction name="actionSet_animation_time_to_0"/>
+    <addaction name="separator"/>
     <addaction name="menuShow_boundary"/>
     <addaction name="actionShowGrid"/>
     <addaction name="actionShowMarkers"/>
@@ -229,7 +231,6 @@
    <addaction name="menuSolve"/>
    <addaction name="menuHelp"/>
   </widget>
-  <widget class="QStatusBar" name="statusBar"/>
   <widget class="QDockWidget" name="dock_model">
    <property name="features">
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
@@ -242,6 +243,9 @@
    </attribute>
    <widget class="QWidget" name="dockWidgetContents">
     <layout class="QVBoxLayout" name="verticalLayout_3" stretch="0,1">
+     <property name="spacing">
+      <number>0</number>
+     </property>
      <property name="leftMargin">
       <number>0</number>
      </property>
@@ -262,7 +266,15 @@
          <height>0</height>
         </size>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout_4">
+       <property name="styleSheet">
+        <string notr="true">QWidget#controls_container { border-bottom: 1px solid black; }
+
+</string>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="1,0">
+        <property name="spacing">
+         <number>0</number>
+        </property>
         <property name="leftMargin">
          <number>0</number>
         </property>
@@ -276,282 +288,414 @@
          <number>0</number>
         </property>
         <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0,0,0,0,0,0,0,0,1">
+         <layout class="QVBoxLayout" name="verticalLayout_4">
           <property name="spacing">
-           <number>-1</number>
+           <number>0</number>
           </property>
           <property name="sizeConstraint">
            <enum>QLayout::SetDefaultConstraint</enum>
           </property>
-          <property name="leftMargin">
-           <number>10</number>
-          </property>
-          <property name="rightMargin">
-           <number>10</number>
-          </property>
           <item>
-           <widget class="QComboBox" name="mesh_type">
-            <item>
-             <property name="text">
-              <string>Hide mesh</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Show mesh</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Dielectric Re</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Dielectric Im</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Dielectric Abs</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="show_field">
-            <property name="text">
-             <string>Field</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="animate">
-            <property name="text">
-             <string>Animate</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="display_style_Ez">
-            <item>
-             <property name="text">
-              <string>Ez amplitude and phase</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Ez max amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>H &amp; Jsurf amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Vector Jsurf</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Vector H</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Poynting vector</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="display_style_Exy">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="frame">
-             <bool>true</bool>
-            </property>
-            <item>
-             <property name="text">
-              <string>Hz amplitude and phase</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Hz max amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>[Ex,Ey] max amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Rotated vector E</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Vector E, Jsurf</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Poynting vector</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="display_style_TM">
-            <item>
-             <property name="text">
-              <string>Ez</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Ez amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>[Ex,Ey] amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>[Ex,Ey]</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>[Hx,Hy]</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="display_style_TE">
-            <item>
-             <property name="text">
-              <string>Hz</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Hz amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>[Hx,Hy] amplitude</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>[Hx,Hy]</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>[Ex,Ey]</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="mode_label">
-            <property name="text">
-             <string>Mode</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="mode_number"/>
-          </item>
-          <item>
-           <widget class="QComboBox" name="color_map">
-            <item>
-             <property name="text">
-              <string>Color Jet</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Color Hot</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Color Gray</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Color HSV</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Color Bone</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Color Copper</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Color Wheel</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="brightness_label">
-            <property name="text">
-             <string>Brightness:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSlider" name="brightness">
-            <property name="minimumSize">
-             <size>
-              <width>50</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="maximum">
-             <number>1000</number>
-            </property>
-            <property name="singleStep">
+           <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0,0,0,0,0,0,0,0">
+            <property name="spacing">
              <number>10</number>
             </property>
-            <property name="pageStep">
-             <number>100</number>
+            <property name="sizeConstraint">
+             <enum>QLayout::SetDefaultConstraint</enum>
             </property>
-            <property name="value">
-             <number>500</number>
+            <property name="leftMargin">
+             <number>10</number>
             </property>
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+            <property name="rightMargin">
+             <number>10</number>
             </property>
-            <property name="invertedAppearance">
-             <bool>false</bool>
+            <item>
+             <widget class="QComboBox" name="mesh_type">
+              <item>
+               <property name="text">
+                <string>Hide mesh</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Show mesh</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Dielectric Re</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Dielectric Im</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Dielectric Abs</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="show_field">
+              <property name="text">
+               <string>Field</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="animate">
+              <property name="text">
+               <string>Animate</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="display_style_Ez">
+              <item>
+               <property name="text">
+                <string>Ez amplitude and phase</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Ez max amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>H &amp; Jsurf amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vector Jsurf</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vector H</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Poynting vector</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="display_style_Exy">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
+              <property name="frame">
+               <bool>true</bool>
+              </property>
+              <item>
+               <property name="text">
+                <string>Hz amplitude and phase</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Hz max amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Ex,Ey] max amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Rotated vector E</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vector E, Jsurf</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Poynting vector</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="display_style_TM">
+              <item>
+               <property name="text">
+                <string>Ez</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Ez amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Ex,Ey] amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Ex,Ey]</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Hx,Hy]</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="display_style_TE">
+              <item>
+               <property name="text">
+                <string>Hz</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Hz amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Hx,Hy] amplitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Hx,Hy]</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Ex,Ey]</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="mode_label">
+              <property name="text">
+               <string>Mode:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="mode_number"/>
+            </item>
+            <item>
+             <widget class="QComboBox" name="color_map">
+              <item>
+               <property name="text">
+                <string>Color Jet</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Color Hot</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Color Gray</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Color HSV</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Color Bone</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Color Copper</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Color Wheel</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,0,0,0,0,0,1">
+            <property name="spacing">
+             <number>10</number>
             </property>
-            <property name="invertedControls">
-             <bool>false</bool>
+            <property name="leftMargin">
+             <number>10</number>
             </property>
-           </widget>
+            <property name="rightMargin">
+             <number>10</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="frequency_label">
+              <property name="text">
+               <string>Frequency:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="frequency_index_spinner">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>100</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="frequency_index_slider">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="invertedAppearance">
+               <bool>false</bool>
+              </property>
+              <property name="invertedControls">
+               <bool>false</bool>
+              </property>
+              <property name="tickPosition">
+               <enum>QSlider::NoTicks</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="wideband_pulse">
+              <property name="text">
+               <string>Wideband pulse</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="Line" name="line_2">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="brightness_label">
+              <property name="text">
+               <string>Brightness:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="brightness">
+              <property name="minimumSize">
+               <size>
+                <width>50</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximum">
+               <number>1000</number>
+              </property>
+              <property name="singleStep">
+               <number>10</number>
+              </property>
+              <property name="pageStep">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>500</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="invertedAppearance">
+               <bool>false</bool>
+              </property>
+              <property name="invertedControls">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
+        </item>
+        <item>
+         <widget class="QDial" name="time_dial">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>50</width>
+            <height>50</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>50</width>
+            <height>50</height>
+           </size>
+          </property>
+          <property name="baseSize">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>31</number>
+          </property>
+          <property name="wrapping">
+           <bool>true</bool>
+          </property>
+          <property name="notchTarget">
+           <double>1.000000000000000</double>
+          </property>
+          <property name="notchesVisible">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -571,7 +715,7 @@
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
    </property>
    <property name="windowTitle">
-    <string>Plot</string>
+    <string>Sweep</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>2</number>
@@ -616,6 +760,75 @@
           <string>Group delay</string>
          </property>
         </item>
+       </widget>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="dock_sparams">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>S Params</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_5">
+    <layout class="QVBoxLayout" name="verticalLayout_8">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="qtPlot" name="sparam_plot" native="true">
+       <widget class="QComboBox" name="sparam_plot_type">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>141</width>
+          <height>26</height>
+         </rect>
+        </property>
+        <item>
+         <property name="text">
+          <string>Magnitude</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Phase</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Group delay</string>
+         </property>
+        </item>
+       </widget>
+       <widget class="QCheckBox" name="show_sparams">
+        <property name="geometry">
+         <rect>
+          <x>160</x>
+          <y>10</y>
+          <width>87</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Show</string>
+        </property>
        </widget>
       </widget>
      </item>
@@ -1005,6 +1218,14 @@
   <action name="actionAbout">
    <property name="text">
     <string>About...</string>
+   </property>
+  </action>
+  <action name="actionSet_animation_time_to_0">
+   <property name="text">
+    <string>Set animation time to 0</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+0</string>
    </property>
   </action>
  </widget>

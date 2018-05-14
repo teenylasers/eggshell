@@ -1,5 +1,7 @@
 
 // Simple performance monitoring, for measuring where all the time is spent.
+// This is thread safe, although calling trace functions from multiple threads
+// will not necessarily generate sensible results.
 
 #ifndef __TRACE_H__
 #define __TRACE_H__

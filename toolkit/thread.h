@@ -84,6 +84,10 @@
     friend void *ThreadRunner(void *userdata);
     DISALLOW_COPY_AND_ASSIGN(Thread);
   };
+
+  // Get the ID of the currently executing thread.
+  typedef pthread_t CurrentThreadID_t;
+  CurrentThreadID_t GetCurrentThreadID() { return pthread_self(); }
 #endif
 
 // Ensure a lock is released when a MutexLock goes out of scope.

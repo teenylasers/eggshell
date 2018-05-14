@@ -344,6 +344,7 @@ void MySlider::OnValueChanged(int value) {
 
 LuaModelViewer::LuaModelViewer(QWidget *parent, int gl_type)
     : GLViewer(parent) {
+  valid_ = false;
   dragging_marker_ = -1;
   lua_ = 0;
   num_optimize_outputs_ = 0;
@@ -680,7 +681,7 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
   Trace trace(__func__);
   in_rerun_script_ = true;
   num_ticked_count_ = 0;
-  SetModelValid(false);                 // Assumption, updated below
+  valid_ = false;               // Assumption, updated below
 
   // optimize_output will be returned empty on any error, e.g. on script error
   // or if we can't find the optimize function or solve.
@@ -804,7 +805,7 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
 
   // If there were any script errors we assume that the model and config_ are
   // not valid.
-  SetModelValid(!lua_->ThereWereErrors());
+  valid_ = !lua_->ThereWereErrors();
 
   // Redraw window right now, if requested.
   if (refresh_window) {
@@ -812,7 +813,7 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
   }
 
   in_rerun_script_ = false;
-  return IsModelValid();
+  return valid_;
 }
 
 const Parameter &LuaModelViewer::GetParameter(const std::string &parameter_name)
@@ -1079,7 +1080,7 @@ void LuaModelViewer::Draw() {
   Trace trace(__func__);
 
   // Clear the buffer.
-  if (IsModelValid()) {
+  if (valid_) {
     GL(ClearColor)(1, 1, 1, 0);
   } else {
     GL(ClearColor)(0.75, 0.75, 0.75, 0);

@@ -98,10 +98,44 @@ __Optimize3rdArg__ = {
   end,
   Pattern = _Pattern,
   Directivity = _Directivity,
+  Select = _Select,
+  SolveAll = _SolveAll,
+  Ports = _Ports,
+}
+
+-- A dummy __Optimize3rdArg__ argument that allows trial execution of the
+-- optimizer function but that does not actually do any work.
+__DummyOptimize3rdArg__ = {
+  Complex = function() return 0,0 end,
+  Magnitude = function() return 0 end,
+  Phase = function() return 0 end,
+  Poynting = function() return 0,0 end,
+  Power = function() return 0 end,
+  Pattern = function() return 0 end,
+  Directivity = function() return 0 end,
+  Select = function() end,
+  SolveAll = function() end,
+  Ports = function() return __ZeroTable__, __ZeroTable__ end,
 }
 
 -- Utility functions.
 
 function MakeMachinable(shape, radius, limit)
   return shape:Grow(-radius, 'round', limit):Grow(radius, 'round', limit)
+end
+
+function LinearRange(start, stop, n)
+  local T = {}
+  for i = 1,n do
+    T[i] = start + (i-1)*(stop - start)/(n-1)
+  end
+  return T
+end
+
+function Min(a, b)
+  if a < b then return a else return b end
+end
+
+function Max(a, b)
+  if a > b then return a else return b end
 end

@@ -84,6 +84,9 @@ materials described by a script. Four kinds of cavities are supported:
       {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right]
    }
 
+   where @m{\phi} satisfies the 2D Helmtolhz equation with wavenumber
+   @m{k = \omega \sqrt{\mu \epsilon}}.
+
 @* @b{@c{Exy}} cavities cavities contain EM fields and are bounded by walls of
    constant depth in the Z direction, and all electric fields lie in the XY
    plane:
@@ -94,12 +97,18 @@ materials described by a script. Four kinds of cavities are supported:
    magnetic phasor fields are
 
    @M{
-     \mathbf{E} &= {i \by \epsilon \omega} \: \cos\left({\pi z \by d}\right) \: \left[
+     \mathbf{E} &= {i \by \epsilon \omega} \: {d^2  k^2 \by d^2 k^2 - \pi^2}
+                   \: \cos\left({\pi z \by d}\right) \: \left[
       {-\del \phi(x,y) \by \del y}, {\del \phi(x,y) \by \del x}, 0 \right] \\
-     \mathbf{H} &= \left[ 0, 0, \cos\left({\pi z \by d}\right) \phi(x,y) \right]
+     \mathbf{H} &= \left[ \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del x},
+                          \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del y},
+                          \cos\left({\pi z \by d}\right) \phi(x,y) \right] \\
+      \alpha &= { \pi d \by \pi^2-d^2 k^2}
    }
 
-   where @m{d} is the depth of the cavity.
+   where @m{d} is the depth of the cavity and @m{\phi} satisfies the 2D
+   Helmtolhz equation with wavenumber
+   @m{k = \sqrt{\omega^2 \mu \epsilon - \pi^2/d^2}}.
 
 @* @b{@c{TE}} and @b{@c{TM}} cavities correspond to cross sections of
    arbitrarily shape EM waveguides. Rama can compute the TE and TM modes.
@@ -135,14 +144,12 @@ Rama simulations are managed from a single window:
 In the cavity tab, mouse buttons are used to change the view:
 @list{
 @* Right click + drag: pan the view.
-@* Middle click + drag: rotate the view.
 @* Mouse wheel: zoom around the mouse pointer.
 @* Ctrl + right click + drag: zoom around the mouse pointer.
 @* On Mac trackpads:
    @list{
      @* Pinch+zoom: zoom around the mouse pointer.
      @* Two finger swipes: pan the view.
-     @* Command + tap + drag: rotate the view.
    }
 }
 
@@ -209,7 +216,9 @@ the following fields:
      (see ``Shape objects'' below).
 
   @* @c{frequency}
-  @| The frequency in Hz to run the simulation at.
+  @| The frequency in Hz to run the simulation at. This is a single number for
+     a single-frequency simulation. For a multi-frequency simulation this is
+     an array of frequencies.
 
   @* @c{mesh_edge_length}
   @| The maximum edge length of the mesh (in the above units). This should
@@ -247,6 +256,11 @@ the following fields:
   The @c{field} table contains functions that can be called with x,y
   coordinates to return various field-derived quantities:
 @===[
+  field.Select(n)       -- Select field for frequency n (1..#config.frequency)
+                        -- All functions below return values for this frequency
+  field.SolveAll()      -- A hint that Select will be called for all n.
+                        -- This pre-solves the fields in parallel, for speed
+  field.Ports()         -- The port_power,port_phase for the selected field
   field.Complex(x,y)    -- real,imaginary field components (2 return values)
   field.Magnitude(x,y)  -- magnitude of the field
   field.Phase(x,y)      -- phase of the field (in radians)
@@ -281,6 +295,10 @@ the following fields:
   @* @c{max_modes}
   @| For @c{TE} and @c{TM} type, this is the number of modes to compute.
 
+  @* @c{wideband_window}
+  @| For a multi-frequency simulation this is the scaling window that is used
+     to display wideband pulses. Valid values are @c{rectangle} and @c{hamming}.
+     If this field is missing then a rectangular window is assumed.
 }
 
 @subsection{Parameters}
@@ -801,6 +819,13 @@ should generally be one of the last steps in model creation.}
      is assumed to be a plate machined from the outside. The @c{limit} is the
      maximum distance allowed between a polygon approximation of an arc and a
      true circle.
+  @* @c{LinearRange(start,stop,n)}
+  @| Return an array of @c{n} numbers linearly distributed between @c{start}
+     and @c{stop}.
+  @* @c{Min(a, b)}
+  @| Return the minimum of the values a and b.
+  @* @c{Max(a, b)}
+  @| Return the maximum of the values a and b.
 }
 
 #############################################################################
@@ -813,6 +838,65 @@ TODO: write me. NOTES:
 @* How to write the @c{optimize()} function: don't square things, split
    separate objectives into multiple return values.
 }
+
+#############################################################################
+@section{Multi-frequency solves}
+
+Often @c{config.frequency} is a single number, and each field solution is for
+that particular frequency. However @c{config.frequency} can be an array of
+numbers to solve for multiple frequencies simultaneously. There are two reasons
+to want this: wideband optimization and pulse visualization.
+
+@subsection{UI controls}
+
+If the current model has multiple frequencies then the "Frequency" spinner and
+slider at the top of the model window will be enabled, letting you select which
+of the solutions is currently displayed.
+
+Many functions in Rama will apply only to the currently displayed solution: for
+example, sweeps and the antenna plot.
+
+The "S Params" window plots the S parameters across all the frequencies in the
+model. However if an S parameter plot is all that is desired it is generally
+simpler to use the Sweep command to sweep a frequency paramater.
+Computing multiple frequencies can be slower per update, as the model needs to
+be solved multiple times.
+
+@subsection{Wideband optimization}
+
+If @c{config.frequency} is an array of more than one frequency, the
+@c{config.optimize} function can query the solution for each frequency
+independently. Optimizing the model for multiple frequencies simultaneously can
+result in models with wider bandwidth. For example, when @c{config.optimize}
+returns the worst return loss over all frequencies, that tends to minimize the
+return loss over the entire bandwidth.
+
+The @c{port_power} and @c{port_phase} arguments to @c{config.optimize} are just
+for the currently displayed solution. To query other solutions use the
+@c{field.Select(n)} function to select the frequency that subsequent field
+functions will apply to.
+The @c{field.Ports()} function will return the arrays of @c{port_power} and
+@c{port_phase} that correspond to the currently selected solution.
+
+@subsection{Pulse visualization}
+
+If the "Wideband pulse" checkbox is ticked and the model has solutions for
+multiple frequencies then the displayed field is all solutions added together.
+This results in a pulse, i.e. a short time burst of energy. In many situations
+it can be instructive to look at how a pulse propagates through the system.
+The width and duration of the pulse is controlled by the total bandwidth and
+number of values in @c{config.frequency}.
+
+When animating the pulse each solution is advanced in phase by the appropriate
+amount so the pulse stays coherent. Unlike the single frequency solution, the
+displayed field does not repeat for every turn of the time dial.
+The "Set animation time to 0" command can be used to reset the pulse to its
+starting state.
+
+There is one subtlety to consider when displaying pulses. The weight given to
+the solution for each frequency can be controlled to minimize the side lobes
+of the pulse. This is controlled by @c{config.wideband_window}, which selects
+a window function that provides the weights.
 
 #############################################################################
 @section{Waveguide modes}

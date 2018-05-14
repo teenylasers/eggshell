@@ -631,6 +631,9 @@ class PlotWindow : public Plot::Window {
   }
 
   double TextHeight(double *descent) override {
+    if (descent) {
+      *descent = metrics[current_font]->descent();
+    }
     return metrics[current_font]->height();
   }
 };

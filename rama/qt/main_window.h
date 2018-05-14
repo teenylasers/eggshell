@@ -69,6 +69,14 @@ private slots:
   void on_display_style_TE_currentIndexChanged(int index);
   void on_copy_to_clipboard_clicked();
   void VersionReplyAvailable(QNetworkReply *reply);
+  void on_frequency_index_spinner_valueChanged(int arg1);
+  void on_frequency_index_slider_valueChanged(int value);
+  void on_wideband_pulse_stateChanged(int arg1);
+  void on_sparam_plot_type_currentIndexChanged(int index);
+  void on_show_sparams_stateChanged(int arg1);
+  void on_time_dial_valueChanged(int value);
+
+  void on_actionSet_animation_time_to_0_triggered();
 
 private:
   Ui::MainWindow *ui;
@@ -77,6 +85,8 @@ private:
   QFileSystemWatcher watcher_;
 
   void UpdateDisplayStyle(int index);
+  void SetNumFrequencies(int n);
+  void SetWidebandControlsEnabledState();
 };
 
 #endif
