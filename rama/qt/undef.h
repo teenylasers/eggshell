@@ -1,7 +1,7 @@
 
 // Undefine some common words that are defined by windows header files. These
 // things leak into our code after including some Qt headers, and they conflict
-// with some of our own variable names (notably 'near' and 'far' with are
+// with some of our own variable names (notably 'near' and 'far' which are
 // defined to the empty string by windef.h, a relic from the segmented memory
 // era).
 //

@@ -666,7 +666,8 @@ void Mesh::DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric) {
         }
         count += mark[j];
       }
-      // Call the callback function.
+      // Call the callback function. RunCallback() will pop the callback
+      // function and arguments.
       LuaVector *result[2];
       if (!materials_[i].RunCallback(lua, result)) {
         // A lua error message will have been displayed at this point.
@@ -686,7 +687,6 @@ void Mesh::DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric) {
         }
         count += mark[j];
       }
-      lua_pop(lua->L(), 2);
     }
   }
 }

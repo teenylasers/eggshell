@@ -114,11 +114,21 @@ inline void SetUniform(const char *name, float v0, float v1, float v2) {
   CHECK(loc != -1);
   GL(Uniform3f)(loc, v0, v1, v2);
 }
+inline void SetUniform(const char *name, const Eigen::Vector3d &v) {
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
+  CHECK(loc != -1);
+  GL(Uniform3f)(loc, v[0], v[1], v[2]);
+}
 inline void SetUniform(const char *name, float v0, float v1, float v2,
                        float v3) {
   GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
   CHECK(loc != -1);
   GL(Uniform4f)(loc, v0, v1, v2, v3);
+}
+inline void SetUniform(const char *name, const Eigen::Vector4d &v) {
+  GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
+  CHECK(loc != -1);
+  GL(Uniform4f)(loc, v[0], v[1], v[2], v[3]);
 }
 inline void SetUniform(const char *name, const Eigen::Matrix4f &M) {
   GLuint loc = GL(GetUniformLocation)(CurrentProgram(), name);
