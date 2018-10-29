@@ -24,6 +24,7 @@ const char *section_label = 0;
 // Various kinds of text conversion.
 void PrintHTMLAttribute(char *s);
 char *ImageFilename(char *filename);
+bool ImageSize(char *filename, int *width, int *height);
 
 %}
 
@@ -102,9 +103,19 @@ vbox_no_para:
   | VERBATIM { printf(html ? "<pre>%s</pre>\n"
                            : "\\begin{Verbatim}[formatcom=\\color{blue}]%s\\end{Verbatim}\n", $1); }
   | FIGURE WORD ENDBLOCK STARTBLOCK
-      { printf(html ? "<center><img src='%s' "
-                    : "\\Figure{%s}{", ImageFilename($2)); }
-    opt_hbox_list ENDBLOCK { printf(html ? "></center>\n" : "}\n"); }
+      { int width, height;
+        bool havesize = ImageSize($2, &width, &height);
+        if (html) {
+          if (havesize) {
+            printf("<center><img src='%s' width=%d height=%d>", ImageFilename($2), width/2, height/2);
+          } else {
+            printf("<center><img src='%s'>", ImageFilename($2));
+          }
+        } else {
+          printf("\\Figure{%s}{}", ImageFilename($2));
+        }
+      }
+    opt_hbox_list ENDBLOCK { printf(html ? "</center>\n" : "\n"); }
   | TABLE { printf(html ? "<table>\n" :
                    "\\begin{longtabu*} to \\textwidth {|X|X|}\n"); }
     opt_space_or_blankline
@@ -275,4 +286,39 @@ char *ImageFilename(char *filename) {
     }
   }
   return filename;
+}
+
+// Reverse the bytes in a 32 bit integer.
+
+uint32_t Reverse32(uint32_t a) {
+  a = ((a << 8) & 0xff00ff00) | ((a >> 8) & 0x00ff00ff);
+  return (a << 16) | (a >> 16);
+}
+
+// Return the width and height of an image. Return true on success or false if
+// this can not be determined.
+
+bool ImageSize(char *filename, int *width, int *height) {
+  *width = -1;
+  *height = -1;
+  FILE *f = fopen(filename, "rb");
+  if (!f) {
+    Panic("Can't open %s", filename);
+  }
+  uint8_t header[8];
+  if (fread(header, 8, 1, f) != 1) {
+    Panic("Can't read %s", filename);
+  }
+  static uint8_t png_header[8] = {137, 80, 78, 71, 13, 10, 26, 10};
+  if(memcmp(header, png_header, 8) == 0) {
+    // PNG image.
+    uint32_t ihdr[2];
+    if (fread(ihdr, 8, 1, f) != 1 || fread(ihdr, 8, 1, f) != 1) {
+      Panic("Can't read %s", filename);
+    }
+    *width = Reverse32(ihdr[0]);
+    *height = Reverse32(ihdr[1]);
+  }
+  fclose(f);
+  return *width >= 0;
 }
