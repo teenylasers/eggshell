@@ -572,6 +572,7 @@ bool Material::RunCallback(Lua *lua, LuaVector *result[2]) {
       return false;
     }
   }
+  lua_settop(lua->L(), n - 1);
   return true;
 }
 
@@ -2020,66 +2021,6 @@ int Shape::LuaPaint(lua_State *L) {
   lua_settop(L, 1);
   return 1;
 }
-
-//@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ unconverted from matlab
-
-/*
-% Set this shape to the given "fat polyline". The coordinates of the center
-% of the polyline are given by the x,y vectors and the widths of each
-% segment are given by w. If w is a scalar then every segment has the same
-% length. The cap1 and cap2 return values contain the [x1,y1,x2,y2]
-% coordinates of the endcaps.
-function [obj, cap1, cap2] = Polyline(obj, x, y, w)
-  if length(w) == 1
-    w = ones(length(x)-1, 1) * w;
-  end
-  assert(length(x) >= 2);
-  assert(length(x) == length(y));
-  assert(length(x) == length(w) + 1);
-
-  % N = number of line segments (and num vertices) for the fat polyline.
-  N = 2*length(x);
-  lines = zeros(3, N);      % Lines in nx*x+ny*y=c form
-
-  % Process each input line segment.
-  for i = 1:length(x) - 1
-    % Convert line segment into nx*x+ny*y=c form.
-    len = sqrt((x(i+1)-x(i))^2 + (y(i+1)-y(i))^2);
-    nx =  (y(i+1) - y(i)) / len;
-    ny = -(x(i+1) - x(i)) / len;
-    c  = (x(i)*y(i+1) - x(i+1)*y(i)) / len;
-
-    % Compute the lines for both sides of the fat polyline in
-    % nx*x+ny*y=c form.
-    lines(:, i    ) = [nx; ny; c + w(i) / 2];
-    lines(:, N - i) = [nx; ny; c - w(i) / 2];
-  end
-
-  % Compute the lines for the end caps in nx*x+ny*y=c form.
-  len = sqrt((x(2)-x(1))^2 + (y(2)-y(1))^2);
-  lines(1, end) = (x(2)-x(1)) / len;
-  lines(2, end) = (y(2)-y(1)) / len;
-  lines(3, end) = (y(1)*y(2) - y(1)^2 + x(1)*x(2) - x(1)^2)/len;
-  len = sqrt((x(end-1)-x(end))^2 + (y(end-1)-y(end))^2);
-  lines(1, N/2) = (x(end-1)-x(end)) / len;
-  lines(2, N/2) = (y(end-1)-y(end)) / len;
-  lines(3, N/2) = (y(end)*y(end-1) - y(end)^2 + x(end)*x(end-1) - x(end)^2)/len;
-
-  % Compute all shape vertices by intersecting the lines.
-  obj.poly = zeros(2, N);
-  for i = 1:N
-    j = mod(i, N) + 1;
-    denom = lines(1,j) * lines(2,i) - lines(1,i) * lines(2,j);
-    obj.poly(1,i) =  (lines(3,j) * lines(2,i) - lines(3,i) * lines(2,j)) / denom;
-    obj.poly(2,i) = -(lines(3,j) * lines(1,i) - lines(3,i) * lines(1,j)) / denom;
-  end
-
-  % Copy out endcap coordinates.
-  cap1 = [obj.poly(1,N-1), obj.poly(2,N-1), obj.poly(1,N), obj.poly(2,N)];
-  cap2 = [obj.poly(1,N/2-1), obj.poly(2,N/2-1), obj.poly(1,N/2), obj.poly(2,N/2)];
-end
-
-*/
 
 //***************************************************************************
 // Testing.

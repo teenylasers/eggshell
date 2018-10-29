@@ -87,7 +87,7 @@ struct Material {        // Polygon and triangle material properties
   // x,y vectors are pushed on to the stack, call this to run the callback.
   // Return 1 or 2 vector results (the second one can be 0). Returns true on
   // success or false if there is a problem (in which case LuaError() will have
-  // been called).
+  // been called). The callback function arguments are removed from the stack.
   static bool RunCallback(Lua *lua, LuaVector *result[2]) MUST_USE_RESULT;
 };
 
