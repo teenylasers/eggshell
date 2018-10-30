@@ -17,9 +17,12 @@ void SimulationStep() {
   Matrix3d R = q.matrix();
   DrawBox(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5));
 
-  DrawCapsule(Vector3d(-1, 0, 0.5), R, Vector3d(0.2, 0.2, 1));
+  DrawCapsule(Vector3d(-1, 0, 0.5), R, 0.2, 0.6);
 
   DrawSphere(Vector3d(0, 0, 0.5), R, 0.3);
+
+  DrawPoint(Vector3d(0, 0, 0));
+  DrawLine(Vector3d(0, 0, 0), Vector3d(0, 0, 1));
 
   angle1 += 0.01;
   angle2 += 0.002;

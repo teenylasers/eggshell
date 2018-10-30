@@ -30,6 +30,7 @@ static gl::Shader &MultilightShader() {
     " #version 330 core\n"
     " uniform mat4 transform, modelview;"
     " uniform mat3 normalmatrix;"
+    " uniform float zstretch;"  // If !=0 stretch geometry out along Z
     LIGHT_DIRS
     " in vec3 vertex;"
     " in vec3 normal;"
@@ -39,9 +40,10 @@ static gl::Shader &MultilightShader() {
     " out vec3 halfway3;"
     " out vec3 halfway4;"
     " void main() {"
+    "   vec3 vertex2 = vertex + vec3(0, 0, sign(vertex.z) * zstretch);"
     "   normal_es = normalmatrix * normal;"
-    "   gl_Position = transform * vec4(vertex, 1.0);"
-    "   vec4 p4 = modelview * vec4(vertex, 1.0);"       // Model point (ES)
+    "   gl_Position = transform * vec4(vertex2, 1.0);"
+    "   vec4 p4 = modelview * vec4(vertex2, 1.0);"      // Model point (ES)
     "   vec3 p = vec3(p4) / p4.w;"                      // Model point (ES)
     "   vec3 v = normalize(-p);"                        // View direction (ES)
     "   halfway1 = normalize(light1_dir + v);"
@@ -102,11 +104,13 @@ static gl::Shader &GroundShader() {
     " #version 330 core\n"
     " uniform mat4 transform;"
     " uniform mat4 model_transform;"
+    " uniform float zstretch;"  // If !=0 stretch geometry out along Z
     " in vec3 vertex;"
     " out vec2 tex_coord;"
     " void main() {"
-    "   gl_Position = transform * vec4(vertex, 1.0);"
-    "   vec4 model_pos = model_transform * vec4(vertex, 1.0);"
+    "   vec3 vertex2 = vertex + vec3(0, 0, sign(vertex.z) * zstretch);"
+    "   gl_Position = transform * vec4(vertex2, 1.0);"
+    "   vec4 model_pos = model_transform * vec4(vertex2, 1.0);"
     "   tex_coord = model_pos.xy;"
     " }",
     // Fragment shader.
@@ -276,11 +280,85 @@ static void RenderWireframeSphere() {
   buffer.Draw(GL_LINES);
 }
 
+// Draw a capsule of radius 1 and the given length, with the long axis in the Z
+// direction.
+
+static void RenderCapsule(bool with_normals) {
+  static vector<Vector3f> data;
+  static bool data_initialized = false;
+  if (!data_initialized) {
+    data_initialized = true;
+    const int n = 40;           // Number of longitudial slices (must be even)
+    const int m = 10;           // Number of latitudinal slices
+    const double offset = 1e-3;
+    data.push_back(Vector3f(0, 0, 1));          // North pole
+    for (int i = 0; i < n; i++) {
+      double sign = (i & 1) ? -1 : 1;
+      double lon1 = M_PI * 2 * double(i) / n;
+      double lon2 = M_PI * 2 * double((i + 1) % n) / n;
+      for (int j = 1; j <= m; j++) {
+        double lat = M_PI * 0.5 * double(j) / m;
+        double z = sign*std::max(cos(lat), offset);
+        data.push_back(Vector3f(cos(lon1)*sin(lat), sin(lon1)*sin(lat), z));
+        data.push_back(Vector3f(cos(lon2)*sin(lat), sin(lon2)*sin(lat), z));
+      }
+      for (int j = m; j >= 1; j--) {
+        double lat = M_PI * 0.5 * double(j) / m;
+        double z = -sign*std::max(cos(lat), offset);
+        data.push_back(Vector3f(cos(lon1)*sin(lat), sin(lon1)*sin(lat), z));
+        data.push_back(Vector3f(cos(lon2)*sin(lat), sin(lon2)*sin(lat), z));
+      }
+      data.push_back(Vector3f(0, 0, -sign));
+    }
+  }
+
+  gl::VertexBuffer<Vector3f> buffer(data.size(), data.data());
+  buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+  if (with_normals) {
+    buffer.Specify1("normal", 0, 3, GL_FLOAT);
+  }
+  buffer.Draw(GL_TRIANGLE_STRIP);
+}
+
+// Draw a wireframe capsule of radius 1 and the given length, with the long
+// axis in the Z direction.
+
+static void RenderWireframeCapsule() {
+  static vector<Vector3f> data;
+  static bool data_initialized = false;
+  if (!data_initialized) {
+    data_initialized = true;
+    const int n = 8;            // Number of longitudial slices (must be even)
+    const int m = 10;           // Number of latitudinal slices
+    const double offset = 1e-3;
+    data.push_back(Vector3f(0, 0, 1));          // North pole
+    for (int i = 0; i < n; i++) {
+      double sign = (i & 1) ? -1 : 1;
+      double lon = M_PI * 2 * double(i) / n;
+      for (int j = 1; j <= m; j++) {
+        double lat = M_PI * 0.5 * double(j) / m;
+        double z = sign*std::max(cos(lat), offset);
+        data.push_back(Vector3f(cos(lon)*sin(lat), sin(lon)*sin(lat), z));
+      }
+      for (int j = m; j >= 1; j--) {
+        double lat = M_PI * 0.5 * double(j) / m;
+        double z = -sign*std::max(cos(lat), offset);
+        data.push_back(Vector3f(cos(lon)*sin(lat), sin(lon)*sin(lat), z));
+      }
+      data.push_back(Vector3f(0, 0, -sign));
+    }
+  }
+
+  gl::VertexBuffer<Vector3f> buffer(data.size(), data.data());
+  buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+  buffer.Draw(GL_LINE_STRIP);
+}
+
 //***************************************************************************
 // The functions in model.h that are called by SimulationStep().
 
 struct Object {
-  enum Type { SPHERE, BOX, CAPSULE };
+  enum Type { SPHERE, BOX, CAPSULE, POINT, LINE };
   Type type;
   Vector3d center, halfside;
   Matrix3d R;
@@ -307,12 +385,28 @@ void DrawBox(const Vector3d &center, const Matrix3d &rotation,
 }
 
 void DrawCapsule(const Vector3d &center, const Matrix3d &rotation,
-                 const Vector3d &axis_lengths) {
+                 double radius, double length) {
   objects.resize(objects.size() + 1);
   objects.back().type = Object::CAPSULE;
   objects.back().center = center;
-  objects.back().halfside = axis_lengths / 2;
+  objects.back().halfside = Vector3d(radius, radius, length / 2 + radius);
   objects.back().R = rotation;
+}
+
+void DrawPoint(const Eigen::Vector3d &position) {
+  objects.resize(objects.size() + 1);
+  objects.back().type = Object::POINT;
+  objects.back().center = position;
+  objects.back().halfside.setZero();
+  objects.back().R.setIdentity();
+}
+
+void DrawLine(const Eigen::Vector3d &pos1, const Eigen::Vector3d &pos2) {
+  objects.resize(objects.size() + 1);
+  objects.back().type = Object::LINE;
+  objects.back().center = (pos1 + pos2) * 0.5;
+  objects.back().halfside = (pos2 - pos1) * 0.5;
+  objects.back().R.setIdentity();
 }
 
 inline void SetModelTransform(const Matrix4d &T) {
@@ -320,6 +414,13 @@ inline void SetModelTransform(const Matrix4d &T) {
   if (loc != -1) {
     Matrix4f Tf = T.cast<float>();
     GL(UniformMatrix4fv)(loc, 1, GL_FALSE, Tf.data());
+  }
+}
+
+inline void SetZStretch(double stretch) {
+  GLuint loc = GL(GetUniformLocation)(gl::CurrentProgram(), "zstretch");
+  if (loc != -1) {
+    GL(Uniform1f)(loc, stretch);
   }
 }
 
@@ -354,15 +455,17 @@ static void DrawObjects(bool with_normals, bool wireframe,
       }
     } else if (objects[i].type == Object::CAPSULE) {
       T.block(0, 0, 3, 3) = objects[i].R;
-      T *= gl::Scale(objects[i].halfside);
+      double scale = objects[i].halfside[0];
+      T *= gl::Scale(scale);
       gl::ApplyTransform(P, M * projection * T);
       SetModelTransform(projection * T);
-      // @@@ Actually draw a capsule, not a box.
+      SetZStretch(objects[i].halfside[2] / scale - 1);
       if (wireframe) {
-        RenderWireframeCube();
+        RenderWireframeCapsule();
       } else {
-        RenderCube(with_normals);
+        RenderCapsule(with_normals);
       }
+      SetZStretch(0);
     }
   }
 }
@@ -435,7 +538,7 @@ void EggshellView::Draw() {
   // Draw the ground. The depth test is disabled for this because we draw
   // shadows on top of the ground.
   {
-    GL(Disable)(GL_DEPTH_TEST);
+    GL(DepthFunc)(GL_ALWAYS);
     GroundShader().Use();
     gl::SetUniform("brightness", 1);
     SetModelTransform(Matrix4d::Identity());
@@ -471,7 +574,7 @@ void EggshellView::Draw() {
       DrawObjects(false, false, project_shadow);
       GL(Enable)(GL_CULL_FACE);
     }
-    GL(Enable)(GL_DEPTH_TEST);
+    GL(DepthFunc)(GL_LESS);
   }
 
   // Set the shader and lights.
@@ -481,14 +584,16 @@ void EggshellView::Draw() {
   // Draw the model.
   DrawObjects(true, false);
 
-  // Optionally show the bounding box.
+  // Draw wireframe things and points.
   static gl::Shader wireframe_shader(
     // Vertex shader.
     " #version 330 core\n"
     " uniform mat4 transform;"
+    " uniform float zstretch;"  // If !=0 stretch geometry out along Z
     " in vec3 vertex;"
     " void main() {"
-    "   gl_Position = transform * vec4(vertex, 1.0);"
+    "   vec3 vertex2 = vertex + vec3(0, 0, sign(vertex.z) * zstretch);"
+    "   gl_Position = transform * vec4(vertex2, 1.0);"
     " }",
     // Fragment shader.
     " #version 330 core\n"
@@ -501,19 +606,64 @@ void EggshellView::Draw() {
     "   gl_FragDepth = gl_FragCoord.z - 0.0005;"
     " }");
   wireframe_shader.Use();
-  ApplyCameraTransformations();
-  gl::DrawThick(2, 2, false, [&]() {
-    if (show_bounding_box_) {
+
+  // Optionally show the bounding box.
+  if (show_bounding_box_) {
+    ApplyCameraTransformations();
+    gl::DrawThick(2, 2, false, [&]() {
       double b[6];
       GetBoundingBox(b);
       gl::SetUniform("color", 1, 1, 0);
       gl::DrawCubeWireframe(
             Vector3d((b[0]+b[1])*0.5, (b[2]+b[3])*0.5, (b[4]+b[5])*0.5),
             Vector3d(b[1]-b[0], b[3]-b[2], b[5]-b[4]));
-    }
-    gl::SetUniform("color", 0, 0, 0);
+    });
+  }
+
+  // Draw wireframes around the objects.
+  ApplyCameraTransformations();
+  gl::SetUniform("color", 0, 0, 0);
+  gl::DrawThick(2, 2, false, [&]() {
     DrawObjects(true, true);
   });
+
+  // Draw lines from the objects list.
+  {
+    ApplyCameraTransformations();
+    GL(Disable)(GL_DEPTH_TEST);
+    gl::SetUniform("color", 1, 1, 0);
+    vector<Vector3f> p;
+    for (int i = 0; i < objects.size(); i++) {
+      if (objects[i].type == Object::LINE) {
+        p.push_back((objects[i].center - objects[i].halfside).cast<float>());
+        p.push_back((objects[i].center + objects[i].halfside).cast<float>());
+      }
+    }
+    gl::VertexBuffer<Vector3f> buffer(p);
+    buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+    gl::DrawThick(2, 2, false, [&]() {
+      buffer.Draw(GL_LINES);
+    });
+    GL(Enable)(GL_DEPTH_TEST);
+  }
+
+  // Draw points from the objects list.
+  {
+    ApplyCameraTransformations();
+    GL(Disable)(GL_DEPTH_TEST);
+    gl::SetUniform("color", 1, 1, 0);
+    vector<Vector3f> p;
+    for (int i = 0; i < objects.size(); i++) {
+      if (objects[i].type == Object::POINT) {
+        p.push_back(objects[i].center.cast<float>());
+      }
+    }
+    gl::VertexBuffer<Vector3f> buffer(p);
+    buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+    GL(PointSize)(10);
+    buffer.Draw(GL_POINTS);
+    GL(Enable)(GL_DEPTH_TEST);
+  }
 }
 
 void EggshellView::GetBoundingBox(double bounds[6]) {
