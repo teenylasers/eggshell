@@ -486,7 +486,7 @@ EggshellView::EggshellView(QWidget *parent) : GLViewer(parent) {
 
   // Setup camera.
   Look(GLViewer::LOOK_AT_YZ_PLANE_FROM_MINUS_X);
-  GetCamera().pos[2] = 2;
+  ZoomExtents();
 }
 
 EggshellView::~EggshellView() {
