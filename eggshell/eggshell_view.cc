@@ -481,6 +481,7 @@ EggshellView::EggshellView(QWidget *parent) : GLViewer(parent) {
 
   // Take the first step of the simulation so that we have objects to draw.
   objects.clear();
+  SimulationInitialization();
   SimulationStep();
 
   // Setup camera.
@@ -667,6 +668,16 @@ void EggshellView::Draw() {
 }
 
 void EggshellView::GetBoundingBox(double bounds[6]) {
+  // If there are no objects then just use default bounds that will at least
+  // result in a decent camera position.
+  if (objects.empty()) {
+    for (int i = 0; i < 3; i++) {
+      bounds[i*2 + 0] = 0;
+      bounds[i*2 + 1] = 1;
+    }
+    return;
+  }
+
   for (int i = 0; i < 3; i++) {
     bounds[i*2 + 0] = __DBL_MAX__;
     bounds[i*2 + 1] = -__DBL_MAX__;
