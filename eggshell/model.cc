@@ -10,6 +10,9 @@ using Eigen::Quaterniond;
 static double angle1 = 0.5;
 static double angle2 = 0;
 
+void SimulationInitialization() {
+}
+
 void SimulationStep() {
   Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
   Eigen::AngleAxisd Raa2(angle2, Vector3d(0, 1, 0));
