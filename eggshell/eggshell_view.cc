@@ -485,7 +485,7 @@ EggshellView::EggshellView(QWidget *parent) : GLViewer(parent) {
   SimulationStep();
 
   // Setup camera.
-  Look(GLViewer::LOOK_AT_YZ_PLANE_FROM_MINUS_X);
+  Look(GLViewer::LOOK_AT_XZ_PLANE_FROM_MINUS_Y);
   ZoomExtents();
 }
 
