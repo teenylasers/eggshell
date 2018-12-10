@@ -1,4 +1,3 @@
-
 #ifndef __MODEL_H__
 #define __MODEL_H__
 
@@ -15,12 +14,10 @@ void SimulationStep();
 void DrawSphere(const Eigen::Vector3d &center, const Eigen::Matrix3d &rotation,
                 double radius);
 
-void DrawBox(const Eigen::Vector3d &center,
-             const Eigen::Matrix3d &rotation,
+void DrawBox(const Eigen::Vector3d &center, const Eigen::Matrix3d &rotation,
              const Eigen::Vector3d &side_lengths);
 
-void DrawCapsule(const Eigen::Vector3d &center,
-                 const Eigen::Matrix3d &rotation,
+void DrawCapsule(const Eigen::Vector3d &center, const Eigen::Matrix3d &rotation,
                  double radius, double length);
 
 void DrawPoint(const Eigen::Vector3d &position);
@@ -32,5 +29,14 @@ void DrawLine(const Eigen::Vector3d &pos1, const Eigen::Vector3d &pos2);
 
 // A fatal error: print the error message and stop execution
 void Panic(const char *message, ...);
+
+// Generate the cross-product matrix for a vector a, so that a x b = a_bar b.
+Eigen::Matrix3d CrossMat(const Eigen::Vector3d &a);
+
+// Generate a random rotation matrix.
+Eigen::Matrix3d RandomRotation();
+Eigen::Matrix3d RandomRotationViaQuaternion();
+Eigen::Matrix3d RandomRotationViaGramSchmidt();
+Eigen::Matrix3d GramSchmidt(const Eigen::Matrix3d &m);
 
 #endif

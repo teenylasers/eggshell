@@ -23,7 +23,7 @@ DIRS = build/toolkit build/qt
 MAKEFLAGS += -R
 MY_MAKEFLAGS = -C build -f ../Makefile
 
-.PHONY: dirs all run clean
+.PHONY: dirs all run test clean
 
 dirs:
 	mkdir -p $(DIRS)
@@ -31,6 +31,9 @@ dirs:
 all: dirs
 	$(MAKE) $(MY_MAKEFLAGS) $(APP)
 	@echo Success
+
+test: dirs
+	$(MAKE) $(MY_MAKEFLAGS) unittest
 
 clean:
 	-rm -rf build
@@ -147,7 +150,10 @@ qt/ui_%.h: ../qt/%.ui
 	$(QT_DIR)/bin/uic $< -o $@
 
 $(APP): $(OBJ)
-	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $(APP) $(OBJ) $(GUI_LIBS)
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -lglog -o $(APP) $(OBJ) $(GUI_LIBS)
 
 # Include dependencies (only works from build directory).
 -include *.d $(DIRS:build/%=%/*.d)
+
+unittest: model.o
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -I$(EIGEN_DIR) -lgtest -lgflags -lglog ../unittest.cc -o unittest model.o
