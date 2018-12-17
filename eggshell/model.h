@@ -39,4 +39,12 @@ Eigen::Matrix3d RandomRotationViaQuaternion();
 Eigen::Matrix3d RandomRotationViaGramSchmidt();
 Eigen::Matrix3d GramSchmidt(const Eigen::Matrix3d &m);
 
+// Various integrators of different goodness
+// Explicit Euler update on rotation matrix:  R_i+1 = R_i + dt * omega0 x R_i
+Eigen::Matrix3d ExplicitEulerRotationUpdate(const Eigen::Matrix3d &R,
+                                            const Eigen::Vector3d &omega0, double dt);
+// Normalized update on rotation matrix: R_i+1 = F(dt * omega0) * R_i
+Eigen::Matrix3d NormalizedRotationUpdate(const Eigen::Matrix3d &R,
+					 const Eigen::Vector3d &omega0, double dt);
+
 #endif

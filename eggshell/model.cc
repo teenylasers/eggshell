@@ -1,4 +1,5 @@
 #include "model.h"
+#include "constants.h"
 #include "glog/logging.h"
 
 using Eigen::Matrix3d;
@@ -10,10 +11,15 @@ using Eigen::Vector3f;
 static double angle1 = 0.5;
 static double angle2 = 0;
 static Matrix3d random_R = Matrix3d::Identity();
+static Matrix3d R_normalized = Matrix3d::Identity();
+static Matrix3d R_explicit = Matrix3d::Identity();
+static Vector3d omega0{0, 0, 80}; // fixed angular velocity
 
 void SimulationInitialization() {
   srand(time(0));
   random_R = RandomRotation();
+  R_normalized = random_R;
+  R_explicit = random_R;
 };
 
 void SimulationStep() {
@@ -26,20 +32,47 @@ void SimulationStep() {
   DrawCapsule(Vector3d(-1, 0, 0.5), R, 0.2, 0.6);
   DrawSphere(Vector3d(0, 0, 0.5), R, 0.3);
 
-  // Draw box with random initial orientation
-  Vector3d box_origin{0, 0, 1.5};
-  Vector3d box_dims{0.3, 0.3, 0.3};
-  auto box_R = random_R * R;
-  DrawBox(box_origin, box_R, box_dims);
-  Vector3d point_on_box_body = box_dims/2.0;
-  Vector3d point_on_box_global = box_origin + box_R * point_on_box_body;
-  DrawPoint(point_on_box_global);
-
   DrawPoint(Vector3d(0, 0, 0));
   DrawLine(Vector3d(0, 0, 0), Vector3d(0, 0, 1));
 
   angle1 += 0.01;
   angle2 += 0.002;
+
+  // Draw box with random initial orientation
+  Vector3d box_origin{0, 0, 1.5};
+  Vector3d box_dims{0.3, 0.3, 0.3};
+  auto box_R = R * random_R;
+  DrawBox(box_origin, box_R, box_dims);
+  Vector3d point_on_box_body = box_dims / 2.0;
+  Vector3d point_on_box_global = box_origin + box_R * point_on_box_body;
+  DrawPoint(point_on_box_global);
+
+  // Draw boxes that rotates with angular velocity omega0, start with identical
+  // boxes, use different integrators
+  Vector3d normalized_box_origin{1.5, 0, 1.5};
+  Vector3d explicit_box_origin{3, 0, 1.5};
+  DrawBox(normalized_box_origin, R_normalized, box_dims);
+  DrawBox(explicit_box_origin, R_explicit, box_dims);
+  DrawPoint(normalized_box_origin + R_normalized * point_on_box_body);
+  DrawPoint(explicit_box_origin + R_explicit * point_on_box_body);
+  R_normalized = NormalizedRotationUpdate(R_normalized, omega0, kSimTimeStep);
+  R_explicit = ExplicitEulerRotationUpdate(R_explicit, omega0, kSimTimeStep);
+
+  // TODO: how to check implemented angular velocity
+}
+
+Matrix3d ExplicitEulerRotationUpdate(const Matrix3d &R, const Vector3d &omega0,
+                                     double dt) {
+  Matrix3d R_update = GramSchmidt(R + dt * CrossMat(omega0) * R);
+  return R_update;
+}
+
+Matrix3d NormalizedRotationUpdate(const Matrix3d &R, const Vector3d &omega0,
+                                  double dt) {
+  Eigen::AngleAxisd Raa(omega0.norm() * dt, omega0.normalized());
+  Quaterniond q(Raa);
+  Matrix3d R_update = q.matrix() * R;
+  return R_update;
 }
 
 Matrix3d CrossMat(const Vector3d &a) {
@@ -52,19 +85,20 @@ Matrix3d CrossMat(const Vector3d &a) {
   return m;
 }
 
-Matrix3d RandomRotation() { return RandomRotationViaGramSchmidt(); }
+Matrix3d RandomRotation() { return RandomRotationViaQuaternion(); }
 
 Matrix3d RandomRotationViaQuaternion() {
-  Quaterniond q;
-  q.UnitRandom();
-  LOG(INFO) << q.coeffs();
+  Quaterniond q = Quaterniond::UnitRandom();
   return q.matrix();
 }
 
 Matrix3d RandomRotationViaGramSchmidt() {
-  Matrix3d m = Matrix3d::Random();
-  return GramSchmidt(m);
-  // TODO: return m.householderQr().householderQ();
+  Matrix3d m = GramSchmidt(Matrix3d::Random());
+  // TODO: Matrix3d m = Matrix3d::Random().householderQr().householderQ();??
+  if ((m.col(0).cross(m.col(1)) - m.col(2)).norm() > kAllowNumericalError) {
+    m.col(2) = -1.0 * m.col(2);
+  }
+  return m;
 }
 
 Matrix3d GramSchmidt(const Matrix3d &m) {
@@ -79,7 +113,7 @@ Matrix3d GramSchmidt(const Matrix3d &m) {
   Matrix3d m_normalized;
   m_normalized << u0, u1, u2;
 
-  return m_normalized;
-
   // TODO: stablized Gram-Schmidt
+
+  return m_normalized;
 }
