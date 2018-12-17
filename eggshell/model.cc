@@ -1,4 +1,5 @@
 #include "model.h"
+
 #include "constants.h"
 #include "glog/logging.h"
 
@@ -11,15 +12,16 @@ using Eigen::Vector3f;
 static double angle1 = 0.5;
 static double angle2 = 0;
 static Matrix3d random_R = Matrix3d::Identity();
-static Matrix3d R_normalized = Matrix3d::Identity();
-static Matrix3d R_explicit = Matrix3d::Identity();
-static Vector3d omega0{0, 0, 80}; // fixed angular velocity
+static Matrix3d R_exp_euler = Matrix3d::Identity();
+static Matrix3d R_exp_euler_add = Matrix3d::Identity();
+static Vector3d w0{0, 0, 80};  // fixed angular velocity
+static Body b(random_R, w0);
 
 void SimulationInitialization() {
   srand(time(0));
   random_R = RandomRotation();
-  R_normalized = random_R;
-  R_explicit = random_R;
+  R_exp_euler = random_R;
+  R_exp_euler_add = random_R;
 };
 
 void SimulationStep() {
@@ -47,35 +49,61 @@ void SimulationStep() {
   Vector3d point_on_box_global = box_origin + box_R * point_on_box_body;
   DrawPoint(point_on_box_global);
 
-  // Draw boxes that rotates with angular velocity omega0, start with identical
+  // Draw boxes that rotates with angular velocity w0, start with identical
   // boxes, use different integrators
-  Vector3d normalized_box_origin{1.5, 0, 1.5};
-  Vector3d explicit_box_origin{3, 0, 1.5};
-  DrawBox(normalized_box_origin, R_normalized, box_dims);
-  DrawBox(explicit_box_origin, R_explicit, box_dims);
-  DrawPoint(normalized_box_origin + R_normalized * point_on_box_body);
-  DrawPoint(explicit_box_origin + R_explicit * point_on_box_body);
-  R_normalized = NormalizedRotationUpdate(R_normalized, omega0, kSimTimeStep);
-  R_explicit = ExplicitEulerRotationUpdate(R_explicit, omega0, kSimTimeStep);
+  Vector3d exp_euler_box_origin{1.5, 0, 1.5};
+  Vector3d exp_euler_add_box_origin{3, 0, 1.5};
+  DrawBox(exp_euler_box_origin, R_exp_euler, box_dims);
+  DrawBox(exp_euler_add_box_origin, R_exp_euler_add, box_dims);
+  DrawPoint(exp_euler_box_origin + R_exp_euler * point_on_box_body);
+  DrawPoint(exp_euler_add_box_origin + R_exp_euler_add * point_on_box_body);
+  R_exp_euler = ExplicitEulerRotationMatrix(R_exp_euler, w0, kSimTimeStep);
+  R_exp_euler_add =
+      ExplicitEulerRotationMatrix_Addition(R_exp_euler_add, w0, kSimTimeStep);
 
-  // TODO: how to check implemented angular velocity
+  // Explicit Euler single rigid body rotation
+  Vector3d b_origin{0, 0, 3};
+  DrawBox(b_origin, b.R(), box_dims);
+  DrawPoint(b_origin + b.R() * point_on_box_body);
+  b = ExplicitEulerBodyRotation(b, kSimTimeStep);
 }
 
-Matrix3d ExplicitEulerRotationUpdate(const Matrix3d &R, const Vector3d &omega0,
-                                     double dt) {
-  Matrix3d R_update = GramSchmidt(R + dt * CrossMat(omega0) * R);
+Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
+                                              const Vector3d& w0, double dt) {
+  Matrix3d R_update = GramSchmidt(R + dt * CrossMat(w0) * R);
   return R_update;
 }
 
-Matrix3d NormalizedRotationUpdate(const Matrix3d &R, const Vector3d &omega0,
-                                  double dt) {
-  Eigen::AngleAxisd Raa(omega0.norm() * dt, omega0.normalized());
+Matrix3d ExplicitEulerRotationMatrix(const Matrix3d& R, const Vector3d& w0,
+                                     double dt) {
+  Eigen::AngleAxisd Raa(w0.norm() * dt, w0.normalized());
   Quaterniond q(Raa);
   Matrix3d R_update = q.matrix() * R;
   return R_update;
 }
 
-Matrix3d CrossMat(const Vector3d &a) {
+Matrix3d ExplicitEulerRotationMatrix(const Body& b, double dt) {
+  Eigen::AngleAxisd Raa(b.w_g().norm() * dt, b.w_g().normalized());
+  Quaterniond q(Raa);
+  Matrix3d R_update = q.matrix() * b.R();
+  return R_update;
+}
+
+Vector3d ExplicitEulerAngularVelocity(const Body& b, double dt,
+                                      const Vector3d& tau) {
+  Vector3d w_update =
+      b.w_g() +
+      dt * b.I_g().inverse() * (tau - CrossMat(b.w_g()) * b.I_g() * b.w_g());
+  return w_update;
+}
+
+Body ExplicitEulerBodyRotation(const Body& b, double dt, Vector3d& tau) {
+  Body b_update(ExplicitEulerRotationMatrix(b, dt),
+                ExplicitEulerAngularVelocity(b, dt, tau), b.I_b());
+  return b_update;
+}
+
+Matrix3d CrossMat(const Vector3d& a) {
   Matrix3d m;
   // clang-format off
   m << 0, -a(2), a(1),
@@ -101,7 +129,7 @@ Matrix3d RandomRotationViaGramSchmidt() {
   return m;
 }
 
-Matrix3d GramSchmidt(const Matrix3d &m) {
+Matrix3d GramSchmidt(const Matrix3d& m) {
   // u0, u1, u2 are normalized bases, orthogonal to each other
 
   // Naive Gram-Schmidt
