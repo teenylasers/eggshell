@@ -1,4 +1,4 @@
-
+#include "constants.h"
 #include "eggshell_view.h"
 #include "shaders.h"
 #include "model.h"
@@ -500,7 +500,7 @@ void EggshellView::Link(QStatusBar *status_bar) {
 void EggshellView::ToggleRunning() {
   running_ ^= 1;
   if (running_) {
-    QTimer::singleShot(0.001, this, &EggshellView::OnSimulationTimeout);
+    QTimer::singleShot(kSimTimeStep, this, &EggshellView::OnSimulationTimeout);
   }
   update();
 }
@@ -515,7 +515,7 @@ void EggshellView::OnSimulationTimeout() {
     objects.clear();
     SimulationStep();
     update();
-    QTimer::singleShot(0.001, this, &EggshellView::OnSimulationTimeout);
+    QTimer::singleShot(kSimTimeStep, this, &EggshellView::OnSimulationTimeout);
   }
 }
 
