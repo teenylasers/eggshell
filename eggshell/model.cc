@@ -14,14 +14,26 @@ static double angle2 = 0;
 static Matrix3d random_R = Matrix3d::Identity();
 static Matrix3d R_exp_euler = Matrix3d::Identity();
 static Matrix3d R_exp_euler_add = Matrix3d::Identity();
-static Vector3d w0{0, 0, 80};  // fixed angular velocity
-static Body b(random_R, w0);
+static Vector3d w0{10, 15, 10};  // fixed angular velocity
+static Body b0(Matrix3d::Identity(), w0);
+static Body b1(Matrix3d::Identity(), w0);
 
 void SimulationInitialization() {
   srand(time(0));
   random_R = RandomRotation();
   R_exp_euler = random_R;
   R_exp_euler_add = random_R;
+
+  Matrix3d inertia;
+  // clang-format off
+  inertia << 1, 0, 1,
+             0, 2, 2,
+             2, 0, 3;
+  // clang-format on
+  b0.SetR(random_R);
+  b0.SetI(inertia);
+  b1.SetR(random_R);
+  b1.SetI(inertia);
 };
 
 void SimulationStep() {
@@ -62,10 +74,17 @@ void SimulationStep() {
       ExplicitEulerRotationMatrix_Addition(R_exp_euler_add, w0, kSimTimeStep);
 
   // Explicit Euler single rigid body rotation
-  Vector3d b_origin{0, 0, 3};
-  DrawBox(b_origin, b.R(), box_dims);
-  DrawPoint(b_origin + b.R() * point_on_box_body);
-  b = ExplicitEulerBodyRotation(b, kSimTimeStep);
+  Vector3d b0_origin{0, 0, 3};
+  DrawBox(b0_origin, b0.R(), box_dims);
+  DrawPoint(b0_origin + b0.R() * point_on_box_body);
+  b0 = ExplicitEulerBodyRotation(b0, kSimTimeStep);
+  // For comparison, update in the body frame
+  Vector3d b1_origin{1.5, 0, 3};
+  DrawBox(b1_origin, b1.R(), box_dims);
+  DrawPoint(b1_origin + b1.R() * point_on_box_body);
+  b1 = ExplicitEulerBodyRotation_BodyFrameUpdate(b1, kSimTimeStep);
+  // Log kinetic energies
+  LOG(INFO) << GetRotationalKE(b0) << ", " << GetRotationalKE(b1);
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
@@ -76,15 +95,19 @@ Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
 
 Matrix3d ExplicitEulerRotationMatrix(const Matrix3d& R, const Vector3d& w0,
                                      double dt) {
-  Eigen::AngleAxisd Raa(w0.norm() * dt, w0.normalized());
-  Quaterniond q(Raa);
+  Quaterniond q = WtoQ(w0, dt);
   Matrix3d R_update = q.matrix() * R;
   return R_update;
 }
 
 Matrix3d ExplicitEulerRotationMatrix(const Body& b, double dt) {
-  Eigen::AngleAxisd Raa(b.w_g().norm() * dt, b.w_g().normalized());
-  Quaterniond q(Raa);
+  Quaterniond q = WtoQ(b.w_g(), dt);
+  Matrix3d R_update = q.matrix() * b.R();
+  return R_update;
+}
+
+Matrix3d ExplicitEulerRotationMatrix_BodyFrameUpdate(const Body& b, double dt) {
+  Quaterniond q = WtoQ(b.R() * b.w_b(), dt);
   Matrix3d R_update = q.matrix() * b.R();
   return R_update;
 }
@@ -97,10 +120,28 @@ Vector3d ExplicitEulerAngularVelocity(const Body& b, double dt,
   return w_update;
 }
 
-Body ExplicitEulerBodyRotation(const Body& b, double dt, Vector3d& tau) {
+Vector3d ExplicitEulerAngularVelocity_BodyFrameUpate(const Body& b, double dt,
+                                                     const Vector3d& tau) {
+  Vector3d w_update = b.w_b() + dt * b.I_b().inverse() *
+                                    (b.R().transpose() * tau -
+                                     CrossMat(b.w_b()) * b.I_b() * b.w_b());
+  return w_update;
+}
+
+Body ExplicitEulerBodyRotation(const Body& b, double dt, const Vector3d& tau) {
   Body b_update(ExplicitEulerRotationMatrix(b, dt),
                 ExplicitEulerAngularVelocity(b, dt, tau), b.I_b());
   return b_update;
+}
+
+Body ExplicitEulerBodyRotation_BodyFrameUpdate(const Body& b, double dt,
+                                               const Vector3d& tau) {
+  Body b_update_b(ExplicitEulerRotationMatrix_BodyFrameUpdate(b, dt),
+                  ExplicitEulerAngularVelocity_BodyFrameUpate(b, dt, tau),
+                  b.I_b());
+  Body b_update_g(b_update_b.R(), b_update_b.R() * b_update_b.w_g(),
+                  b_update_b.I_b());
+  return b_update_g;
 }
 
 Matrix3d CrossMat(const Vector3d& a) {
@@ -144,4 +185,15 @@ Matrix3d GramSchmidt(const Matrix3d& m) {
   // TODO: stablized Gram-Schmidt
 
   return m_normalized;
+}
+
+double GetRotationalKE(const Body& b) {
+  return b.w_b().transpose() * b.I_b() * b.w_b();
+}
+
+Quaterniond WtoQ(const Vector3d& w, double dt) {
+  // TODO: does not handle w = 0. Thus should use quaternion with sinc(w)
+  Eigen::AngleAxisd Raa(w.norm() * dt, w.normalized());
+  Quaterniond q(Raa);
+  return q;
 }
