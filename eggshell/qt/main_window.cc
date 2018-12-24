@@ -21,3 +21,7 @@ void MainWindow::on_actionRun_triggered() {
 void MainWindow::on_actionShow_bounding_box_triggered() {
   ui->eggshell_view->ToggleShowBoundingBox();
 }
+
+void MainWindow::on_actionSingle_step_triggered() {
+  ui->eggshell_view->SingleStep();
+}

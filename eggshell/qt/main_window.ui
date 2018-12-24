@@ -53,6 +53,7 @@
      <string>Simulation</string>
     </property>
     <addaction name="actionRun"/>
+    <addaction name="actionSingle_step"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -126,6 +127,14 @@
    </property>
    <property name="text">
     <string>Show bounding box</string>
+   </property>
+  </action>
+  <action name="actionSingle_step">
+   <property name="text">
+    <string>Single step</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
    </property>
   </action>
  </widget>

@@ -476,6 +476,7 @@ static void DrawObjects(bool with_normals, bool wireframe,
 EggshellView::EggshellView(QWidget *parent) : GLViewer(parent) {
   running_ = false;
   show_bounding_box_ = false;
+  single_step_ = false;
   status_bar_ = 0;
   ground_texture_ = 0;
 
@@ -505,6 +506,11 @@ void EggshellView::ToggleRunning() {
   update();
 }
 
+void EggshellView::SingleStep() {
+  ToggleRunning();
+  single_step_ = true;
+}
+
 void EggshellView::ToggleShowBoundingBox() {
   show_bounding_box_ ^= 1;
   update();
@@ -515,7 +521,13 @@ void EggshellView::OnSimulationTimeout() {
     objects.clear();
     SimulationStep();
     update();
-    QTimer::singleShot(0.001, this, &EggshellView::OnSimulationTimeout);
+    if (single_step_) {
+      single_step_ = false;
+      running_ = false;
+    }
+    if (running_) {
+      QTimer::singleShot(0.001, this, &EggshellView::OnSimulationTimeout);
+    }
   }
 }
 

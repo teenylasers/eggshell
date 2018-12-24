@@ -14,11 +14,12 @@ class EggshellView : public GLViewer {
 
   void Link(QStatusBar *status_bar);
   void ToggleRunning();
+  void SingleStep();
   void ToggleShowBoundingBox();
   void OnSimulationTimeout();
 
  private:
-  bool running_, show_bounding_box_;
+  bool running_, show_bounding_box_, single_step_;
 
   // View state.
   QStatusBar *status_bar_;
