@@ -13,19 +13,20 @@ void SimulationStep();
 // SimulationStep() can call these functions to draw output to the shell.
 
 void DrawSphere(const Eigen::Vector3d &center, const Eigen::Matrix3d &rotation,
-                double radius);
+                double radius, int color = 0xffffff);
 
 void DrawBox(const Eigen::Vector3d &center,
              const Eigen::Matrix3d &rotation,
-             const Eigen::Vector3d &side_lengths);
+             const Eigen::Vector3d &side_lengths, int color = 0xffffff);
 
 void DrawCapsule(const Eigen::Vector3d &center,
                  const Eigen::Matrix3d &rotation,
-                 double radius, double length);
+                 double radius, double length, int color = 0xffffff);
 
-void DrawPoint(const Eigen::Vector3d &position);
+void DrawPoint(const Eigen::Vector3d &position, int color = 0xffff00);
 
-void DrawLine(const Eigen::Vector3d &pos1, const Eigen::Vector3d &pos2);
+void DrawLine(const Eigen::Vector3d &pos1, const Eigen::Vector3d &pos2,
+              int color = 0xffff00);
 
 // SimulationInitialization() or SimulationStep() can call these functions to
 // indicate error conditions. Their arguments are the same as printf().
