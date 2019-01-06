@@ -1,7 +1,9 @@
 #include "model.h"
 
 #include "constants.h"
+#include "ensembles.h"
 #include "glog/logging.h"
+#include "joints.h"
 
 using Eigen::Matrix3d;
 using Eigen::Matrix4d;
@@ -15,9 +17,9 @@ static Matrix3d random_R = Matrix3d::Identity();
 static Matrix3d R_exp_euler = Matrix3d::Identity();
 static Matrix3d R_exp_euler_add = Matrix3d::Identity();
 static Vector3d w0{10, 20, 15};  // fixed angular velocity, global frame
-static Body b0(Matrix3d::Identity(), w0);
-static Body b1(Matrix3d::Identity(), w0);
-static Body b2(Matrix3d::Identity(), w0);
+static Body b0(Vector3d(0, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 
 void SimulationInitialization() {
   srand(time(0));
@@ -55,17 +57,10 @@ void SimulationStep() {
   angle1 += 0.01;
   angle2 += 0.002;
 
-  // Draw box with random initial orientation
-  Vector3d box_origin{0, 0, 1.5};
-  Vector3d box_dims{0.3, 0.3, 0.3};
-  auto box_R = R * random_R;
-  DrawBox(box_origin, box_R, box_dims);
-  Vector3d point_on_box_body = box_dims / 2.0;
-  Vector3d point_on_box_global = box_origin + box_R * point_on_box_body;
-  DrawPoint(point_on_box_global);
-
   // Draw boxes that rotates with angular velocity w0, start with identical
   // boxes, use different integrators
+  Vector3d box_dims{0.3, 0.3, 0.3};
+  Vector3d point_on_box_body = box_dims / 2.0;
   Vector3d exp_euler_box_origin{1.5, 0, 1.5};
   Vector3d exp_euler_add_box_origin{3, 0, 1.5};
   DrawBox(exp_euler_box_origin, R_exp_euler, box_dims);
@@ -77,27 +72,18 @@ void SimulationStep() {
       ExplicitEulerRotationMatrix_Addition(R_exp_euler_add, w0, kSimTimeStep);
 
   // Explicit Euler single rigid body rotation
-  Vector3d b0_origin{0, 0, 3};
-  DrawBox(b0_origin, b0.R(), box_dims);
-  DrawPoint(b0_origin + b0.R() * point_on_box_body);
+  b0.Draw();
   b0 = ExplicitEulerBodyRotation(b0, kSimTimeStep);
   // For comparison, update in the body frame
-  Vector3d b1_origin{1.5, 0, 3};
-  DrawBox(b1_origin, b1.R(), box_dims);
-  DrawPoint(b1_origin + b1.R() * point_on_box_body);
+  b1.Draw();
   b1 = ExplicitEulerBodyRotation_BodyFrameUpdate(b1, kSimTimeStep);
   // For comparison, linearized implicit midpoint update
-  Vector3d b2_origin{3, 0, 3};
-  DrawBox(b2_origin, b2.R(), box_dims);
-  DrawPoint(b2_origin + b2.R() * point_on_box_body);
+  b2.Draw();
   b2 = LIMBodyRotation(b2, kSimTimeStep);
   // Log angular velocity and kinetic energies
-  LOG(INFO) << "b0 w: " << b0.w_b().transpose();
-  LOG(INFO) << "b1 w: " << b1.w_b().transpose();
-  LOG(INFO) << "b2 w: " << b2.w_b().transpose();
   LOG(INFO) << GetRotationalKE(b0) << ", " << GetRotationalKE(b1) << ", "
             << GetRotationalKE(b2);
-  // TODO:
+  // TODO: SINGLE BODY ROTATION
   // 1. Test that kinetic energy progression makes sense with multiple different
   // random initial R
   //  => with some initial R, kinetic energy jumps. Global frame update
@@ -105,6 +91,9 @@ void SimulationStep() {
   //     but body frame update does not.
   // 2. Why does kinetic energy converge at the end, write out w after each
   // update.
+
+  Chain ch = Chain(2);
+  ch.Draw();
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
@@ -149,7 +138,7 @@ Vector3d ExplicitEulerAngularVelocity_BodyFrameUpate(const Body& b, double dt,
 }
 
 Body ExplicitEulerBodyRotation(const Body& b, double dt, const Vector3d& tau) {
-  Body b_update(ExplicitEulerRotationMatrix(b, dt),
+  Body b_update(b.p(), b.v(), b.m(), ExplicitEulerRotationMatrix(b, dt),
                 ExplicitEulerAngularVelocity(b, dt, tau), b.I_b());
   return b_update;
 }
@@ -157,12 +146,12 @@ Body ExplicitEulerBodyRotation(const Body& b, double dt, const Vector3d& tau) {
 Body ExplicitEulerBodyRotation_BodyFrameUpdate(const Body& b, double dt,
                                                const Vector3d& tau) {
   // get update in body frame
-  Body b_update_b(ExplicitEulerRotationMatrix_BodyFrameUpdate(b, dt),
-                  ExplicitEulerAngularVelocity_BodyFrameUpate(b, dt, tau),
-                  b.I_b());
+  Body b_update_b(
+      b.p(), b.v(), b.m(), ExplicitEulerRotationMatrix_BodyFrameUpdate(b, dt),
+      ExplicitEulerAngularVelocity_BodyFrameUpate(b, dt, tau), b.I_b());
   // convert to global frame using updated R
-  Body b_update_g(b_update_b.R(), b_update_b.R() * b_update_b.w_g(),
-                  b_update_b.I_b());
+  Body b_update_g(b.p(), b.v(), b.m(), b_update_b.R(),
+                  b_update_b.R() * b_update_b.w_g(), b_update_b.I_b());
   return b_update_g;
 }
 
@@ -193,7 +182,7 @@ Body LIMBodyRotation(const Body& b, double dt, const Vector3d& tau,
                      double alpha, double beta) {
   Vector3d w_update = LIMAngularVelocity(b, dt, tau, alpha, beta);
   Matrix3d R_update = LIMRotationMatrix(b, dt, w_update, alpha, beta);
-  Body b_update(R_update, w_update, b.I_b());
+  Body b_update(b.p(), b.v(), b.m(), R_update, w_update, b.I_b());
   return b_update;
 }
 
@@ -244,11 +233,18 @@ double GetRotationalKE(const Body& b) {
 }
 
 Quaterniond WtoQ(const Vector3d& w, double dt) {
+  // TODO: this implementation handles zero angular velocity correctly because
+  // Eigen normalizes near-zero vectors to (0,0,0). However, normalize() uses
+  // Pythagorean magnitude and thus overflows earlier than is optimal.
   Eigen::AngleAxisd aa(w.norm() * dt, w.normalized());
   Quaterniond q(aa);
-  // TODO: what's wrong with sin(aa.angle()) implementation, why use sinc?
-  // LOG(INFO) << "aa angle: " << aa.angle();
-  // LOG(INFO) << "aa axis: " << aa.axis();
-  // LOG(INFO) << "Quaternion: " << q.coeffs();
   return q;
+}
+
+void Body::Draw() const {
+  // TODO: for now, Body is a cube of size (0.3, 0.3, 0.3). Make variable in the
+  // future.
+  DrawBox(p_, R_, sides_);
+  //Vector3d point_on_box = sides_ / 2.0;
+  //DrawPoint(p_ + R_ * point_on_box);
 }

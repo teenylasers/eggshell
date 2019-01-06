@@ -42,6 +42,8 @@ clean:
 # Application files (including single-file libraries).
 
 OBJ = eggshell_view.o \
+      ensembles.o \
+      joints.o \
       model.o \
       toolkit/error.o \
       toolkit/viewer.o \
