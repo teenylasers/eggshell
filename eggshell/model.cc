@@ -92,8 +92,9 @@ void SimulationStep() {
   // 2. Why does kinetic energy converge at the end, write out w after each
   // update.
 
-  Chain ch = Chain(2);
+  Chain ch = Chain(6);
   ch.Draw();
+  ch.CheckInitialConditions();
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,

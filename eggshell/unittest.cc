@@ -32,7 +32,7 @@ TEST(CrossMatTest, ) {
       LOG(INFO) << "vbar w: \n" << vbar * w;
       LOG(INFO) << "v x w: \n" << v.cross(w);
     }
-    EXPECT_LT((vbar * w - v.cross(w)).norm(), kAllowNumericalError);
+    EXPECT_TRUE((vbar * w - v.cross(w)).isZero(kAllowNumericalError));
   }
 }
 
