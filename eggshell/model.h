@@ -2,6 +2,7 @@
 #define __MODEL_H__
 
 #include "Eigen/Dense"
+#include "body.h"
 
 // This is called one time at the start, to initialize things.
 void SimulationInitialization();
@@ -43,48 +44,6 @@ Eigen::Matrix3d RandomRotation();
 Eigen::Matrix3d RandomRotationViaQuaternion();
 Eigen::Matrix3d RandomRotationViaGramSchmidt();
 Eigen::Matrix3d GramSchmidt(const Eigen::Matrix3d& m);
-
-// State of a rigid body
-class Body {
- public:
-  Body()
-      : p_(Eigen::Vector3d::Zero()),
-        v_(Eigen::Vector3d::Zero()),
-        m_(0.0),
-        R_(Eigen::Matrix3d::Identity()),
-        w_(Eigen::Vector3d::Zero()),
-        I_(Eigen::Matrix3d::Identity()) {}
-  explicit Body(const Eigen::Vector3d& p, const Eigen::Vector3d& v,
-                const Eigen::Matrix3d& R, const Eigen::Vector3d& w)
-      : p_(p), v_(v), m_(1.0), R_(R), w_(w), I_(Eigen::Matrix3d::Identity()) {}
-  explicit Body(const Eigen::Vector3d& p, const Eigen::Vector3d& v, double m,
-                const Eigen::Matrix3d& R, const Eigen::Vector3d& w,
-                const Eigen::Matrix3d& I)
-      : p_(p), v_(v), m_(m), R_(R), w_(w), I_(I) {}
-  const Eigen::Vector3d& p() const { return p_; };
-  const Eigen::Vector3d& v() const { return v_; };
-  const double m() const { return m_; };
-  const Eigen::Matrix3d& R() const { return R_; };
-  const Eigen::Vector3d w_b() const { return R_.transpose() * w_; };
-  const Eigen::Vector3d& w_g() const { return w_; };
-  const Eigen::Matrix3d& I_b() const { return I_; }
-  const Eigen::Matrix3d I_g() const { return R_ * I_ * R_.transpose(); };
-  void SetR(const Eigen::Matrix3d& R) { R_ = R; };
-  void SetI(const Eigen::Matrix3d& I) { I_ = I; };
-
-  void Draw() const;
-
- private:
-  Eigen::Vector3d p_;  // position p of center of mass in global frame
-  Eigen::Vector3d v_;  // linear velocity of center of mass v in global frame
-  double m_;           // mass
-  Eigen::Matrix3d R_;  // rotation matrix R in global frame
-  Eigen::Vector3d w_;  // angular velocity w (omega) in global frame
-  Eigen::Matrix3d I_;  // inertia tensor I in body frame.
-
-  // TODO: default Body to a box with sides_ 0.3 for now
-  Eigen::Vector3d sides_{0.3, 0.3, 0.3};
-};
 
 /*********************************************
  Various integrators of different goodness

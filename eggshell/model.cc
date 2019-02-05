@@ -11,17 +11,19 @@ using Eigen::Quaterniond;
 using Eigen::Vector3d;
 using Eigen::Vector3f;
 
-static double angle1 = 0.5;
-static double angle2 = 0;
-static Matrix3d random_R = Matrix3d::Identity();
-static Matrix3d R_exp_euler = Matrix3d::Identity();
-static Matrix3d R_exp_euler_add = Matrix3d::Identity();
-static Vector3d w0{10, 20, 15};  // fixed angular velocity, global frame
-static Body b0(Vector3d(0, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
-static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
-static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+// static double angle1 = 0.5;
+// static double angle2 = 0;
+// static Matrix3d random_R = Matrix3d::Identity();
+// static Matrix3d R_exp_euler = Matrix3d::Identity();
+// static Matrix3d R_exp_euler_add = Matrix3d::Identity();
+// static Vector3d w0{10, 20, 15};  // fixed angular velocity, global frame
+// static Body b0(Vector3d(0, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+// static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+// static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+static Chain ch = Chain(10);
 
 void SimulationInitialization() {
+  /*
   srand(time(0));
   random_R = RandomRotation();
   R_exp_euler = random_R;
@@ -39,9 +41,12 @@ void SimulationInitialization() {
   b1.SetI(inertia);
   b2.SetR(random_R);
   b2.SetI(inertia);
+  */
+  ch.Init();
 };
 
 void SimulationStep() {
+  /*
   Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
   Eigen::AngleAxisd Raa2(angle2, Vector3d(0, 1, 0));
   Quaterniond q = Raa1 * Raa2;
@@ -91,10 +96,10 @@ void SimulationStep() {
   //     but body frame update does not.
   // 2. Why does kinetic energy converge at the end, write out w after each
   // update.
+  */
 
-  Chain ch = Chain(6);
   ch.Draw();
-  ch.CheckInitialConditions();
+  ch.Step(kSimTimeStep);
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
@@ -240,12 +245,4 @@ Quaterniond WtoQ(const Vector3d& w, double dt) {
   Eigen::AngleAxisd aa(w.norm() * dt, w.normalized());
   Quaterniond q(aa);
   return q;
-}
-
-void Body::Draw() const {
-  // TODO: for now, Body is a cube of size (0.3, 0.3, 0.3). Make variable in the
-  // future.
-  DrawBox(p_, R_, sides_);
-  //Vector3d point_on_box = sides_ / 2.0;
-  //DrawPoint(p_ + R_ * point_on_box);
 }

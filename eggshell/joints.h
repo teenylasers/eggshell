@@ -13,26 +13,31 @@ class Joint {
   virtual ~Joint() = default;
 
   virtual Eigen::Vector3d ComputeError() const;
-  virtual Eigen::MatrixXd ComputeJ() const;
+  virtual void ComputeJ(Eigen::MatrixXd& J_b1) const = 0;
+  virtual void ComputeJ(Eigen::MatrixXd& J_b1, Eigen::MatrixXd& J_b2) const = 0;
+  virtual void ComputeJDot(Eigen::MatrixXd& Jdot_b1) const = 0;
+  virtual void ComputeJDot(Eigen::MatrixXd& Jdot_b1,
+                           Eigen::MatrixXd& Jdot_b2) const = 0;
 
   // Visualize the joint implementation in EggshellView
   virtual void Draw() const { LOG(ERROR) << "Joint.Draw()"; };
-
- protected:
-  int n_;  // number of Body connected to this joint
 };
 
 // A ball and socket joint
 class BallAndSocketJoint : public Joint {
  public:
+  explicit BallAndSocketJoint(const Body& b1, const Eigen::Vector3d& c1)
+      : b1_(&b1), c1_(c1), b2_(nullptr), c2_(Eigen::Vector3d::Zero()) {}
   explicit BallAndSocketJoint(const Body& b1, const Eigen::Vector3d& c1,
                               const Body& b2, const Eigen::Vector3d& c2)
-      : b1_(&b1), c1_(c1), b2_(&b2), c2_(c2) {
-    n_ = 2;
-  }
+      : b1_(&b1), c1_(c1), b2_(&b2), c2_(c2) {}
 
   Eigen::Vector3d ComputeError() const override;
-  Eigen::MatrixXd ComputeJ() const override;
+  void ComputeJ(Eigen::MatrixXd& J_b1) const override;
+  void ComputeJ(Eigen::MatrixXd& J_b1, Eigen::MatrixXd& J_b2) const override;
+  void ComputeJDot(Eigen::MatrixXd& Jdot_b1) const override;
+  void ComputeJDot(Eigen::MatrixXd& Jdot_b1,
+                   Eigen::MatrixXd& Jdot_b2) const override;
 
   void Draw() const override;
 

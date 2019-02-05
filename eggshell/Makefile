@@ -41,7 +41,8 @@ clean:
 #############################################################################
 # Application files (including single-file libraries).
 
-OBJ = eggshell_view.o \
+OBJ = body.o \
+      eggshell_view.o \
       ensembles.o \
       joints.o \
       model.o \
