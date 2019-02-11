@@ -133,6 +133,14 @@ void Ensemble::StepPositionRelaxation(double dt, double step_scale) {
   StepPositions_ExplicitEuler(dt, velocity_relaxation);
 }
 
+void Ensemble::StepPostStabilization(double dt, double step_scale) {
+  VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
+  StepPositions_ExplicitEuler(dt, velocity_relaxation);
+  VectorXd v = GetCurrentVelocities();
+  UpdateComponentsVelocities(v + velocity_relaxation);
+}
+
+
 VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) {
   MatrixXd J = ComputeJ();
   VectorXd err = ComputeJointError();

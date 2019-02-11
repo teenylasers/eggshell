@@ -104,16 +104,20 @@ void SimulationStep() {
 
   // Post-stabilization
   Eigen::VectorXd err = ch.ComputeJointError();
-  LOG(INFO) << "Pre-stabilization error sum : " << err.sum();
-  int max_stabilization_steps = 100;
+  double err_sq = (err * err.transpose()).sum();
+  LOG(INFO) << "Pre-stabilization error sum : " << err_sq;
+  int max_stabilization_steps = 500;
   int step_counter = 0;
-  while (step_counter < max_stabilization_steps) {
-    ch.StepPositionRelaxation(kSimTimeStep*1000);
+  while (err_sq > kAllowNumericalError &&
+         step_counter < max_stabilization_steps) {
+    // ch.StepPositionRelaxation(kSimTimeStep*1000);
+    ch.StepPostStabilization(kSimTimeStep * 100);
     err = ch.ComputeJointError();
+    err_sq = (err * err.transpose()).sum();
     ++step_counter;
   }
   LOG(INFO) << "Post-stabilization steps count : " << step_counter;
-  LOG(INFO) << "Post-stabilization error sum : " << err.sum();
+  LOG(INFO) << "Post-stabilization error sum : " << err_sq;
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,

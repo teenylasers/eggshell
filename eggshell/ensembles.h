@@ -42,6 +42,9 @@ class Ensemble {
   // manifold.
   void StepPositionRelaxation(double dt, double step_scale = 0.2);
 
+  // Apply naive post-stabilization
+  void StepPostStabilization(double dt, double step_scale = 0.2);
+
  protected:
   // Number of Bodies that make up this ensemble
   int n_;
