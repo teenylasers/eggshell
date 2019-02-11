@@ -139,7 +139,7 @@ VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) {
   CHECK(J.rows() == err.rows()) << "(J.rows() = " << J.rows()
                                 << ") != (err.rows() = " << err.rows() << ")";
   VectorXd velocity_correction =
-      step_scale * J.transpose() * (J * J.transpose()).ldlt().solve(err);
+      -1.0 * step_scale * J.transpose() * (J * J.transpose()).ldlt().solve(err);
   return velocity_correction;
 }
 

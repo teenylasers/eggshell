@@ -17,9 +17,10 @@ using Eigen::Vector3f;
 // static Matrix3d R_exp_euler = Matrix3d::Identity();
 // static Matrix3d R_exp_euler_add = Matrix3d::Identity();
 // static Vector3d w0{10, 20, 15};  // fixed angular velocity, global frame
-// static Body b0(Vector3d(0, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
-// static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
-// static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+// static Body b0(Vector3d(0, 0, 3), Vector3d::Zero(), Matrix3d::Identity(),
+// w0); static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(),
+// Matrix3d::Identity(), w0); static Body b2(Vector3d(3, 0, 3),
+// Vector3d::Zero(), Matrix3d::Identity(), w0);
 static Chain ch = Chain(10);
 
 void SimulationInitialization() {
@@ -100,6 +101,19 @@ void SimulationStep() {
 
   ch.Draw();
   ch.Step(kSimTimeStep);
+
+  // Post-stabilization
+  Eigen::VectorXd err = ch.ComputeJointError();
+  LOG(INFO) << "Pre-stabilization error sum : " << err.sum();
+  int max_stabilization_steps = 100;
+  int step_counter = 0;
+  while (step_counter < max_stabilization_steps) {
+    ch.StepPositionRelaxation(kSimTimeStep*1000);
+    err = ch.ComputeJointError();
+    ++step_counter;
+  }
+  LOG(INFO) << "Post-stabilization steps count : " << step_counter;
+  LOG(INFO) << "Post-stabilization error sum : " << err.sum();
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
