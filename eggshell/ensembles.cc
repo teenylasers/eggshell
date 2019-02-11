@@ -48,7 +48,7 @@ void Ensemble::ConstructMassInertiaMatrixInverse() {
     const Body& b = components_.at(i);
     M_inverse_.block<3, 3>(i * 2 * 3, i * 2 * 3) =
         1.0 / b.m() * Matrix3d::Identity();
-    // TODO: I_b vs I_g here.
+    // TODO: think through I_b vs I_g here.
     M_inverse_.block<3, 3>((i * 2 + 1) * 3, (i * 2 + 1) * 3) =
         b.I_g().inverse();
   }
@@ -71,9 +71,9 @@ void Ensemble::Step(double dt, Integrator g) {
   if (g == Integrator::EXPLICIT_EULER) {
     StepVelocities_ExplicitEuler(dt, v);
     StepPositions_ExplicitEuler(dt, v);
-  } else if (g == Integrator::LINEARIZED_IMPLICIT_MIDPOINT) {
-    VectorXd v_new = StepVelocities_LIM(dt, v);
-    StepPositions_LIM(dt, v, v_new);
+  } else if (g == Integrator::IMPLICIT_MIDPOINT) {
+    VectorXd v_new = StepVelocities_ImplicitMidpoint(dt, v);
+    StepPositions_ImplicitMidpoint(dt, v, v_new);
   } else {
     LOG(ERROR) << "Unknown integrator type " << static_cast<int>(g);
   }
@@ -119,14 +119,29 @@ void Ensemble::StepPositions_ExplicitEuler(double dt, const VectorXd& v) {
   }
 }
 
-VectorXd Ensemble::StepVelocities_LIM(double dt, const VectorXd& v,
-                                      double alpha, double beta) {
+VectorXd Ensemble::StepVelocities_ImplicitMidpoint(double dt, const VectorXd& v,
+                                                   double alpha, double beta) {
   return Vector3d::Zero();
 }
 
-void Ensemble::StepPositions_LIM(double dt, const VectorXd& v,
-                                 const VectorXd& v_new, double alpha,
-                                 double beta) {}
+void Ensemble::StepPositions_ImplicitMidpoint(double dt, const VectorXd& v,
+                                              const VectorXd& v_new,
+                                              double alpha, double beta) {}
+
+void Ensemble::StepPositionRelaxation(double dt, double step_scale) {
+  VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
+  StepPositions_ExplicitEuler(dt, velocity_relaxation);
+}
+
+VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) {
+  MatrixXd J = ComputeJ();
+  VectorXd err = ComputeJointError();
+  CHECK(J.rows() == err.rows()) << "(J.rows() = " << J.rows()
+                                << ") != (err.rows() = " << err.rows() << ")";
+  VectorXd velocity_correction =
+      step_scale * J.transpose() * (J * J.transpose()).ldlt().solve(err);
+  return velocity_correction;
+}
 
 Chain::Chain(int num_links) {
   // TODO: set max allowed n_
@@ -137,10 +152,6 @@ Chain::Chain(int num_links) {
   InitLinks();
   InitJoints();
   SetAnchor();
-}
-
-void Chain::SetAnchor() {
-  anchor_.reset(new BallAndSocketJoint(components_.at(0), Vector3d::Zero()));
 }
 
 void Chain::InitLinks() {
@@ -166,52 +177,55 @@ void Chain::InitJoints() {
   }
 }
 
-bool Chain::CheckErrorDims(VectorXd error) const {
-  // TODO: hardcoded for all BallAndSocketJoints, can be smarter or delete after
-  // debug because Ensemble::ComputeJointError is correct by construction?
-  return error.rows() == 3 * joints_.size() && error.cols() == 1;
+void Chain::SetAnchor() {
+  Vector3d anchor_position = components_.at(0).p();
+  joints_.push_back(std::shared_ptr<Joint>(new BallAndSocketJoint(
+      components_.at(0), Vector3d::Zero(), anchor_position)));
 }
 
 MatrixXd Chain::ComputeJ() const {
-  MatrixXd J = MatrixXd::Zero(3 * (joints_.size() + 1), 6 * n_);
-  // for joints_
+  MatrixXd J = MatrixXd::Zero(3 * joints_.size(), 6 * n_);
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd J_b1(3, 6);
     MatrixXd J_b2(3, 6);
     joints_.at(i)->ComputeJ(J_b1, J_b2);
-    J.block<3, 6>(i * 3, i * 6) = J_b1;
-    J.block<3, 6>(i * 3, (i + 1) * 6) = J_b2;
+    if (J_b2.sum() != 0) {
+      J.block<3, 6>(i * 3, i * 6) = J_b1;
+      J.block<3, 6>(i * 3, (i + 1) * 6) = J_b2;
+    } else {
+      J.block<3, 6>(i * 3, 0) = J_b1;
+    }
   }
-  // for anchor_
-  MatrixXd J_b1(3, 6);
-  anchor_->ComputeJ(J_b1);
-  J.block<3, 6>(joints_.size() * 3, 0) = J_b1;
   CHECK(CheckJDims(J)) << "Unexpected J matrix dimensions: " << J.rows() << "x"
                        << J.cols();
   return J;
 }
 
 MatrixXd Chain::ComputeJDot() const {
-  MatrixXd Jdot = MatrixXd::Zero(3 * (joints_.size() + 1), 6 * n_);
+  MatrixXd Jdot = MatrixXd::Zero(3 * joints_.size(), 6 * n_);
   // for joints_
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd Jdot_b1(3, 6);
     MatrixXd Jdot_b2(3, 6);
     joints_.at(i)->ComputeJDot(Jdot_b1, Jdot_b2);
-    Jdot.block<3, 6>(i * 3, i * 6) = Jdot_b1;
-    Jdot.block<3, 6>(i * 3, (i + 1) * 6) = Jdot_b2;
+    if (Jdot_b2.sum() != 0) {
+      Jdot.block<3, 6>(i * 3, i * 6) = Jdot_b1;
+      Jdot.block<3, 6>(i * 3, (i + 1) * 6) = Jdot_b2;
+    } else {
+      Jdot.block<3, 6>(i * 3, 0) = Jdot_b1;
+    }
   }
-  // for anchor_
-  MatrixXd Jdot_b1(3, 6);
-  anchor_->ComputeJDot(Jdot_b1);
-  Jdot.block<3, 6>(joints_.size() * 3, 0) = Jdot_b1;
-  CHECK(CheckJDims(Jdot)) << "Unexpected Jdot matrix dimensions: "
-                          << Jdot.rows() << "x" << Jdot.cols();
   return Jdot;
 }
 
+bool Chain::CheckErrorDims(VectorXd error) const {
+  // TODO: hardcoded for all BallAndSocketJoints, can be smarter or delete after
+  // debug because Ensemble::ComputeJointError is correct by construction?
+  return error.rows() == 3 * joints_.size() && error.cols() == 1;
+}
+
 bool Chain::CheckJDims(MatrixXd j) const {
-  return j.rows() == 3 * (joints_.size() + 1) && j.cols() == 6 * n_;
+  return j.rows() == 3 * joints_.size() && j.cols() == 6 * n_;
 }
 
 void Chain::Draw() const {

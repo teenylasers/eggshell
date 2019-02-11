@@ -16,7 +16,6 @@ class Ensemble {
   virtual ~Ensemble() = default;
 
   virtual void Init();
-  virtual void SetAnchor() = 0;
 
   virtual Eigen::VectorXd ComputeJointError() const;
   virtual Eigen::MatrixXd ComputeJ() const = 0;
@@ -33,17 +32,24 @@ class Ensemble {
   virtual bool CheckInitialConditions() const;
 
   // Advance one time step with step size dt
-  enum struct Integrator { EXPLICIT_EULER = 0, LINEARIZED_IMPLICIT_MIDPOINT };
+  enum struct Integrator { EXPLICIT_EULER = 0, IMPLICIT_MIDPOINT };
   virtual void Step(double dt, Integrator g = Integrator::EXPLICIT_EULER);
 
   virtual void Draw() const = 0;  // Render in EggshellView
 
+  // Post-stabilization: takes Ensemble's state after an integrator Step, apply
+  // stabilization to bring the state closer to or back to the constraint
+  // manifold.
+  void StepPositionRelaxation(double dt, double step_scale = 0.2);
+
  protected:
-  int n_;                         // Number of Bodies that make up this ensemble
-  std::vector<Body> components_;  // The Bodies that make up this ensemble
-  std::vector<std::shared_ptr<Joint>> joints_;  // Joints between Bodies.
-  // Anchor a component of this ensemble using a one-sided Joint.
-  std::shared_ptr<Joint> anchor_;
+  // Number of Bodies that make up this ensemble
+  int n_;
+
+  // The Bodies that make up this ensemble
+  std::vector<Body> components_;
+  // Joints between Bodies or anchor to global frame
+  std::vector<std::shared_ptr<Joint>> joints_;
 
   Eigen::MatrixXd M_inverse_;
   Eigen::VectorXd external_force_torque_;
@@ -62,42 +68,45 @@ class Ensemble {
   // frame).
   void UpdateComponentsVelocities(const Eigen::VectorXd& v);
 
-  // Various versions of time steppers. Step() decided which ones to use.
+  // Various versions of time steppers. StepVelocities() and StepPosition()
+  // decide which ones to use.
   Eigen::VectorXd StepVelocities_ExplicitEuler(double dt,
                                                const Eigen::VectorXd& v);
   void StepPositions_ExplicitEuler(double dt, const Eigen::VectorXd& v);
-  Eigen::VectorXd StepVelocities_LIM(double dt, const Eigen::VectorXd& v,
-                                     double alpha = 0.5, double beta = 0.5);
-  void StepPositions_LIM(double dt, const Eigen::VectorXd& v,
-                         const Eigen::VectorXd& v_new, double alpha = 0.5,
-                         double beta = 0.5);
+  Eigen::VectorXd StepVelocities_ImplicitMidpoint(double dt,
+                                                  const Eigen::VectorXd& v,
+                                                  double alpha = 0.5,
+                                                  double beta = 0.5);
+  void StepPositions_ImplicitMidpoint(double dt, const Eigen::VectorXd& v,
+                                      const Eigen::VectorXd& v_new,
+                                      double alpha = 0.5, double beta = 0.5);
+
+  // Post-stabilization: calculate velocity correction for post-stabilization
+  Eigen::VectorXd CalculateVelocityRelaxation(double step_scale);
 };
 
 class Chain : public Ensemble {
  public:
   Chain(int num_links);
 
-  void SetAnchor() override;
-
-  bool CheckErrorDims(Eigen::VectorXd) const override;
-
   // TODO: this implementation assumes joint i is between component i and i+1.
-  // The assumption is used by ComputeJ. Make  general by adding integer label
+  // The assumption is used by ComputeJ. Make general by adding integer label
   // to each component, std::vector<std::pair<std::vector<int>,
   // std::shared_ptr<Joint>>> joints_
   // Then, will be able to move ComputeJ() and ComputeJDot() to Ensemble class.
   Eigen::MatrixXd ComputeJ() const override;
   Eigen::MatrixXd ComputeJDot() const override;
 
+  bool CheckErrorDims(Eigen::VectorXd) const override;
   bool CheckJDims(Eigen::MatrixXd) const override;
 
   void Draw() const override;
 
  private:
   void InitLinks();
-  // TODO: Default sets component_[0] to be an anchor. Add SetAnchor() to
-  // Ensemble.
   void InitJoints();
+  // TODO: Default sets component_[0] to be the anchor, make it customizable?
+  void SetAnchor();
 };
 
 #endif
