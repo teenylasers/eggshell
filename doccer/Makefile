@@ -27,4 +27,15 @@ clean:
 realclean: clean
 	rm -f $(APP)
 
+# An example of how to use doccer to make an HTML file from .doc.
+#
+# We write doccer output to temporary output rather than directly to the output
+# file otherwise restarting this rule after an error will always succeed, as
+# the output file will have been updated.
+MATHJAX_SUBST=https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-MML-AM_CHTML
+%.html: %.doc
+	./doccer.exe -t template.html $< | sed 's@__MATHJAX__@$(MATHJAX_SUBST)@' > __temporary_output.html
+	mv __temporary_output.html $@
+
+
 -include *.d
