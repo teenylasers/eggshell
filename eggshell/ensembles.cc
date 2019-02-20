@@ -61,7 +61,7 @@ void Ensemble::InitializeExternalForceTorqueVector() {
     const Body& b = components_.at(i);
     external_force_torque_.segment<3>(i * 2 * 3) = b.m() * kGravity;
     external_force_torque_.segment<3>((i * 2 + 1) * 3) =
-        -1 * CrossMat(b.w_g()) * b.I_g() * b.w_g();
+      -1 * CrossMat(b.w_g()) * b.I_g() * b.w_g(); // TODO: -1?
   }
   // LOG(INFO) << "f_e = \n" << external_force_torque_;
 }
@@ -100,10 +100,12 @@ VectorXd Ensemble::StepVelocities_ExplicitEuler(double dt, const VectorXd& v) {
   MatrixXd J = ComputeJ();
   MatrixXd J_dot = ComputeJDot();
   MatrixXd JMJt = J * M_inverse_ * J.transpose();
-  MatrixXd lagrange_rhs = J * M_inverse_ * external_force_torque_ - J_dot * v;
+  MatrixXd lagrange_rhs = J * M_inverse_ * external_force_torque_ + J_dot * v;
   MatrixXd lambda = JMJt.ldlt().solve(lagrange_rhs);
   VectorXd v_dot =
       M_inverse_ * external_force_torque_ - M_inverse_ * J.transpose() * lambda;
+  // TODO: invariance check
+  // error = J * v_dot + J_dot * v, error.norm() < kAllowedNumericalError
   VectorXd v_new = v + dt * v_dot;
   UpdateComponentsVelocities(v_new);
   return v_new;
@@ -197,7 +199,7 @@ MatrixXd Chain::ComputeJ() const {
     MatrixXd J_b1(3, 6);
     MatrixXd J_b2(3, 6);
     joints_.at(i)->ComputeJ(J_b1, J_b2);
-    if (J_b2.sum() != 0) {
+    if (J_b2.squaredNorm() != 0) {
       J.block<3, 6>(i * 3, i * 6) = J_b1;
       J.block<3, 6>(i * 3, (i + 1) * 6) = J_b2;
     } else {
@@ -216,7 +218,7 @@ MatrixXd Chain::ComputeJDot() const {
     MatrixXd Jdot_b1(3, 6);
     MatrixXd Jdot_b2(3, 6);
     joints_.at(i)->ComputeJDot(Jdot_b1, Jdot_b2);
-    if (Jdot_b2.sum() != 0) {
+    if (Jdot_b2.squaredNorm() != 0) {
       Jdot.block<3, 6>(i * 3, i * 6) = Jdot_b1;
       Jdot.block<3, 6>(i * 3, (i + 1) * 6) = Jdot_b2;
     } else {
