@@ -2,10 +2,14 @@
 #include "eggshell_view.h"
 #include "shaders.h"
 #include "model.h"
+#include "plot_gui.h"
+#include "mystring.h"
+
 #include <QTimer>
 #include <QStatusBar>
 
 using Eigen::Vector3d;
+using Eigen::VectorXd;
 using Eigen::Vector3f;
 using Eigen::Matrix3d;
 using Eigen::Matrix3f;
@@ -536,7 +540,7 @@ void EggshellView::ToggleShowBoundingBox() {
 void EggshellView::OnSimulationTimeout() {
   if (running_) {
     objects.clear();
-    SimulationStep();
+    bool step_result = SimulationStep();
     update();
     if (single_step_) {
       single_step_ = false;
@@ -545,6 +549,7 @@ void EggshellView::OnSimulationTimeout() {
     if (running_) {
       QTimer::singleShot(0.001, this, &EggshellView::OnSimulationTimeout);
     }
+    running_ = step_result;
   }
 }
 
@@ -729,4 +734,21 @@ void EggshellView::GetBoundingBox(double bounds[6]) {
       }
     }
   }
+}
+
+//***************************************************************************
+
+void EggPlot(const Eigen::VectorXd &x, const Eigen::MatrixXd &data,
+             const char *title) {
+  auto *win = new qtPlot(0);
+  for (int j = 0; j < data.cols(); j++) {
+    VectorXd y(data.col(j));
+    win->plot().AddTrace(x, y, -1, 2);
+    std::string label;
+    StringPrintf(&label, "%d", j+1);
+    win->plot().AddTraceLabel(label.c_str());
+  }
+  win->plot().SetTitle(title);
+  win->plot().Grid();
+  win->show();
 }

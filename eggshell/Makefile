@@ -40,6 +40,7 @@ clean:
 
 OBJ = eggshell_view.o \
       model.o \
+      collision.o \
       toolkit/error.o \
       toolkit/viewer.o \
       toolkit/gl_utils.o \
