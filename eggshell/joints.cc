@@ -27,10 +27,10 @@ void BallAndSocketJoint::ComputeJ(MatrixXd& J_b1, MatrixXd& J_b2) const {
 
 void BallAndSocketJoint::ComputeJDot(MatrixXd& Jdot_b1,
                                      MatrixXd& Jdot_b2) const {
-  Matrix3d Jdot_w1 = -1 * CrossMat(CrossMat(b1_->w_g()) * (b1_->R() * c1_));
+  Matrix3d Jdot_w1 = -1 * CrossMat(b1_->w_g().cross(b1_->R() * c1_));
   Jdot_b1 << Matrix3d::Zero(), Jdot_w1;
   if (b2_ != nullptr) {
-    Matrix3d Jdot_w2 = CrossMat(CrossMat(b2_->w_g()) * (b2_->R() * c2_));
+    Matrix3d Jdot_w2 = CrossMat(b2_->w_g().cross(b2_->R() * c2_));
     Jdot_b2 << Matrix3d::Zero(), Jdot_w2;
   } else {
     Jdot_b2 << Matrix3d::Zero(), Matrix3d::Zero();

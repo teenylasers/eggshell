@@ -21,7 +21,8 @@ using Eigen::Vector3f;
 // w0); static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(),
 // Matrix3d::Identity(), w0); static Body b2(Vector3d(3, 0, 3),
 // Vector3d::Zero(), Matrix3d::Identity(), w0);
-static Chain ch = Chain(10);
+static Chain ch0 = Chain(10);
+static Chain ch1 = Chain(10);
 
 void SimulationInitialization() {
   /*
@@ -43,7 +44,8 @@ void SimulationInitialization() {
   b2.SetR(random_R);
   b2.SetI(inertia);
   */
-  ch.Init();
+  ch0.Init();
+  ch1.Init();
 };
 
 void SimulationStep() {
@@ -99,25 +101,31 @@ void SimulationStep() {
   // update.
   */
 
-  ch.Draw();
-  ch.Step(kSimTimeStep);
+  ch0.Draw();
+  ch0.Step(kSimTimeStep);
 
   // Post-stabilization
-  Eigen::VectorXd err = ch.ComputeJointError();
+  Eigen::VectorXd err = ch0.ComputeJointError();
   double err_sq = (err * err.transpose()).sum();
-  LOG(INFO) << "Pre-stabilization error sum : " << err_sq;
+  //LOG(INFO) << "Pre-stabilization error sum : " << err_sq;
   int max_stabilization_steps = 500;
   int step_counter = 0;
   while (err_sq > kAllowNumericalError &&
          step_counter < max_stabilization_steps) {
-    // ch.StepPositionRelaxation(kSimTimeStep*1000);
-    ch.StepPostStabilization(kSimTimeStep * 100);
-    err = ch.ComputeJointError();
+    // ch0.StepPositionRelaxation(kSimTimeStep*1000);
+    ch0.StepPostStabilization(kSimTimeStep * 100);
+    err = ch0.ComputeJointError();
     err_sq = (err * err.transpose()).sum();
     ++step_counter;
   }
-  LOG(INFO) << "Post-stabilization steps count : " << step_counter;
-  LOG(INFO) << "Post-stabilization error sum : " << err_sq;
+  // LOG(INFO) << "Post-stabilization steps count : " << step_counter;
+  LOG(INFO) << "Explicit Euler post-stabilization error_sq sum : " << err_sq;
+
+  ch1.Draw();
+  ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+  err = ch1.ComputeJointError();
+  err_sq = (err * err.transpose()).sum();
+  LOG(INFO) << "ODE step error_sq sum " << err_sq;
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,

@@ -19,6 +19,9 @@ class Ensemble {
 
   virtual Eigen::VectorXd ComputeJointError() const;
   virtual Eigen::MatrixXd ComputeJ() const = 0;
+
+  // TODO: JDot is a sparse matrix, computing JDot then JDot * v is doing a lot
+  // of multiplication with zero. Compute JDotV directly.
   virtual Eigen::MatrixXd ComputeJDot() const = 0;
 
   // Sanity check the dimensions of ComputeError and ComputeJ results.
@@ -32,7 +35,11 @@ class Ensemble {
   virtual bool CheckInitialConditions() const;
 
   // Advance one time step with step size dt
-  enum struct Integrator { EXPLICIT_EULER = 0, IMPLICIT_MIDPOINT };
+  enum struct Integrator {
+    EXPLICIT_EULER = 0,
+    IMPLICIT_MIDPOINT,
+    OPEN_DYNAMICS_ENGINE
+  };
   virtual void Step(double dt, Integrator g = Integrator::EXPLICIT_EULER);
 
   virtual void Draw() const = 0;  // Render in EggshellView
@@ -48,6 +55,11 @@ class Ensemble {
  protected:
   // Number of Bodies that make up this ensemble
   int n_;
+
+  // TODO:
+  // Components + joints should be a graph of nodes, so the code can figure out
+  // itself which bodies a joint connects. Stepper should need NO assumption on
+  // the ordering of joints and bodies.
 
   // The Bodies that make up this ensemble
   std::vector<Body> components_;
@@ -83,6 +95,10 @@ class Ensemble {
   void StepPositions_ImplicitMidpoint(double dt, const Eigen::VectorXd& v,
                                       const Eigen::VectorXd& v_new,
                                       double alpha = 0.5, double beta = 0.5);
+  Eigen::VectorXd StepVelocities_ODE(double dt, const Eigen::VectorXd& v,
+                                     double error_reduction_param = 0.2);
+  void StepPositions_ODE(double dt, const Eigen::VectorXd& v,
+                         const Eigen::VectorXd& v_new);
 
   // Post-stabilization: calculate velocity correction for post-stabilization
   Eigen::VectorXd CalculateVelocityRelaxation(double step_scale);

@@ -61,7 +61,7 @@ void Ensemble::InitializeExternalForceTorqueVector() {
     const Body& b = components_.at(i);
     external_force_torque_.segment<3>(i * 2 * 3) = b.m() * kGravity;
     external_force_torque_.segment<3>((i * 2 + 1) * 3) =
-      -1 * CrossMat(b.w_g()) * b.I_g() * b.w_g(); // TODO: -1?
+        -1 * CrossMat(b.w_g()) * b.I_g() * b.w_g();  // TODO: -1?
   }
   // LOG(INFO) << "f_e = \n" << external_force_torque_;
 }
@@ -74,6 +74,9 @@ void Ensemble::Step(double dt, Integrator g) {
   } else if (g == Integrator::IMPLICIT_MIDPOINT) {
     VectorXd v_new = StepVelocities_ImplicitMidpoint(dt, v);
     StepPositions_ImplicitMidpoint(dt, v, v_new);
+  } else if (g == Integrator::OPEN_DYNAMICS_ENGINE) {
+    VectorXd v_new = StepVelocities_ODE(dt, v);
+    StepPositions_ODE(dt, v, v_new);
   } else {
     LOG(ERROR) << "Unknown integrator type " << static_cast<int>(g);
   }
@@ -130,6 +133,36 @@ void Ensemble::StepPositions_ImplicitMidpoint(double dt, const VectorXd& v,
                                               const VectorXd& v_new,
                                               double alpha, double beta) {}
 
+VectorXd Ensemble::StepVelocities_ODE(double dt, const VectorXd& v,
+                                      double error_reduction_param) {
+  MatrixXd J = ComputeJ();
+  MatrixXd JMJt = J * M_inverse_ * J.transpose();
+  VectorXd joint_error = ComputeJointError();
+  MatrixXd rhs = -error_reduction_param / dt / dt * joint_error -
+                 J * (v / dt + M_inverse_ * external_force_torque_);
+  MatrixXd lambda = JMJt.ldlt().solve(rhs);
+  VectorXd v_new =
+      v + dt * M_inverse_ * (external_force_torque_ + J.transpose() * lambda);
+  UpdateComponentsVelocities(v_new);
+  return v_new;
+}
+
+void Ensemble::StepPositions_ODE(double dt, const VectorXd& v,
+                                 const VectorXd& v_new) {
+  for (int i = 0; i < n_; ++i) {
+    Vector3d v_mid =
+        (v.segment<3>(i * 2 * 3) + v_new.segment<3>(i * 2 * 3)) / 2.0;
+    Vector3d p_new = components_.at(i).p() + dt * v_mid;
+    components_.at(i).SetP(p_new);
+
+    Vector3d w_mid =
+        (v.segment<3>((i * 2 + 1) * 3) + v_new.segment<3>((i * 2 + 1) * 3)) /
+        2.0;
+    Matrix3d R_new = WtoQ(w_mid, dt).matrix() * components_.at(i).R();
+    components_.at(i).SetR(R_new);
+  }
+}
+
 void Ensemble::StepPositionRelaxation(double dt, double step_scale) {
   VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
   StepPositions_ExplicitEuler(dt, velocity_relaxation);
@@ -141,7 +174,6 @@ void Ensemble::StepPostStabilization(double dt, double step_scale) {
   VectorXd v = GetCurrentVelocities();
   UpdateComponentsVelocities(v + velocity_relaxation);
 }
-
 
 VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) {
   MatrixXd J = ComputeJ();

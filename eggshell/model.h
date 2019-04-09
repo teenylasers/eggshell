@@ -112,4 +112,11 @@ Body LIMBodyRotation(const Body& b, double dt,
 // Calculate Body rotational kinetic energy
 double GetRotationalKE(const Body& b);
 
+//////////////  Error checking and visualization  /////////////
+
+// TODO:
+// 1. check KE and total energy progression
+// 2. check joint error progression
+// 3. check time change in joint error
+
 #endif
