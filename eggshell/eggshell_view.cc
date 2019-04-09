@@ -2,10 +2,14 @@
 #include "eggshell_view.h"
 #include "shaders.h"
 #include "model.h"
+#include "plot_gui.h"
+#include "mystring.h"
+
 #include <QTimer>
 #include <QStatusBar>
 
 using Eigen::Vector3d;
+using Eigen::VectorXd;
 using Eigen::Vector3f;
 using Eigen::Matrix3d;
 using Eigen::Matrix3f;
@@ -53,6 +57,7 @@ static gl::Shader &MultilightShader() {
     " }",
     // Fragment shader.
     " #version 330 core\n"
+    " uniform vec3 color;"
     " const vec3 ambient = vec3(0.4, 0.2, 0.2);"
     LIGHT_DIRS
     " const vec3 light1_col = vec3(0, 0.18, 0.5);"
@@ -78,15 +83,15 @@ static gl::Shader &MultilightShader() {
     "   float specular2 = pow(specAngle2, shininess);"
     "   float specular3 = pow(specAngle3, shininess);"
     "   float specular4 = pow(specAngle4, shininess);"
-    "   vec3 col = ambient +"
-    "              diffuse1 * light1_col + "
-    "              diffuse2 * light2_col + "
-    "              diffuse3 * light3_col + "
-    "              diffuse4 * light4_col + "
-    "              specular1 * specular_color +"
-    "              specular2 * specular_color +"
-    "              specular3 * specular_color +"
-    "              specular4 * specular_color;"
+    "   vec3 col = color * (ambient +"
+    "                       diffuse1 * light1_col + "
+    "                       diffuse2 * light2_col + "
+    "                       diffuse3 * light3_col + "
+    "                       diffuse4 * light4_col + "
+    "                       specular1 * specular_color +"
+    "                       specular2 * specular_color +"
+    "                       specular3 * specular_color +"
+    "                       specular4 * specular_color);"
     "   fragment_color = vec4(col, 0);"
     " }");
     #undef LIGHT_DIRS
@@ -362,51 +367,58 @@ struct Object {
   Type type;
   Vector3d center, halfside;
   Matrix3d R;
+  int color;
 };
 
 vector<Object> objects;
 
 void DrawSphere(const Vector3d &center, const Matrix3d &rotation,
-                double radius) {
+                double radius, int color) {
   objects.resize(objects.size() + 1);
   objects.back().type = Object::SPHERE;
   objects.back().center = center;
   objects.back().halfside = Vector3d(radius, radius, radius);
   objects.back().R = rotation;
+  objects.back().color = color;
 }
 
 void DrawBox(const Vector3d &center, const Matrix3d &rotation,
-             const Vector3d &side_lengths) {
+             const Vector3d &side_lengths, int color) {
   objects.resize(objects.size() + 1);
   objects.back().type = Object::BOX;
   objects.back().center = center;
   objects.back().halfside = side_lengths / 2;
   objects.back().R = rotation;
+  objects.back().color = color;
 }
 
 void DrawCapsule(const Vector3d &center, const Matrix3d &rotation,
-                 double radius, double length) {
+                 double radius, double length, int color) {
   objects.resize(objects.size() + 1);
   objects.back().type = Object::CAPSULE;
   objects.back().center = center;
   objects.back().halfside = Vector3d(radius, radius, length / 2 + radius);
   objects.back().R = rotation;
+  objects.back().color = color;
 }
 
-void DrawPoint(const Eigen::Vector3d &position) {
+void DrawPoint(const Eigen::Vector3d &position, int color) {
   objects.resize(objects.size() + 1);
   objects.back().type = Object::POINT;
   objects.back().center = position;
   objects.back().halfside.setZero();
   objects.back().R.setIdentity();
+  objects.back().color = color;
 }
 
-void DrawLine(const Eigen::Vector3d &pos1, const Eigen::Vector3d &pos2) {
+void DrawLine(const Eigen::Vector3d &pos1, const Eigen::Vector3d &pos2,
+              int color) {
   objects.resize(objects.size() + 1);
   objects.back().type = Object::LINE;
   objects.back().center = (pos1 + pos2) * 0.5;
   objects.back().halfside = (pos2 - pos1) * 0.5;
   objects.back().R.setIdentity();
+  objects.back().color = color;
 }
 
 inline void SetModelTransform(const Matrix4d &T) {
@@ -424,12 +436,21 @@ inline void SetZStretch(double stretch) {
   }
 }
 
-static void DrawObjects(bool with_normals, bool wireframe,
+static void DrawObjects(bool with_normals, bool wireframe, bool apply_color,
                         const Matrix4d &projection = Matrix4d::Identity()) {
   Matrix4d P = gl::Projection();
   Matrix4d M = gl::ModelView();
 
   for (int i = 0; i < objects.size(); i++) {
+    // Apply color.
+    if (apply_color) {
+      int c = objects[i].color;
+      gl::SetUniform("color", ((c >> 16) & 0xff) / 255.0,
+                              ((c >> 8 ) & 0xff) / 255.0,
+                              ((c      ) & 0xff) / 255.0);
+    }
+
+    // Draw object.
     Matrix4d T;
     T.setZero();
     T(3, 3) = 1;
@@ -476,6 +497,7 @@ static void DrawObjects(bool with_normals, bool wireframe,
 EggshellView::EggshellView(QWidget *parent) : GLViewer(parent) {
   running_ = false;
   show_bounding_box_ = false;
+  single_step_ = false;
   status_bar_ = 0;
   ground_texture_ = 0;
 
@@ -505,6 +527,11 @@ void EggshellView::ToggleRunning() {
   update();
 }
 
+void EggshellView::SingleStep() {
+  ToggleRunning();
+  single_step_ = true;
+}
+
 void EggshellView::ToggleShowBoundingBox() {
   show_bounding_box_ ^= 1;
   update();
@@ -513,9 +540,16 @@ void EggshellView::ToggleShowBoundingBox() {
 void EggshellView::OnSimulationTimeout() {
   if (running_) {
     objects.clear();
-    SimulationStep();
+    bool step_result = SimulationStep();
     update();
-    QTimer::singleShot(kSimTimeStep, this, &EggshellView::OnSimulationTimeout);
+    if (single_step_) {
+      single_step_ = false;
+      running_ = false;
+    }
+    if (running_) {
+      QTimer::singleShot(kSimTimeStep, this, &EggshellView::OnSimulationTimeout);
+    }
+    running_ = step_result;
   }
 }
 
@@ -572,7 +606,7 @@ void EggshellView::Draw() {
       project_shadow(2, 2) = 0;
       GL(Disable)(GL_CULL_FACE);
       gl::SetUniform("brightness", 0.6);
-      DrawObjects(false, false, project_shadow);
+      DrawObjects(false, false, false, project_shadow);
       GL(Enable)(GL_CULL_FACE);
     }
     GL(DepthFunc)(GL_LESS);
@@ -583,7 +617,7 @@ void EggshellView::Draw() {
   ApplyCameraTransformations();
 
   // Draw the model.
-  DrawObjects(true, false);
+  DrawObjects(true, false, true);
 
   // Draw wireframe things and points.
   static gl::Shader wireframe_shader(
@@ -625,7 +659,7 @@ void EggshellView::Draw() {
   ApplyCameraTransformations();
   gl::SetUniform("color", 0, 0, 0);
   gl::DrawThick(2, 2, false, [&]() {
-    DrawObjects(true, true);
+    DrawObjects(true, true, false);
   });
 
   // Draw lines from the objects list.
@@ -700,4 +734,21 @@ void EggshellView::GetBoundingBox(double bounds[6]) {
       }
     }
   }
+}
+
+//***************************************************************************
+
+void EggPlot(const Eigen::VectorXd &x, const Eigen::MatrixXd &data,
+             const char *title) {
+  auto *win = new qtPlot(0);
+  for (int j = 0; j < data.cols(); j++) {
+    VectorXd y(data.col(j));
+    win->plot().AddTrace(x, y, -1, 2);
+    std::string label;
+    StringPrintf(&label, "%d", j+1);
+    win->plot().AddTraceLabel(label.c_str());
+  }
+  win->plot().SetTitle(title);
+  win->plot().Grid();
+  win->show();
 }

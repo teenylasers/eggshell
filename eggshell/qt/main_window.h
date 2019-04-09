@@ -18,6 +18,8 @@ private slots:
   void on_actionRun_triggered();
   void on_actionShow_bounding_box_triggered();
 
+  void on_actionSingle_step_triggered();
+
 private:
   Ui::MainWindow *ui;
 };

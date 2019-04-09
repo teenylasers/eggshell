@@ -1,4 +1,5 @@
 #include "model.h"
+#include "collision.h"
 
 #include "constants.h"
 #include "ensembles.h"
@@ -11,8 +12,8 @@ using Eigen::Quaterniond;
 using Eigen::Vector3d;
 using Eigen::Vector3f;
 
-// static double angle1 = 0.5;
-// static double angle2 = 0;
+static double angle1 = 0.5;
+static double angle2 = 0;
 // static Matrix3d random_R = Matrix3d::Identity();
 // static Matrix3d R_exp_euler = Matrix3d::Identity();
 // static Matrix3d R_exp_euler_add = Matrix3d::Identity();
@@ -48,23 +49,39 @@ void SimulationInitialization() {
   ch1.Init();
 };
 
-void SimulationStep() {
-  /*
+bool SimulationStep() {
+
   Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
   Eigen::AngleAxisd Raa2(angle2, Vector3d(0, 1, 0));
   Quaterniond q = Raa1 * Raa2;
   Matrix3d R = q.matrix();
-
   DrawBox(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5));
+  DrawBox(Vector3d(1.65, 0, 0.5), Matrix3d::Identity(), Vector3d(0.3, 1, 1));
+
   DrawCapsule(Vector3d(-1, 0, 0.5), R, 0.2, 0.6);
   DrawSphere(Vector3d(0, 0, 0.5), R, 0.3);
 
   DrawPoint(Vector3d(0, 0, 0));
   DrawLine(Vector3d(0, 0, 0), Vector3d(0, 0, 1));
 
+  // Generate contact points and normals from a box and render them.
+  std::vector<ContactGeometry> contacts;
+  CollideBoxAndGround(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
+                      &contacts);
+  CollideBoxes(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
+               Vector3d(1.65, 0, 0.5), Matrix3d::Identity(),
+               Vector3d(0.3, 1, 1), 0, &contacts);
+  for (int i = 0; i < contacts.size(); i++) {
+    DrawPoint(contacts[i].position);
+    DrawLine(contacts[i].position,
+             contacts[i].position + contacts[i].normal * 0.1);
+  }
+
   angle1 += 0.01;
   angle2 += 0.002;
+  return true;
 
+  /*
   // Draw boxes that rotates with angular velocity w0, start with identical
   // boxes, use different integrators
   Vector3d box_dims{0.3, 0.3, 0.3};
@@ -99,7 +116,6 @@ void SimulationStep() {
   //     but body frame update does not.
   // 2. Why does kinetic energy converge at the end, write out w after each
   // update.
-  */
 
   ch0.Draw();
   ch0.Step(kSimTimeStep);
@@ -126,6 +142,7 @@ void SimulationStep() {
   err = ch1.ComputeJointError();
   err_sq = (err * err.transpose()).sum();
   LOG(INFO) << "ODE step error_sq sum " << err_sq;
+  */
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,

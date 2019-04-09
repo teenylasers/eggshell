@@ -416,6 +416,9 @@ void AxisLayout(Window *win,
 
 Plot2D::Plot2D(Window *win) {
   win_ = win;
+  first_x_ = first_y_ = 0;
+  last_x_ = last_y_ = 0;
+  last_button_state_ = 0;
   Clear();
 }
 
@@ -426,9 +429,6 @@ void Plot2D::Clear() {
   y_axis_label_.clear();
   title_.clear();
   grid_ = false;
-  first_x_ = first_y_ = 0;
-  last_x_ = last_y_ = 0;
-  last_button_state_ = 0;
   traces_.clear();
 
   axis_.clear();
