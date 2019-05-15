@@ -1,10 +1,11 @@
 #include "model.h"
-#include "collision.h"
 
+#include "collision.h"
 #include "constants.h"
 #include "ensembles.h"
 #include "glog/logging.h"
 #include "joints.h"
+#include "util.h"
 
 using Eigen::Matrix3d;
 using Eigen::Matrix4d;
@@ -14,19 +15,94 @@ using Eigen::Vector3f;
 
 static double angle1 = 0.5;
 static double angle2 = 0;
-// static Matrix3d random_R = Matrix3d::Identity();
-// static Matrix3d R_exp_euler = Matrix3d::Identity();
-// static Matrix3d R_exp_euler_add = Matrix3d::Identity();
-// static Vector3d w0{10, 20, 15};  // fixed angular velocity, global frame
-// static Body b0(Vector3d(0, 0, 3), Vector3d::Zero(), Matrix3d::Identity(),
-// w0); static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(),
-// Matrix3d::Identity(), w0); static Body b2(Vector3d(3, 0, 3),
-// Vector3d::Zero(), Matrix3d::Identity(), w0);
+
+// BoxTest
+static Matrix3d random_R = Matrix3d::Identity();
+static Matrix3d R_exp_euler = Matrix3d::Identity();
+static Matrix3d R_exp_euler_add = Matrix3d::Identity();
+static Vector3d w0{10, 20, 15};  // fixed angular velocity, global frame
+static Body b0(Vector3d(0, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
+
+// HangingChain
 static Chain ch0 = Chain(10);
 static Chain ch1 = Chain(10);
 
-void SimulationInitialization() {
-  /*
+// Cairn
+
+void SimulationInitialization(){};
+
+bool SimulationStep() {
+  Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
+  Eigen::AngleAxisd Raa2(angle2, Vector3d(0, 1, 0));
+  Quaterniond q = Raa1 * Raa2;
+  Matrix3d R = q.matrix();
+  DrawBox(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5));
+  DrawBox(Vector3d(1.65, 0, 0.5), Matrix3d::Identity(), Vector3d(0.3, 1, 1));
+
+  DrawCapsule(Vector3d(-1, 0, 0.5), R, 0.2, 0.6);
+  DrawSphere(Vector3d(0, 0, 0.5), R, 0.3);
+
+  DrawPoint(Vector3d(0, 0, 0));
+  DrawLine(Vector3d(0, 0, 0), Vector3d(0, 0, 1));
+
+  // Generate contact points and normals from a box and render them.
+  std::vector<ContactGeometry> contacts;
+  CollideBoxAndGround(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5), &contacts);
+  CollideBoxes(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
+               Vector3d(1.65, 0, 0.5), Matrix3d::Identity(),
+               Vector3d(0.3, 1, 1), 0, &contacts);
+  for (int i = 0; i < contacts.size(); i++) {
+    DrawPoint(contacts[i].position);
+    DrawLine(contacts[i].position,
+             contacts[i].position + contacts[i].normal * 0.1);
+  }
+
+  angle1 += 0.01;
+  angle2 += 0.002;
+
+  return true;
+}
+
+bool SimulationStep_Cairn() {return true;}
+
+void SimulationInitialization_HangingChain() {
+  ch0.Init();
+  ch1.Init();
+}
+
+bool SimulationStep_HangingChain() {
+  ch0.Draw();
+  ch0.Step(kSimTimeStep);
+
+  // Post-stabilization
+  Eigen::VectorXd err = ch0.ComputeJointError();
+  double err_sq = (err * err.transpose()).sum();
+  // LOG(INFO) << "Pre-stabilization error sum : " << err_sq;
+  int max_stabilization_steps = 500;
+  int step_counter = 0;
+  while (err_sq > kAllowNumericalError &&
+         step_counter < max_stabilization_steps) {
+    // ch0.StepPositionRelaxation(kSimTimeStep*1000);
+    ch0.StepPostStabilization(kSimTimeStep * 100);
+    err = ch0.ComputeJointError();
+    err_sq = (err * err.transpose()).sum();
+    ++step_counter;
+  }
+  // LOG(INFO) << "Post-stabilization steps count : " << step_counter;
+  LOG(INFO) << "Explicit Euler post-stabilization error_sq sum : " << err_sq;
+
+  ch1.Draw();
+  ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+  err = ch1.ComputeJointError();
+  err_sq = (err * err.transpose()).sum();
+  LOG(INFO) << "ODE step error_sq sum " << err_sq;
+
+  return true;
+}
+
+void SimulationInitialization_BoxTests() {
   srand(time(0));
   random_R = RandomRotation();
   R_exp_euler = random_R;
@@ -44,44 +120,9 @@ void SimulationInitialization() {
   b1.SetI(inertia);
   b2.SetR(random_R);
   b2.SetI(inertia);
-  */
-  ch0.Init();
-  ch1.Init();
-};
+}
 
-bool SimulationStep() {
-
-  Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
-  Eigen::AngleAxisd Raa2(angle2, Vector3d(0, 1, 0));
-  Quaterniond q = Raa1 * Raa2;
-  Matrix3d R = q.matrix();
-  DrawBox(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5));
-  DrawBox(Vector3d(1.65, 0, 0.5), Matrix3d::Identity(), Vector3d(0.3, 1, 1));
-
-  DrawCapsule(Vector3d(-1, 0, 0.5), R, 0.2, 0.6);
-  DrawSphere(Vector3d(0, 0, 0.5), R, 0.3);
-
-  DrawPoint(Vector3d(0, 0, 0));
-  DrawLine(Vector3d(0, 0, 0), Vector3d(0, 0, 1));
-
-  // Generate contact points and normals from a box and render them.
-  std::vector<ContactGeometry> contacts;
-  CollideBoxAndGround(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
-                      &contacts);
-  CollideBoxes(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
-               Vector3d(1.65, 0, 0.5), Matrix3d::Identity(),
-               Vector3d(0.3, 1, 1), 0, &contacts);
-  for (int i = 0; i < contacts.size(); i++) {
-    DrawPoint(contacts[i].position);
-    DrawLine(contacts[i].position,
-             contacts[i].position + contacts[i].normal * 0.1);
-  }
-
-  angle1 += 0.01;
-  angle2 += 0.002;
-  return true;
-
-  /*
+bool SimulationStep_BoxTests() {
   // Draw boxes that rotates with angular velocity w0, start with identical
   // boxes, use different integrators
   Vector3d box_dims{0.3, 0.3, 0.3};
@@ -117,32 +158,7 @@ bool SimulationStep() {
   // 2. Why does kinetic energy converge at the end, write out w after each
   // update.
 
-  ch0.Draw();
-  ch0.Step(kSimTimeStep);
-
-  // Post-stabilization
-  Eigen::VectorXd err = ch0.ComputeJointError();
-  double err_sq = (err * err.transpose()).sum();
-  //LOG(INFO) << "Pre-stabilization error sum : " << err_sq;
-  int max_stabilization_steps = 500;
-  int step_counter = 0;
-  while (err_sq > kAllowNumericalError &&
-         step_counter < max_stabilization_steps) {
-    // ch0.StepPositionRelaxation(kSimTimeStep*1000);
-    ch0.StepPostStabilization(kSimTimeStep * 100);
-    err = ch0.ComputeJointError();
-    err_sq = (err * err.transpose()).sum();
-    ++step_counter;
-  }
-  // LOG(INFO) << "Post-stabilization steps count : " << step_counter;
-  LOG(INFO) << "Explicit Euler post-stabilization error_sq sum : " << err_sq;
-
-  ch1.Draw();
-  ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-  err = ch1.ComputeJointError();
-  err_sq = (err * err.transpose()).sum();
-  LOG(INFO) << "ODE step error_sq sum " << err_sq;
-  */
+  return true;
 }
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
@@ -233,59 +249,4 @@ Body LIMBodyRotation(const Body& b, double dt, const Vector3d& tau,
   Matrix3d R_update = LIMRotationMatrix(b, dt, w_update, alpha, beta);
   Body b_update(b.p(), b.v(), b.m(), R_update, w_update, b.I_b());
   return b_update;
-}
-
-Matrix3d CrossMat(const Vector3d& a) {
-  Matrix3d m;
-  // clang-format off
-  m << 0, -a(2), a(1),
-       a(2), 0, -a(0),
-       -a(1), a(0), 0;
-  // clang-format on
-  return m;
-}
-
-Matrix3d RandomRotation() { return RandomRotationViaQuaternion(); }
-
-Matrix3d RandomRotationViaQuaternion() {
-  Quaterniond q = Quaterniond::UnitRandom();
-  return q.matrix();
-}
-
-Matrix3d RandomRotationViaGramSchmidt() {
-  Matrix3d m = GramSchmidt(Matrix3d::Random());
-  // TODO: Matrix3d m = Matrix3d::Random().householderQr().householderQ();??
-  if ((m.col(0).cross(m.col(1)) - m.col(2)).norm() > kAllowNumericalError) {
-    m.col(2) = -1.0 * m.col(2);
-  }
-  return m;
-}
-
-Matrix3d GramSchmidt(const Matrix3d& m) {
-  // u0, u1, u2 are normalized bases, orthogonal to each other
-
-  // Naive Gram-Schmidt
-  Vector3d u0 = m.col(0) / m.col(0).norm();
-  Vector3d u1 = m.col(1) - m.col(1).dot(u0) * u0;
-  u1 = u1 / u1.norm();
-  Vector3d u2 = m.col(2) - m.col(2).dot(u0) * u0 - m.col(2).dot(u1) * u1;
-  u2 = u2 / u2.norm();
-  Matrix3d m_normalized;
-  m_normalized << u0, u1, u2;
-
-  // TODO: stablized Gram-Schmidt
-  return m_normalized;
-}
-
-double GetRotationalKE(const Body& b) {
-  return b.w_b().transpose() * b.I_b() * b.w_b();
-}
-
-Quaterniond WtoQ(const Vector3d& w, double dt) {
-  // TODO: this implementation handles zero angular velocity correctly because
-  // Eigen normalizes near-zero vectors to (0,0,0). However, normalize() uses
-  // Pythagorean magnitude and thus overflows earlier than is optimal.
-  Eigen::AngleAxisd aa(w.norm() * dt, w.normalized());
-  Quaterniond q(aa);
-  return q;
 }

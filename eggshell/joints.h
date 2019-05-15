@@ -4,8 +4,10 @@
 #define __JOINTS_H__
 
 #include "Eigen/Dense"
+#include "body.h"
 #include "glog/logging.h"
 #include "model.h"
+#include "util.h"
 
 // Base class
 class Joint {

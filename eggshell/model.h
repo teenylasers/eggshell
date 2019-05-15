@@ -39,19 +39,22 @@ void EggPlot(const Eigen::VectorXd &x, const Eigen::MatrixXd &data,
 // A fatal error: print the error message and stop execution
 void Panic(const char* message, ...);
 
-// Generate the cross-product matrix for a vector a, so that a x b = a_bar
-// b.
-Eigen::Matrix3d CrossMat(const Eigen::Vector3d& a);
 
-// Convert angular velocity w to equivalent quaternion
-// q = [cos(|w|/2) 1/2*sinc(|w|/2) * w]
-Eigen::Quaterniond WtoQ(const Eigen::Vector3d& w, double dt);
+/*****************************************************
+ Various SimulationInitialization() and SimulationSteps()
+******************************************************/
 
-// Generate a random rotation matrix.
-Eigen::Matrix3d RandomRotation();
-Eigen::Matrix3d RandomRotationViaQuaternion();
-Eigen::Matrix3d RandomRotationViaGramSchmidt();
-Eigen::Matrix3d GramSchmidt(const Eigen::Matrix3d& m);
+// Test case: single body integrators on boxes
+void SimulationInitialization_BoxTests();
+bool SimulationStep_BoxTests();
+
+// Test case: a hanging chain with ball-and-socket joints
+void SimulationInitialization_HangingChain();
+bool SimulationStep_HangingChain();
+
+// Test case: drop a pile of cubes
+void SimulationInitialization_Cairn();
+bool SimulationStep_Cairn();
 
 /*********************************************
  Various integrators of different goodness

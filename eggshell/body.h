@@ -54,6 +54,8 @@ class Body {
   void Rotate(const Eigen::Matrix3d& R);
   void Rotate(const Eigen::Quaterniond& q);
 
+  double GetRotationalKE() const;
+
   void Draw() const;
 
  private:

@@ -18,3 +18,7 @@ void Body::Draw() const {
   // Vector3d point_on_box = sides_ / 2.0;
   // DrawPoint(p_ + R_ * point_on_box);
 }
+
+double Body::GetRotationalKE() const {
+  return w_b().transpose() * I_b() * w_b();
+}
