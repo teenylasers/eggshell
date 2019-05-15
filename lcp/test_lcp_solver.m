@@ -13,7 +13,7 @@ fprintf('%d out of %d tests passed.\n', num_tests - num_tests_failed, num_tests)
 function ret = solve_lcp(n)
 A = generate_spd_matrix(n);
 b = rand(n,1);
-[A, b, x, w, ret] = murty_principle_pivot(A, b);
+[A, b, x, w, ret] = murty_principle_pivot(A, b)
 
 
 function A = generate_spd_matrix(n)

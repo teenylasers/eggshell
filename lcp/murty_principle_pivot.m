@@ -1,5 +1,8 @@
 function [A, b, x, w, return_code] = murty_pivot(A, b, x, w, s)
 
+% TODO: don't need s input arg anymore
+% TODO: implement a starting S, instead of S_init = zeros(n, 1)
+
 % Sanity check input
 % A = n x n matrix, assume SPD
 [n m] = size(A);
@@ -66,6 +69,7 @@ end
 
 function [check S] = check_solution(A, b, x, w, S)
 
+% TODO: x(S) and w(~S) <= 0 or just < 0?
 if sum(x(S) <= 0) > 0
   check = false;
   offending_elem_in_s = find(S, find(x(S) <= 0, 1));
