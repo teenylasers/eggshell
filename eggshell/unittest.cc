@@ -1,20 +1,22 @@
+#include <iostream>
+
 #include "Eigen/Dense"
 #include "gflags/gflags.h"
 #include "glog/logging.h"
-#include "model.h"
 #include "gtest/gtest.h"
-#include <iostream>
+#include "model.h"
+#include "util.h"
 
 DEFINE_bool(verbose, false, "verbose output [false]");
 
 using namespace Eigen;
 
 namespace {
-constexpr int kNumTestInsts = 50; // num instances to run in each test
+constexpr int kNumTestInsts = 50;  // num instances to run in each test
 constexpr double kAllowNumericalError = 1e-9;
-} // namespace
+}  // namespace
 
-bool IsOrthonormal(const Matrix3d &R) {
+bool IsOrthonormal(const Matrix3d& R) {
   auto m = R.transpose() * R;
   return m.isIdentity(kAllowNumericalError);
 }
@@ -88,7 +90,7 @@ TEST(RandomRotationTest, GramSchmidt) {
   }
 }
 
-GTEST_API_ int main(int argc, char **argv) {
+GTEST_API_ int main(int argc, char** argv) {
   srand(time(0));
   std::cout << "Run " << __FILE__;
   gflags::ParseCommandLineFlags(&argc, &argv, true);

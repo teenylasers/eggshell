@@ -17,7 +17,7 @@ default: all
 SHELL=/bin/bash -o pipefail
 
 # Build directories
-DIRS = build/toolkit build/qt
+DIRS = build/toolkit build/qt build/lcp
 
 # -R means no-builtin-variables and no-builtin-rules:
 MAKEFLAGS += -R
@@ -46,6 +46,7 @@ OBJ = body.o \
       ensembles.o \
       joints.o \
       model.o \
+      util.o \
       collision.o \
       toolkit/error.o \
       toolkit/viewer.o \
@@ -59,7 +60,8 @@ OBJ = body.o \
       qt/error_window.o  \
       qt/moc_main_window.o \
       qt/moc_error_window.o \
-      qt/plugin_import.o
+      qt/plugin_import.o \
+      lcp/lcp.o
 
 UI_HEADERS = qt/ui_main_window.h qt/ui_error_window.h
 
@@ -113,7 +115,7 @@ ifeq ($(PLATFORM), windows)
   CCFLAGS += -fno-keep-inline-dllexport -fexceptions
   CCFLAGS += -Wa,-mbig-obj
 endif
-CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
+CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt -I../../lcp
 
 # More compiler configuration.
 CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare -I../../toolkit
@@ -141,6 +143,9 @@ qt/%.o: qt/%.cc $(UI_HEADERS)
 toolkit/%.o: ../../toolkit/%.cc
 	$(CC_COMPILE)
 
+lcp/%.o: ../../lcp/%.cc
+	$(CC_COMPILE)
+
 %.o: ../%.c
 	$(C_COMPILE)
 
@@ -159,5 +164,6 @@ $(APP): $(OBJ)
 # Include dependencies (only works from build directory).
 -include *.d $(DIRS:build/%=%/*.d)
 
-unittest: model.o
-	$(CXX) $(CCFLAGS) $(LDFLAGS) -I$(EIGEN_DIR) -lgtest -lgflags -lglog ../unittest.cc -o unittest model.o
+# TODO: rid of googletest, use toolkit/testing.h instead
+unittest: util.o
+	$(CXX) $(CCFLAGS) -I$(EIGEN_DIR) $(LDFLAGS) -lgtest -lgflags -lglog ../unittest.cc -o unittest util.o

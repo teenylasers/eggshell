@@ -17,7 +17,6 @@ static double angle1 = 0.5;
 static double angle2 = 0;
 
 // BoxTest
-static Matrix3d random_R = Matrix3d::Identity();
 static Matrix3d R_exp_euler = Matrix3d::Identity();
 static Matrix3d R_exp_euler_add = Matrix3d::Identity();
 static Vector3d w0{10, 20, 15};  // fixed angular velocity, global frame
@@ -26,12 +25,16 @@ static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 
 // HangingChain
-static Chain ch0 = Chain(10);
-static Chain ch1 = Chain(10);
+static Chain ch0 = Chain(10, Vector3d(0, 0, 6));
+static Chain ch1 = Chain(10, Vector3d(0, 0, 6));
 
 // Cairn
+static Cairn cairn(10, {-5, 5}, {-5, 5}, {15, 20});
 
-void SimulationInitialization(){};
+void SimulationInitialization() {
+  SimulationInitialization_HangingChain();
+  SimulationInitialization_Cairn();
+};
 
 bool SimulationStep() {
   Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
@@ -62,10 +65,20 @@ bool SimulationStep() {
   angle1 += 0.01;
   angle2 += 0.002;
 
+  SimulationStep_HangingChain();
+  SimulationStep_Cairn();
+
   return true;
 }
 
-bool SimulationStep_Cairn() {return true;}
+void SimulationInitialization_Cairn() {
+  cairn.Init();}
+
+bool SimulationStep_Cairn() {
+  cairn.Draw();
+  cairn.Step(kSimTimeStep);
+  return true;
+}
 
 void SimulationInitialization_HangingChain() {
   ch0.Init();
@@ -91,20 +104,20 @@ bool SimulationStep_HangingChain() {
     ++step_counter;
   }
   // LOG(INFO) << "Post-stabilization steps count : " << step_counter;
-  LOG(INFO) << "Explicit Euler post-stabilization error_sq sum : " << err_sq;
+  // LOG(INFO) << "Explicit Euler post-stabilization error_sq sum : " << err_sq;
 
   ch1.Draw();
   ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
   err = ch1.ComputeJointError();
   err_sq = (err * err.transpose()).sum();
-  LOG(INFO) << "ODE step error_sq sum " << err_sq;
+  // LOG(INFO) << "ODE step error_sq sum " << err_sq;
 
   return true;
 }
 
 void SimulationInitialization_BoxTests() {
   srand(time(0));
-  random_R = RandomRotation();
+  const Matrix3d random_R = RandomRotation();
   R_exp_euler = random_R;
   R_exp_euler_add = random_R;
 

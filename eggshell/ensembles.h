@@ -8,6 +8,7 @@
 
 #include "Eigen/Dense"
 #include "body.h"
+#include "collision.h"
 #include "joints.h"
 
 // Base class.
@@ -18,11 +19,11 @@ class Ensemble {
   virtual void Init();
 
   virtual Eigen::VectorXd ComputeJointError() const;
-  virtual Eigen::MatrixXd ComputeJ() const = 0;
+  virtual Eigen::MatrixXd ComputeJ() const;
 
-  // TODO: JDot is a sparse matrix, computing JDot then JDot * v is doing a lot
-  // of multiplication with zero. Compute JDotV directly.
-  virtual Eigen::MatrixXd ComputeJDot() const = 0;
+  // JDot is a sparse matrix, computing JDot then JDot * v is doing a lot of
+  // multiplication with zero. Compute JDotV directly.
+  virtual Eigen::VectorXd ComputeJDotV() const;
 
   // Sanity check the dimensions of ComputeError and ComputeJ results.
   // TODO: may not need these, ComputeError and ComputeJ concatenations should
@@ -42,7 +43,7 @@ class Ensemble {
   };
   virtual void Step(double dt, Integrator g = Integrator::EXPLICIT_EULER);
 
-  virtual void Draw() const = 0;  // Render in EggshellView
+  virtual void Draw() const;  // Render in EggshellView
 
   // Post-stabilization: takes Ensemble's state after an integrator Step, apply
   // stabilization to bring the state closer to or back to the constraint
@@ -56,25 +57,31 @@ class Ensemble {
   // Number of Bodies that make up this ensemble
   int n_;
 
-  // TODO:
-  // Components + joints should be a graph of nodes, so the code can figure out
-  // itself which bodies a joint connects. Stepper should need NO assumption on
-  // the ordering of joints and bodies.
+  struct JointBodies {
+    std::shared_ptr<Joint> j;
+    int b0;  // body0 index in components_
+    int b1;  // body1 index in components_
+
+    JointBodies(const std::shared_ptr<Joint> _j, int _b)
+        : j(_j), b0(_b), b1(-1) {}
+    JointBodies(const std::shared_ptr<Joint> _j, int _b0, int _b1)
+        : j(_j), b0(_b0), b1(_b1) {}
+  };
 
   // The Bodies that make up this ensemble
   std::vector<Body> components_;
-  // Joints between Bodies or anchor to global frame
-  std::vector<std::shared_ptr<Joint>> joints_;
+  // Joints between Bodies or anchor to global frame. Use share_ptr because
+  // Joint is the abstract base class.
+  std::vector<JointBodies> joints_;
+  // Conacts between Bodies or between Body and ground.
+  std::vector<ContactGeometry> contacts_;
 
   Eigen::MatrixXd M_inverse_;
   Eigen::VectorXd external_force_torque_;
 
  private:
   void ConstructMassInertiaMatrixInverse();
-  // TODO: currently defaulting component 0 to be the anchor, i.e. it does not
-  // experience any external force including gravity.
-  // TODO: add support for non-zero external force and external torque.
-  void InitializeExternalForceTorqueVector();
+  void InitializeExternalForceTorqueVector();  // Gravity is applied here
 
   // Create v vector, which contains p_dot and w for all bodies.
   Eigen::VectorXd GetCurrentVelocities();
@@ -106,26 +113,35 @@ class Ensemble {
 
 class Chain : public Ensemble {
  public:
-  Chain(int num_links);
+  Chain(int num_links, const Eigen::Vector3d& anchor_position);
 
   // TODO: this implementation assumes joint i is between component i and i+1.
   // The assumption is used by ComputeJ. Make general by adding integer label
   // to each component, std::vector<std::pair<std::vector<int>,
   // std::shared_ptr<Joint>>> joints_
   // Then, will be able to move ComputeJ() and ComputeJDot() to Ensemble class.
-  Eigen::MatrixXd ComputeJ() const override;
-  Eigen::MatrixXd ComputeJDot() const override;
+  // Eigen::MatrixXd ComputeJ() const override;
+  // Eigen::MatrixXd ComputeJDot() const override;
 
   bool CheckErrorDims(Eigen::VectorXd) const override;
   bool CheckJDims(Eigen::MatrixXd) const override;
 
-  void Draw() const override;
-
  private:
-  void InitLinks();
+  void InitLinks(const Eigen::Vector3d& anchor_position);
   void InitJoints();
   // TODO: Default sets component_[0] to be the anchor, make it customizable?
   void SetAnchor();
+};
+
+// TODO: handle mix of chain and cairn in a general way
+class Cairn : public Ensemble {
+ public:
+  Cairn(int num_rocks, const std::array<double, 2>& x_bound,
+        const std::array<double, 2>& y_bound,
+        const std::array<double, 2>& z_bound);
+
+  bool CheckErrorDims(Eigen::VectorXd) const override;
+  bool CheckJDims(Eigen::MatrixXd) const override;
 };
 
 #endif

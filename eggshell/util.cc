@@ -14,6 +14,30 @@ Matrix3d CrossMat(const Vector3d& a) {
   return m;
 }
 
+Vector3d RandomPosition(const std::array<double, 2>& x_bound,
+                        const std::array<double, 2>& y_bound,
+                        const std::array<double, 2>& z_bound) {
+  // Generate a random Vector3d, whose coeffients are <0, 1>;
+  Vector3d v = (Vector3d::Random() + Vector3d::Ones()) / 2;
+  v(0) = v(0) * std::abs(x_bound.at(1) - x_bound.at(0)) +
+         std::min(x_bound.at(0), x_bound.at(1));
+  v(1) = v(1) * std::abs(y_bound.at(1) - y_bound.at(0)) +
+         std::min(y_bound.at(0), y_bound.at(1));
+  v(2) = v(2) * std::abs(z_bound.at(1) - z_bound.at(0)) +
+         std::min(z_bound.at(0), z_bound.at(1));
+  return v;
+}
+
+Vector3d RandomVelocity(double limit) {
+  Vector3d v = Vector3d::Random() * limit;
+  return v;
+}
+
+Vector3d RandomAngularVelocity(double limit) {
+  Vector3d v = Vector3d::Random() * limit;
+  return v;
+}
+
 Matrix3d RandomRotation() { return RandomRotationViaQuaternion(); }
 
 Matrix3d RandomRotationViaQuaternion() {

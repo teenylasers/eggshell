@@ -13,6 +13,13 @@ class Body {
         R_(Eigen::Matrix3d::Identity()),
         w_(Eigen::Vector3d::Zero()),
         I_(Eigen::Matrix3d::Identity()) {}
+  explicit Body(const Eigen::Vector3d& p, const Eigen::Matrix3d& R)
+      : p_(p),
+        v_(Eigen::Vector3d::Zero()),
+        m_(1.0),
+        R_(R),
+        w_(Eigen::Vector3d::Zero()),
+        I_(Eigen::Matrix3d::Identity()) {}
   explicit Body(const Eigen::Vector3d& p, const Eigen::Vector3d& v,
                 const Eigen::Matrix3d& R, const Eigen::Vector3d& w)
       : p_(p), v_(v), m_(1.0), R_(R), w_(w), I_(Eigen::Matrix3d::Identity()) {}
