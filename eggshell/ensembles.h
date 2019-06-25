@@ -9,7 +9,14 @@
 #include "Eigen/Dense"
 #include "body.h"
 #include "collision.h"
+#include "contact.h"
 #include "joints.h"
+
+using Eigen::Matrix3d;
+using Eigen::MatrixXd;
+using Eigen::Quaterniond;
+using Eigen::Vector3d;
+using Eigen::VectorXd;
 
 // Base class.
 class Ensemble {
@@ -18,18 +25,17 @@ class Ensemble {
 
   virtual void Init();
 
-  virtual Eigen::VectorXd ComputeJointError() const;
-  virtual Eigen::MatrixXd ComputeJ() const;
+  virtual MatrixXd ComputeJ() const;
+  virtual VectorXd ComputePositionConstraintError() const;
 
   // JDot is a sparse matrix, computing JDot then JDot * v is doing a lot of
   // multiplication with zero. Compute JDotV directly.
-  virtual Eigen::VectorXd ComputeJDotV() const;
+  virtual VectorXd ComputeJDotV() const;
 
   // Sanity check the dimensions of ComputeError and ComputeJ results.
   // TODO: may not need these, ComputeError and ComputeJ concatenations should
   // be correct by construction.
-  virtual bool CheckErrorDims(Eigen::VectorXd error) const = 0;
-  virtual bool CheckJDims(Eigen::MatrixXd j) const = 0;
+  virtual bool CheckErrorDims(VectorXd error) const = 0;
 
   // Sanity check the ensemble's initial conditions, before any time stepping
   // has occurred.
@@ -38,8 +44,8 @@ class Ensemble {
   // Advance one time step with step size dt
   enum struct Integrator {
     EXPLICIT_EULER = 0,
-    IMPLICIT_MIDPOINT,
-    OPEN_DYNAMICS_ENGINE
+    OPEN_DYNAMICS_ENGINE,
+    IMPLICIT_MIDPOINT
   };
   virtual void Step(double dt, Integrator g = Integrator::EXPLICIT_EULER);
 
@@ -58,6 +64,7 @@ class Ensemble {
   int n_;
 
   struct JointBodies {
+    // Use shared_ptr because Joint is the abstract base class.
     std::shared_ptr<Joint> j;
     int b0;  // body0 index in components_
     int b1;  // body1 index in components_
@@ -68,66 +75,89 @@ class Ensemble {
         : j(_j), b0(_b0), b1(_b1) {}
   };
 
-  // The Bodies that make up this ensemble
-  std::vector<Body> components_;
-  // Joints between Bodies or anchor to global frame. Use share_ptr because
-  // Joint is the abstract base class.
-  std::vector<JointBodies> joints_;
-  // Conacts between Bodies or between Body and ground.
-  std::vector<ContactGeometry> contacts_;
+  struct ContactingBodies {
+    Contact c;
+    int b0;  // body0 index in components_
+    int b1;  // body1 index in components_
 
-  Eigen::MatrixXd M_inverse_;
-  Eigen::VectorXd external_force_torque_;
+    ContactingBodies(const Contact _c, int _b) : c(_c), b0(_b), b1(-1) {}
+    ContactingBodies(const Contact _c, int _b0, int _b1)
+        : c(_c), b0(_b0), b1(_b1) {}
+  };
+
+  // The Bodies that make up this ensemble. Use shared_ptr because Body is the
+  // abstract base class.
+  std::vector<std::shared_ptr<Body>> components_;
+  // Joints between Bodies or anchor to global frame.
+  std::vector<JointBodies> joints_;
+  // Contacts between Bodies or between Body and ground.
+  // TODO: need to store contacts_ or just use them to create J and JDot on the
+  // fly and discard
+  std::vector<ContactingBodies> contacts_;
+
+  MatrixXd M_inverse_;
+  VectorXd external_force_torque_;
 
  private:
   void ConstructMassInertiaMatrixInverse();
   void InitializeExternalForceTorqueVector();  // Gravity is applied here
 
   // Create v vector, which contains p_dot and w for all bodies.
-  Eigen::VectorXd GetCurrentVelocities();
+  VectorXd GetCurrentVelocities();
 
   // Update p_dot and w in each Body in component_ using updated v (in global
   // frame).
-  void UpdateComponentsVelocities(const Eigen::VectorXd& v);
+  void UpdateComponentsVelocities(const VectorXd& v);
+
+  // Find all contacts between Bodies or between Body and ground, clear and
+  // update contacts_
+  void UpdateContacts();
+
+  // Compute J due to 1. joint constraints, 2. contact constraints
+  MatrixXd ComputeJ_Joints() const;
+  MatrixXd ComputeJ_Contacts() const;
+
+  // Compute JDotV due to 1. joint constraints, 2. contact constraints
+  VectorXd ComputeJDotV_Joints() const;
+  VectorXd ComputeJDotV_Contacts() const;
+
+  // Compute v_dot for stepping velocity
+  VectorXd ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const;
 
   // Various versions of time steppers. StepVelocities() and StepPosition()
   // decide which ones to use.
-  Eigen::VectorXd StepVelocities_ExplicitEuler(double dt,
-                                               const Eigen::VectorXd& v);
-  void StepPositions_ExplicitEuler(double dt, const Eigen::VectorXd& v);
-  Eigen::VectorXd StepVelocities_ImplicitMidpoint(double dt,
-                                                  const Eigen::VectorXd& v,
-                                                  double alpha = 0.5,
-                                                  double beta = 0.5);
-  void StepPositions_ImplicitMidpoint(double dt, const Eigen::VectorXd& v,
-                                      const Eigen::VectorXd& v_new,
-                                      double alpha = 0.5, double beta = 0.5);
-  Eigen::VectorXd StepVelocities_ODE(double dt, const Eigen::VectorXd& v,
-                                     double error_reduction_param = 0.2);
-  void StepPositions_ODE(double dt, const Eigen::VectorXd& v,
-                         const Eigen::VectorXd& v_new);
+  VectorXd StepVelocities_ExplicitEuler(double dt, const VectorXd& v);
+  void StepPositions_ExplicitEuler(double dt, const VectorXd& v);
+  VectorXd StepVelocities_ImplicitMidpoint(double dt, const VectorXd& v,
+                                           double alpha = 0.5,
+                                           double beta = 0.5);
+  void StepPositions_ImplicitMidpoint(double dt, const VectorXd& v,
+                                      const VectorXd& v_new, double alpha = 0.5,
+                                      double beta = 0.5);
+  VectorXd StepVelocities_ODE(double dt, const VectorXd& v,
+                              double error_reduction_param = 0.2);
+  void StepPositions_ODE(double dt, const VectorXd& v, const VectorXd& v_new);
 
   // Post-stabilization: calculate velocity correction for post-stabilization
-  Eigen::VectorXd CalculateVelocityRelaxation(double step_scale);
+  VectorXd CalculateVelocityRelaxation(double step_scale);
 };
 
 class Chain : public Ensemble {
  public:
-  Chain(int num_links, const Eigen::Vector3d& anchor_position);
+  Chain(int num_links, const Vector3d& anchor_position);
 
   // TODO: this implementation assumes joint i is between component i and i+1.
   // The assumption is used by ComputeJ. Make general by adding integer label
   // to each component, std::vector<std::pair<std::vector<int>,
   // std::shared_ptr<Joint>>> joints_
   // Then, will be able to move ComputeJ() and ComputeJDot() to Ensemble class.
-  // Eigen::MatrixXd ComputeJ() const override;
-  // Eigen::MatrixXd ComputeJDot() const override;
+  // MatrixXd ComputeJ() const override;
+  // MatrixXd ComputeJDot() const override;
 
-  bool CheckErrorDims(Eigen::VectorXd) const override;
-  bool CheckJDims(Eigen::MatrixXd) const override;
+  bool CheckErrorDims(VectorXd error) const override;
 
  private:
-  void InitLinks(const Eigen::Vector3d& anchor_position);
+  void InitLinks(const Vector3d& anchor_position);
   void InitJoints();
   // TODO: Default sets component_[0] to be the anchor, make it customizable?
   void SetAnchor();
@@ -140,8 +170,11 @@ class Cairn : public Ensemble {
         const std::array<double, 2>& y_bound,
         const std::array<double, 2>& z_bound);
 
-  bool CheckErrorDims(Eigen::VectorXd) const override;
-  bool CheckJDims(Eigen::MatrixXd) const override;
+  bool CheckErrorDims(VectorXd error) const override;
+
+ private:
+  const double max_init_v_ = 1;
+  const double max_init_w_ = 1;
 };
 
 #endif

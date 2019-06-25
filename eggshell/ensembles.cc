@@ -2,16 +2,11 @@
 
 #include <cmath>
 #include <memory>
+#include <string>
 
 #include "constants.h"
 #include "glog/logging.h"
 #include "lcp.h"
-
-using Eigen::Matrix3d;
-using Eigen::MatrixXd;
-using Eigen::Quaterniond;
-using Eigen::Vector3d;
-using Eigen::VectorXd;
 
 void Ensemble::Init() {
   ConstructMassInertiaMatrixInverse();
@@ -20,59 +15,137 @@ void Ensemble::Init() {
 }
 
 MatrixXd Ensemble::ComputeJ() const {
+  MatrixXd J(3 * joints_.size() + contacts_.size(), 6 * n_);
+  // clang-format off
+  J << ComputeJ_Joints(),
+       ComputeJ_Contacts();
+  // clang-format on
+  return J;
+}
+
+MatrixXd Ensemble::ComputeJ_Joints() const {
   MatrixXd J = MatrixXd::Zero(3 * joints_.size(), 6 * n_);
   for (int i = 0; i < joints_.size(); ++i) {
-    MatrixXd J_b0(3, 6);
-    MatrixXd J_b1(3, 6);
-    joints_.at(i).j->ComputeJ(J_b0, J_b1);
-    if (joints_.at(i).b1 != -1) {
-      J.block<3, 6>(i * 3, joints_.at(i).b0 * 6) = J_b0;
-      J.block<3, 6>(i * 3, joints_.at(i).b1 * 6) = J_b1;
+    // CHECK(joints_.at(i).b0 < components_.size() || joints_.at(i).b0 == -1)
+    //     << "b0 = " << joints_.at(i).b0;
+    // CHECK(joints_.at(i).b1 < components_.size() || joints_.at(i).b1 == -1)
+    //     << "b1 = " << joints_.at(i).b1;
+    // CHECK(!(joints_.at(i).b0 == -1 && joints_.at(i).b1 == -1));
+    MatrixXd j0(3, 6);
+    MatrixXd j1(3, 6);
+    joints_.at(i).j->ComputeJ(j0, j1);
+    if (joints_.at(i).b0 == -1) {
+      CHECK(j1.sum() == 0);
+      J.block<3, 6>(i * 3, joints_.at(i).b1 * 6) = j0;
+    } else if (joints_.at(i).b1 == -1) {
+      CHECK(j1.sum() == 0);
+      J.block<3, 6>(i * 3, joints_.at(i).b0 * 6) = j0;
     } else {
-      CHECK(joints_.at(i).b1 == -1);
-      J.block<3, 6>(i * 3, joints_.at(i).b0 * 6) = J_b0;
+      J.block<3, 6>(i * 3, joints_.at(i).b0 * 6) = j0;
+      J.block<3, 6>(i * 3, joints_.at(i).b1 * 6) = j1;
     }
   }
-  CHECK(CheckJDims(J)) << "Unexpected J matrix dimensions: " << J.rows() << "x"
-                       << J.cols();
+  return J;
+}
+
+MatrixXd Ensemble::ComputeJ_Contacts() const {
+  MatrixXd J = MatrixXd::Zero(1 * contacts_.size(), 6 * n_);
+  for (int i = 0; i < contacts_.size(); ++i) {
+    // CHECK(contacts_.at(i).b0 < components_.size() || contacts_.at(i).b0 ==
+    // -1)
+    //     << "b0 = " << contacts_.at(i).b0;
+    // CHECK(contacts_.at(i).b1 < components_.size() || contacts_.at(i).b1 ==
+    // -1)
+    //     << "b1 = " << contacts_.at(i).b1;
+    // CHECK(!(contacts_.at(i).b0 == -1 && contacts_.at(i).b1 == -1));
+    MatrixXd j0(1, 6);
+    MatrixXd j1(1, 6);
+    contacts_.at(i).c.ComputeJ(j0, j1);
+    if (contacts_.at(i).b1 != -1) {
+      J.block<1, 6>(i, contacts_.at(i).b0 * 6) = j0;
+      J.block<1, 6>(i, contacts_.at(i).b1 * 6) = j1;
+    } else {
+      J.block<1, 6>(i, contacts_.at(i).b0 * 6) = j0;
+    }
+  }
   return J;
 }
 
 VectorXd Ensemble::ComputeJDotV() const {
-  VectorXd JdotV = VectorXd::Zero(6 * n_);
-  // for joints_
+  VectorXd JDotV(3 * joints_.size() + contacts_.size());
+  JDotV << ComputeJDotV_Joints(), ComputeJDotV_Contacts();
+  return JDotV;
+}
+
+VectorXd Ensemble::ComputeJDotV_Joints() const {
+  VectorXd JdotV = VectorXd::Zero(3 * joints_.size());
   for (int i = 0; i < joints_.size(); ++i) {
-    MatrixXd Jdot_b0(3, 6);
-    MatrixXd Jdot_b1(3, 6);
+    MatrixXd Jdot_b0 = MatrixXd::Zero(3, 6);
+    MatrixXd Jdot_b1 = MatrixXd::Zero(3, 6);
     joints_.at(i).j->ComputeJDot(Jdot_b0, Jdot_b1);
     const int b0 = joints_.at(i).b0;
     const int b1 = joints_.at(i).b1;
-    if (b1 != -1) {
-      VectorXd v0(6);
-      v0.segment<3>(0) = components_.at(b0).v();
-      v0.segment<3>(3) = components_.at(b0).w_g();
-      VectorXd v1(6);
-      v1.segment<3>(0) = components_.at(b1).v();
-      v1.segment<3>(3) = components_.at(b1).w_g();
-      JdotV.segment<6>(joints_.at(i).b0 * 6) = Jdot_b0 * v0;
-      JdotV.segment<6>(joints_.at(i).b1 * 6) = Jdot_b1 * v1;
+    VectorXd v0 = VectorXd::Zero(6);
+    VectorXd v1 = VectorXd::Zero(6);
+    if (b0 == -1) {
+      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+      JdotV.segment<3>(i * 3) = Jdot_b0 * v1;
+    } else if (b1 == -1) {
+      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+      JdotV.segment<3>(i * 3) = Jdot_b0 * v0;
     } else {
-      VectorXd v0(6);
-      v0.segment<3>(0) = components_.at(b0).v();
-      v0.segment<3>(3) = components_.at(b0).w_g();
-      JdotV.segment<6>(b0 * 6) = Jdot_b0 * v0;
+      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+      JdotV.segment<3>(i * 3) = Jdot_b0 * v0 + Jdot_b1 * v1;
     }
   }
   return JdotV;
 }
 
-VectorXd Ensemble::ComputeJointError() const {
+VectorXd Ensemble::ComputeJDotV_Contacts() const {
+  VectorXd JdotV = VectorXd::Zero(1 * contacts_.size());
+  for (int i = 0; i < contacts_.size(); ++i) {
+    MatrixXd Jdot_b0 = MatrixXd::Zero(1, 6);
+    MatrixXd Jdot_b1 = MatrixXd::Zero(1, 6);
+    contacts_.at(i).c.ComputeJDot(Jdot_b0, Jdot_b1);
+    const int b0 = contacts_.at(i).b0;
+    const int b1 = contacts_.at(i).b1;
+    VectorXd v0 = VectorXd::Zero(6);
+    VectorXd v1 = VectorXd::Zero(6);
+    if (b0 == -1) {
+      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+      JdotV.segment<1>(i) = Jdot_b0 * v1;
+    } else if (b1 == -1) {
+      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+      JdotV.segment<1>(i) = Jdot_b0 * v0;
+    } else {
+      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+      JdotV.segment<1>(i) = Jdot_b0 * v0 + Jdot_b1 * v1;
+    }
+  }
+  return JdotV;
+}
+
+VectorXd Ensemble::ComputePositionConstraintError() const {
   VectorXd prev_errors(0, 0);
-  for (const auto& joint : joints_) {
-    const auto e = joint.j->ComputeError();
-    VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
-    errors << prev_errors, e;
-    prev_errors = errors;
+  if (contacts_.empty()) {
+    for (const auto& joint : joints_) {
+      const auto e = joint.j->ComputeError();
+      VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
+      errors << prev_errors, e;
+      prev_errors = errors;
+    }
+  } else if (joints_.empty()) {
+    for (const auto& contact : contacts_) {
+      const auto e = contact.c.ComputeError();
+      VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
+      errors << prev_errors, e;
+      prev_errors = errors;
+    }
+  } else {
+    LOG(ERROR) << "Mixed joints and contact constraints not yet implemented.";
+    CHECK(false);
   }
   CHECK(CheckErrorDims(prev_errors))
       << "Unexpected error vector dimensions: " << prev_errors.rows() << "x"
@@ -81,7 +154,7 @@ VectorXd Ensemble::ComputeJointError() const {
 }
 
 bool Ensemble::CheckInitialConditions() const {
-  auto error = ComputeJointError();
+  auto error = ComputePositionConstraintError();
   if (!error.isZero(kAllowNumericalError)) {
     LOG(ERROR) << "Initial error: " << std::endl << error;
     return false;
@@ -92,7 +165,7 @@ bool Ensemble::CheckInitialConditions() const {
 
 void Ensemble::Draw() const {
   for (const auto& l : components_) {
-    l.Draw();
+    l->Draw();
   }
   for (const auto& j : joints_) {
     j.j->Draw();
@@ -102,12 +175,12 @@ void Ensemble::Draw() const {
 void Ensemble::ConstructMassInertiaMatrixInverse() {
   M_inverse_ = MatrixXd::Zero(n_ * 2 * 3, n_ * 2 * 3);
   for (int i = 0; i < n_; ++i) {
-    const Body& b = components_.at(i);
+    const auto b = components_.at(i);
     M_inverse_.block<3, 3>(i * 2 * 3, i * 2 * 3) =
-        1.0 / b.m() * Matrix3d::Identity();
+        1.0 / b->m() * Matrix3d::Identity();
     // TODO: think through I_b vs I_g here.
     M_inverse_.block<3, 3>((i * 2 + 1) * 3, (i * 2 + 1) * 3) =
-        b.I_g().inverse();
+        b->I_g().inverse();
   }
   // LOG(INFO) << "M^-1 = \n" << M_inverse_;
 }
@@ -115,16 +188,20 @@ void Ensemble::ConstructMassInertiaMatrixInverse() {
 void Ensemble::InitializeExternalForceTorqueVector() {
   external_force_torque_ = VectorXd::Zero(n_ * 6);
   for (int i = 0; i < n_; ++i) {
-    const Body& b = components_.at(i);
-    external_force_torque_.segment<3>(i * 2 * 3) = b.m() * kGravity;
+    const auto b = components_.at(i);
+    external_force_torque_.segment<3>(i * 2 * 3) = b->m() * kGravity;
     external_force_torque_.segment<3>((i * 2 + 1) * 3) =
-        -1 * CrossMat(b.w_g()) * b.I_g() * b.w_g();  // TODO: -1?
+        -1 * CrossMat(b->w_g()) * b->I_g() * b->w_g();  // TODO: -1?
   }
   // LOG(INFO) << "f_e = \n" << external_force_torque_;
 }
 
 void Ensemble::Step(double dt, Integrator g) {
+  // Survey current state
   VectorXd v = GetCurrentVelocities();
+  UpdateContacts();
+
+  // Time step
   if (g == Integrator::EXPLICIT_EULER) {
     StepVelocities_ExplicitEuler(dt, v);
     StepPositions_ExplicitEuler(dt, v);
@@ -142,8 +219,8 @@ void Ensemble::Step(double dt, Integrator g) {
 VectorXd Ensemble::GetCurrentVelocities() {
   VectorXd v = VectorXd::Zero(n_ * 6);
   for (int i = 0; i < n_; ++i) {
-    v.segment<3>(i * 2 * 3) = components_.at(i).v();
-    v.segment<3>((i * 2 + 1) * 3) = components_.at(i).w_g();
+    v.segment<3>(i * 2 * 3) = components_.at(i)->v();
+    v.segment<3>((i * 2 + 1) * 3) = components_.at(i)->w_g();
   }
   // LOG(INFO) << "v = \n" << v;
   return v;
@@ -151,39 +228,76 @@ VectorXd Ensemble::GetCurrentVelocities() {
 
 void Ensemble::UpdateComponentsVelocities(const Eigen::VectorXd& v) {
   for (int i = 0; i < n_; ++i) {
-    components_.at(i).SetV(v.segment<3>(i * 2 * 3));
-    components_.at(i).SetW_GlobalFrame(v.segment<3>((i * 2 + 1) * 3));
+    components_.at(i)->SetV(v.segment<3>(i * 2 * 3));
+    components_.at(i)->SetW_GlobalFrame(v.segment<3>((i * 2 + 1) * 3));
   }
 }
 
-VectorXd Ensemble::StepVelocities_ExplicitEuler(double dt, const VectorXd& v) {
-  VectorXd v_dot;
+void Ensemble::UpdateContacts() {
+  contacts_.clear();
+  // Detect collision with ground
+  for (int i = 0; i < components_.size(); ++i) {
+    std::shared_ptr<Body> b = components_.at(i);
+    std::vector<ContactGeometry> cgs;
+    CollideBoxAndGround(b->p(), b->R(), b->GetSideLengths(), &cgs);
+    for (auto cg : cgs) {
+      // TODO: okay to use raw pointer b.get()? would it ever become dangling?
+      Contact c(b.get(), cg);
+      ContactingBodies cb(c, i);
+      contacts_.push_back(cb);
+    }
+  }
+
+  // Detect collision with other bodies
+  for (int i = 0; i < components_.size(); ++i) {
+    for (int j = i + 1; j < components_.size(); ++j) {
+      std::shared_ptr<Body> b0 = components_.at(i);
+      std::shared_ptr<Body> b1 = components_.at(j);
+      CollisionInfo ci;
+      std::vector<ContactGeometry> cgs;
+      CollideBoxes(b0->p(), b0->R(), b0->GetSideLengths(), b1->p(), b1->R(),
+                   b1->GetSideLengths(), &ci, &cgs);
+      for (auto cg : cgs) {
+        Contact c(b0.get(), b1.get(), cg, ci);
+        // TODO: okay to use raw pointer b.get()? would it ever become dangling?
+        ContactingBodies cb(c, i, j);
+        contacts_.push_back(cb);
+      }
+    }
+  }
+}
+
+VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const {
+  VectorXd v_dot = VectorXd::Zero(6 * n_);
+  const MatrixXd JMJt = J * M_inverse_ * J.transpose();
   if (joints_.empty() && contacts_.empty()) {
     v_dot = M_inverse_ * external_force_torque_;
-  } else if (contacts_.empty()) {
-    MatrixXd J = ComputeJ();
-    MatrixXd JdotV = ComputeJDotV();
-    MatrixXd JMJt = J * M_inverse_ * J.transpose();
-    MatrixXd rhs = J * M_inverse_ * external_force_torque_ + JdotV;
-    VectorXd lambda = JMJt.ldlt().solve(rhs);
-    v_dot = M_inverse_ * external_force_torque_ -
-            M_inverse_ * J.transpose() * lambda;
   } else if (joints_.empty()) {
-    MatrixXd J = ComputeJ();
-    MatrixXd JdotV = ComputeJDotV();
-    MatrixXd JMJt = J * M_inverse_ * J.transpose();
-    MatrixXd rhs = J * M_inverse_ * external_force_torque_ + JdotV;
     // JMJt * lambda >= rhs = rhs + w, lambda >= 0, w >= 0
     VectorXd lambda(JMJt.rows());
     VectorXd weights(JMJt.rows());
-    Lcp::MurtyPrinciplePivot(JMJt, rhs, lambda, weights);
+    CHECK(Lcp::MurtyPrinciplePivot(JMJt, rhs, lambda, weights));
+    v_dot = M_inverse_ * (external_force_torque_ + J.transpose() * lambda);
+    // TODO: why don't we care about: J * v_dot = JdotV + weights;
+  } else if (contacts_.empty()) {
+    const VectorXd lambda = JMJt.ldlt().solve(rhs);
+    v_dot = M_inverse_ * (external_force_torque_ + J.transpose() * lambda);
+    // TODO: invariance check
+    // error = J * v_dot + JdotV; error.norm() < kAllowedNumericalError
   } else {
+    // TODO: joints + contacts, Schur's
     CHECK(false)
         << "Still need to implement when joints_ and contacts_ are both not "
            "empty.";
   }
-  // TODO: invariance check
-  // error = J * v_dot + J_dot * v, error.norm() < kAllowedNumericalError
+  return v_dot;
+}
+
+VectorXd Ensemble::StepVelocities_ExplicitEuler(double dt, const VectorXd& v) {
+  MatrixXd J = ComputeJ();
+  MatrixXd JdotV = ComputeJDotV();
+  VectorXd rhs = -J * M_inverse_ * external_force_torque_ - JdotV;
+  VectorXd v_dot = ComputeVDot(J, rhs);
   VectorXd v_new = v + dt * v_dot;
   UpdateComponentsVelocities(v_new);
   return v_new;
@@ -191,38 +305,22 @@ VectorXd Ensemble::StepVelocities_ExplicitEuler(double dt, const VectorXd& v) {
 
 void Ensemble::StepPositions_ExplicitEuler(double dt, const VectorXd& v) {
   for (int i = 0; i < n_; ++i) {
-    Vector3d p_new = components_.at(i).p() + dt * v.segment<3>(i * 2 * 3);
-    components_.at(i).SetP(p_new);
+    Vector3d p_new = components_.at(i)->p() + dt * v.segment<3>(i * 2 * 3);
+    components_.at(i)->SetP(p_new);
     Matrix3d R_new = WtoQ(v.segment<3>((i * 2 + 1) * 3), dt).matrix() *
-                     components_.at(i).R();
-    components_.at(i).SetR(R_new);
+                     components_.at(i)->R();
+    components_.at(i)->SetR(R_new);
   }
 }
-
-VectorXd Ensemble::StepVelocities_ImplicitMidpoint(double dt, const VectorXd& v,
-                                                   double alpha, double beta) {
-  return Vector3d::Zero();
-}
-
-void Ensemble::StepPositions_ImplicitMidpoint(double dt, const VectorXd& v,
-                                              const VectorXd& v_new,
-                                              double alpha, double beta) {}
 
 VectorXd Ensemble::StepVelocities_ODE(double dt, const VectorXd& v,
                                       double error_reduction_param) {
-  VectorXd v_new;
-  if (joints_.empty()) {
-    v_new = v + dt * M_inverse_ * external_force_torque_;
-  } else {
-    MatrixXd J = ComputeJ();
-    MatrixXd JMJt = J * M_inverse_ * J.transpose();
-    VectorXd joint_error = ComputeJointError();
-    MatrixXd rhs = -error_reduction_param / dt / dt * joint_error -
-                   J * (v / dt + M_inverse_ * external_force_torque_);
-    MatrixXd lambda = JMJt.ldlt().solve(rhs);
-    v_new =
-        v + dt * M_inverse_ * (external_force_torque_ + J.transpose() * lambda);
-  }
+  MatrixXd J = ComputeJ();
+  VectorXd joint_error = ComputePositionConstraintError();
+  VectorXd rhs = -error_reduction_param / dt / dt * joint_error -
+                 J * (v / dt + M_inverse_ * external_force_torque_);
+  VectorXd v_dot = ComputeVDot(J, rhs);
+  VectorXd v_new = v + dt * v_dot;
   UpdateComponentsVelocities(v_new);
   return v_new;
 }
@@ -232,16 +330,25 @@ void Ensemble::StepPositions_ODE(double dt, const VectorXd& v,
   for (int i = 0; i < n_; ++i) {
     Vector3d v_mid =
         (v.segment<3>(i * 2 * 3) + v_new.segment<3>(i * 2 * 3)) / 2.0;
-    Vector3d p_new = components_.at(i).p() + dt * v_mid;
-    components_.at(i).SetP(p_new);
+    Vector3d p_new = components_.at(i)->p() + dt * v_mid;
+    components_.at(i)->SetP(p_new);
 
     Vector3d w_mid =
         (v.segment<3>((i * 2 + 1) * 3) + v_new.segment<3>((i * 2 + 1) * 3)) /
         2.0;
-    Matrix3d R_new = WtoQ(w_mid, dt).matrix() * components_.at(i).R();
-    components_.at(i).SetR(R_new);
+    Matrix3d R_new = WtoQ(w_mid, dt).matrix() * components_.at(i)->R();
+    components_.at(i)->SetR(R_new);
   }
 }
+
+VectorXd Ensemble::StepVelocities_ImplicitMidpoint(double dt, const VectorXd& v,
+                                                   double alpha, double beta) {
+  return VectorXd::Zero(6 * n_);
+}
+
+void Ensemble::StepPositions_ImplicitMidpoint(double dt, const VectorXd& v,
+                                              const VectorXd& v_new,
+                                              double alpha, double beta) {}
 
 void Ensemble::StepPositionRelaxation(double dt, double step_scale) {
   VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
@@ -257,7 +364,7 @@ void Ensemble::StepPostStabilization(double dt, double step_scale) {
 
 VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) {
   MatrixXd J = ComputeJ();
-  VectorXd err = ComputeJointError();
+  VectorXd err = ComputePositionConstraintError();
   CHECK(J.rows() == err.rows()) << "(J.rows() = " << J.rows()
                                 << ") != (err.rows() = " << err.rows() << ")";
   VectorXd velocity_correction =
@@ -286,8 +393,7 @@ void Chain::InitLinks(const Vector3d& anchor_position) {
   for (int i = 0; i < n_; ++i) {
     Vector3d p{sqrt(3.0) * 0.3 * i, 0, 0};
     p = p + anchor_position;
-    Body b(p, v, R, w);
-    components_.push_back(b);
+    components_.push_back(std::shared_ptr<Body>(new Body(p, v, R, w)));
   }
 }
 
@@ -295,19 +401,21 @@ void Chain::InitJoints() {
   Vector3d c1{0.15, -0.15, 0.15};
   Vector3d c2{-0.15, 0.15, -0.15};
   for (int i = 0; i < n_ - 1; ++i) {
-    joints_.push_back(
-        JointBodies(std::shared_ptr<Joint>(new BallAndSocketJoint(
-                        components_.at(i), c1, components_.at(i + 1), c2)),
-                    i, i + 1));
+    // TODO: should joints use plain pointer or shared_ptr?
+    joints_.push_back(JointBodies(
+        std::shared_ptr<Joint>(new BallAndSocketJoint(
+            components_.at(i).get(), c1, components_.at(i + 1).get(), c2)),
+        i, i + 1));
   }
 }
 
 void Chain::SetAnchor() {
-  Vector3d anchor_position = components_.at(0).p();
-  joints_.push_back(
-      JointBodies(std::shared_ptr<Joint>(new BallAndSocketJoint(
-                      components_.at(0), Vector3d::Zero(), anchor_position)),
-                  0));
+  Vector3d anchor_position = components_.at(0)->p();
+  // TODO: should joints use plain pointer or shared_ptr?
+  joints_.push_back(JointBodies(
+      std::shared_ptr<Joint>(new BallAndSocketJoint(
+          components_.at(0).get(), Vector3d::Zero(), anchor_position)),
+      0));
 }
 
 bool Chain::CheckErrorDims(VectorXd error) const {
@@ -317,16 +425,10 @@ bool Chain::CheckErrorDims(VectorXd error) const {
   return error.rows() == 3 * joints_.size() && error.cols() == 1;
 }
 
-bool Chain::CheckJDims(MatrixXd j) const {
-  return j.rows() == 3 * joints_.size() && j.cols() == 6 * n_;
-}
-
 Cairn::Cairn(int num_rocks, const std::array<double, 2>& x_bound,
              const std::array<double, 2>& y_bound,
              const std::array<double, 2>& z_bound) {
   n_ = num_rocks;
-  const double max_v = 5;
-  const double max_w = 15;
   Vector3d p;
   Matrix3d R;
   Vector3d v;
@@ -334,12 +436,10 @@ Cairn::Cairn(int num_rocks, const std::array<double, 2>& x_bound,
   for (int i = 0; i < num_rocks; ++i) {
     p = RandomPosition(x_bound, y_bound, z_bound);
     R = RandomRotation();
-    v = RandomVelocity(max_v);
-    w = RandomAngularVelocity(max_w);
-    Body b(p, v, R, w);
-    components_.push_back(b);
+    v = RandomVelocity(max_init_v_);
+    w = RandomAngularVelocity(max_init_w_);
+    components_.push_back(std::shared_ptr<Body>(new Body(p, v, R, w)));
   }
 }
 
 bool Cairn::CheckErrorDims(VectorXd) const { return true; }
-bool Cairn::CheckJDims(MatrixXd) const { return true; }

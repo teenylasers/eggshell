@@ -3,9 +3,10 @@
 
 #include "Eigen/Dense"
 
-// State of a rigid body
+// Base class for a rigid body
 class Body {
  public:
+  virtual ~Body() = default;
   Body()
       : p_(Eigen::Vector3d::Zero()),
         v_(Eigen::Vector3d::Zero()),
@@ -49,6 +50,9 @@ class Body {
   const Eigen::Matrix3d& I_b() const { return I_; };
   const Eigen::Matrix3d I_g() const { return R() * I_ * R().transpose(); };
 
+  // TODO: implement different types of Bodies
+  // enum struct BodyType { Box = 0 };
+
   void SetP(const Eigen::Vector3d& p) { p_ = p; };
   void SetV(const Eigen::Vector3d& v) { v_ = v; };
   void SetM(double m) { m_ = m; };
@@ -63,7 +67,9 @@ class Body {
 
   double GetRotationalKE() const;
 
+  // TODO: implement different types of Bodies
   void Draw() const;
+  const Eigen::Vector3d GetSideLengths() const { return side_lengths_; };
 
  private:
   Eigen::Vector3d p_;  // position p of center of mass in global frame
@@ -73,8 +79,9 @@ class Body {
   Eigen::Vector3d w_;  // angular velocity w (omega) in global frame
   Eigen::Matrix3d I_;  // inertia tensor I in body frame.
 
-  // TODO: default Body to a box with sides_ 0.3 for now
-  Eigen::Vector3d sides_{0.3, 0.3, 0.3};
+  // TODO: move this to a subclass when there are different types of Bodies.
+  // TODO: make side lengths settable, and constructible
+  const Eigen::Vector3d side_lengths_ = {0.3, 0.3, 0.3};
 };
 
 #endif

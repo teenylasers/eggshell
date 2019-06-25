@@ -42,6 +42,7 @@ clean:
 # Application files (including single-file libraries).
 
 OBJ = body.o \
+      contact.o \
       eggshell_view.o \
       ensembles.o \
       joints.o \

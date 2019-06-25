@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <string>
 
 #include "constants.h"
 #include "error.h"
@@ -20,9 +21,9 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
   VectorXd::Index offending_index;
 
   // Check x(S) are all >0.
-  //  const VectorXd x_s Lcp::SelectSubvector(x, S);
+  // const VectorXd x_s Lcp::SelectSubvector(x, S);
   const ArrayXd x_s = x.array() * S.cast<double>();
-  if (x_s.minCoeff(&offending_index) <= 0) {
+  if (x_s.minCoeff(&offending_index) < 0) {
     if (S(offending_index) == 1) {
       S(offending_index) = 0;
       return false;
@@ -31,7 +32,7 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 
   // Check w(~S) are all >0.
   const ArrayXd w_sc = w.array() * LogicalNot(S).cast<double>();
-  if (w_sc.minCoeff(&offending_index) <= 0) {
+  if (w_sc.minCoeff(&offending_index) < 0) {
     if (S(offending_index) == 0) {
       S(offending_index) = 1;
       return false;
@@ -40,8 +41,14 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 
   const VectorXd lhs = A * x;
   const VectorXd rhs = b + w;
-  CHECK((lhs - rhs).norm() < err);
-  // std::cout << "Found solution does not satisfy equation Ax = b+w\n";
+  if ((lhs - rhs).norm() > err) {
+    std::cout << "Found solution does not satisfy equation Ax = b+w\n";
+    std::cout << "lhs = " << lhs << "\n";
+    std::cout << "rhs = " << rhs << "\n";
+    std::cout << "lhs - rhs = " << lhs - rhs << "\n";
+    std::cout << (lhs - rhs).norm();
+    CHECK(false);
+  }
   return true;
 }
 
@@ -83,7 +90,7 @@ bool Lcp::MurtyPrinciplePivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   }
 
   if (iter >= max_iterations) {
-    printf("ERROR: iteration count exceeded max_iterations.\n");
+    //printf("ERROR: iteration count exceeded max_iterations.\n");
     std::cout << "ERROR: iteration count exceeded max_iterations "
               << max_iterations << ".\n";
     return false;
@@ -91,6 +98,10 @@ bool Lcp::MurtyPrinciplePivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
     std::cout << "ERROR: check solution returned false, error in algorithm.\n";
     return false;
   } else {
+    // std::cout << "\nLCP Murty ... A = \n" << A << "\n";
+    // std::cout << "\nLCP Murty ... b = \n " << b << "\n";
+    // std::cout << "\nLCP Murty ... x = \n" << x << "\n";
+    // std::cout << "\nLCP Murty ... w = \n " << w << "\n";
     return true;
   }
 }
@@ -336,21 +347,72 @@ TEST_FUNCTION(CheckMurtySolution) {
   CHECK(!CheckMurtySolution(A, b, x, w, S, 1e-4));
 }
 
-TEST_FUNCTION(MurtyPrinciplePivot) {
+TEST_FUNCTION(MurtyPrinciplePivot_simple) {
+  // Simple 5x5 tests
+  MatrixXd A(5, 5);
+  VectorXd b(5), x_exp(5), w_exp(5), x(5), w(5);
+  A << 2.1104, 1.4090, 1.5055, 1.3060, 1.1413, 1.4090, 1.9846, 1.7126, 1.0858,
+      1.9358, 1.5055, 1.7126, 2.1673, 1.3226, 1.5765, 1.3060, 1.0858, 1.3226,
+      1.2704, 0.8927, 1.1413, 1.9358, 1.5765, 0.8927, 2.1211;
+  b << 0.6691, 0.1904, 0.3689, 0.4607, 0.9816;
+  x_exp << 0.0942, 0, 0, 0, 0.4121;
+  w_exp << 0, 0.7401, 0.4226, 0.0302, 0;
+  std::cout << "Simple Murty Principle Pivot 5x5 - test 1 ...\n";
+  CHECK(Lcp::MurtyPrinciplePivot(A, b, x, w));
+  if ((x - x_exp).norm() <= 5e-4) {
+    std::cout << "x = " << x << "\n";
+    std::cout << "x_exp = " << x_exp << "\n";
+    CHECK((x - x_exp).norm() <= 5e-4);
+  }
+  if ((w - w_exp).norm() < 5e-4) {
+    std::cout << "w = " << w << "\n";
+    std::cout << "w_exp = " << w_exp << "\n";
+    CHECK((w - w_exp).norm() < 5e-4);
+  }
+  std::cout << "... passed\n";
+  std::cout << "Simple Murty Principle Pivot 5x5 - test 2 ...\n";
+  A << 2.7345, 1.8859, 2.0785, 1.9442, 1.9567, 1.8859, 2.2340, 2.0461, 2.3164,
+      2.0875, 2.0785, 2.0461, 2.7591, 2.4606, 1.9473, 1.9442, 2.3164, 2.4606,
+      2.5848, 2.2768, 1.9567, 2.0875, 1.9473, 2.2768, 2.4853;
+  b << 0.7577, 0.7431, 0.3922, 0.6555, 0.1712;
+  x << 0.1141, 0.2363, 0, 0, 0;
+  w << 0, 0, 0.3285, 0.1138, 0.5454;
+  CHECK(Lcp::MurtyPrinciplePivot(A, b, x, w));
+  CHECK(Lcp::MurtyPrinciplePivot(A, b, x, w));
+  if ((x - x_exp).norm() <= 5e-4) {
+    std::cout << "x = " << x << "\n";
+    std::cout << "x_exp = " << x_exp << "\n";
+    CHECK((x - x_exp).norm() <= 5e-4);
+  }
+  if ((w - w_exp).norm() < 5e-4) {
+    std::cout << "w = " << w << "\n";
+    std::cout << "w_exp = " << w_exp << "\n";
+    CHECK((w - w_exp).norm() < 5e-4);
+  }
+  std::cout << "... passed\n";
+}
+
+TEST_FUNCTION(MurtyPrinciplePivot_batch) {
+  std::cout << "Batch test of larger matrix sizes.\n";
   constexpr int num_tests = 100;
-  constexpr int matrix_size = 500;
+  constexpr int matrix_size = 50;
   VectorXd x(matrix_size), w(matrix_size);
-  int success_count = 0;
+  VectorXd zeros = VectorXd::Zero(matrix_size);
+  int success_count = 0, trivial_count = 0;
   for (int i = 0; i < num_tests; ++i) {
     const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
     const VectorXd b = VectorXd::Random(matrix_size);
     if (Lcp::MurtyPrinciplePivot(A, b, x, w)) {
       ++success_count;
+      if (x == zeros) {
+        ++trivial_count;
+      }
     }
   }
   std::cout << "Murty Principle Pivot: matrix size " << matrix_size << "x"
-            << matrix_size << ", " << success_count << " of " << num_tests
-            << " tests passed.\n";
+            << matrix_size << ", " << trivial_count
+            << " had trivial solutions, " << success_count << " of "
+            << num_tests << " tests passed.\n";
   CHECK(success_count == num_tests);
 }
 

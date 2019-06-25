@@ -25,11 +25,11 @@ static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 
 // HangingChain
-static Chain ch0 = Chain(10, Vector3d(0, 0, 6));
-static Chain ch1 = Chain(10, Vector3d(0, 0, 6));
+static Chain ch0 = Chain(10, Vector3d(0, 0, 8));
+static Chain ch1 = Chain(10, Vector3d(0, 0, 8));
 
 // Cairn
-static Cairn cairn(10, {-5, 5}, {-5, 5}, {15, 20});
+static Cairn cairn(20, {-3, 3}, {-3, 3}, {1, 2});
 
 void SimulationInitialization() {
   SimulationInitialization_HangingChain();
@@ -65,7 +65,7 @@ bool SimulationStep() {
   angle1 += 0.01;
   angle2 += 0.002;
 
-  SimulationStep_HangingChain();
+  //SimulationStep_HangingChain();
   SimulationStep_Cairn();
 
   return true;
@@ -76,7 +76,7 @@ void SimulationInitialization_Cairn() {
 
 bool SimulationStep_Cairn() {
   cairn.Draw();
-  cairn.Step(kSimTimeStep);
+  cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
   return true;
 }
 
@@ -90,7 +90,7 @@ bool SimulationStep_HangingChain() {
   ch0.Step(kSimTimeStep);
 
   // Post-stabilization
-  Eigen::VectorXd err = ch0.ComputeJointError();
+  Eigen::VectorXd err = ch0.ComputePositionConstraintError();
   double err_sq = (err * err.transpose()).sum();
   // LOG(INFO) << "Pre-stabilization error sum : " << err_sq;
   int max_stabilization_steps = 500;
@@ -99,7 +99,7 @@ bool SimulationStep_HangingChain() {
          step_counter < max_stabilization_steps) {
     // ch0.StepPositionRelaxation(kSimTimeStep*1000);
     ch0.StepPostStabilization(kSimTimeStep * 100);
-    err = ch0.ComputeJointError();
+    err = ch0.ComputePositionConstraintError();
     err_sq = (err * err.transpose()).sum();
     ++step_counter;
   }
@@ -108,13 +108,14 @@ bool SimulationStep_HangingChain() {
 
   ch1.Draw();
   ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-  err = ch1.ComputeJointError();
+  err = ch1.ComputePositionConstraintError();
   err_sq = (err * err.transpose()).sum();
   // LOG(INFO) << "ODE step error_sq sum " << err_sq;
 
   return true;
 }
 
+/*
 void SimulationInitialization_BoxTests() {
   srand(time(0));
   const Matrix3d random_R = RandomRotation();
@@ -173,6 +174,7 @@ bool SimulationStep_BoxTests() {
 
   return true;
 }
+*/
 
 Matrix3d ExplicitEulerRotationMatrix_Addition(const Matrix3d& R,
                                               const Vector3d& w0, double dt) {
