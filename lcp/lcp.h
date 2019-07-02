@@ -14,7 +14,6 @@ bool MurtyPrinciplePivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
 
 // TODO: combine matrix traverse for select and update
 // TODO: move this function to somewhere that extends Eigen
-// TODO: test results against Matlab.
 // TODO: make ind an array of boolean instead of int
 // TODO: combine for matrices and vectors.
 // TODO: return type should work for all element types: d, f, i

@@ -16,14 +16,19 @@ ArrayXi LogicalNot(const ArrayXi& a) { return (a - 1).abs(); }
 // Check whether {x, w, S} form a solution to the LCP problem. If not, update
 // one offending element in S.
 bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
-                        const VectorXd& w, ArrayXi& S,
-                        const double err = kAllowNumericalError) {
+                        const VectorXd& w, ArrayXi& S, const double err = 0) {
+  // Option to allow for numerical error. When checking x(S) < zero and
+  // w(S_complement) < zero, zero can be 0 or a small negative number.
+  const double zero = std::abs(err) > 0 ? std::abs(err) : 0;
+
   VectorXd::Index offending_index;
+
+  // TODO: why do I need S here? Since x(!S) and w(S) are all 0.
 
   // Check x(S) are all >0.
   // const VectorXd x_s Lcp::SelectSubvector(x, S);
   const ArrayXd x_s = x.array() * S.cast<double>();
-  if (x_s.minCoeff(&offending_index) < 0) {
+  if (x_s.minCoeff(&offending_index) < -1 * zero) {
     if (S(offending_index) == 1) {
       S(offending_index) = 0;
       return false;
@@ -32,7 +37,7 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 
   // Check w(~S) are all >0.
   const ArrayXd w_sc = w.array() * LogicalNot(S).cast<double>();
-  if (w_sc.minCoeff(&offending_index) < 0) {
+  if (w_sc.minCoeff(&offending_index) < -1 * zero) {
     if (S(offending_index) == 0) {
       S(offending_index) = 1;
       return false;
@@ -41,13 +46,47 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 
   const VectorXd lhs = A * x;
   const VectorXd rhs = b + w;
-  if ((lhs - rhs).norm() > err) {
+  if ((lhs - rhs).norm() > kAllowNumericalError) {
     std::cout << "Found solution does not satisfy equation Ax = b+w\n";
     std::cout << "lhs = " << lhs << "\n";
     std::cout << "rhs = " << rhs << "\n";
     std::cout << "lhs - rhs = " << lhs - rhs << "\n";
     std::cout << (lhs - rhs).norm();
     CHECK(false);
+  }
+  return true;
+}
+
+// Compute the "goodness" of {x, w}, even if it is not strictly a solution.
+// Define goodness here by the magnitude of all negative numbers in x and w.
+double ComputeSolutionGoodness(const VectorXd& x, const VectorXd& w) {
+  const double x_goodness = (x.array() > 0).select(0, x).sum();
+  const double w_goodness = (w.array() > 0).select(0, w).sum();
+  CHECK(x_goodness <= 0);
+  CHECK(w_goodness <= 0);
+  return x_goodness + w_goodness;
+}
+
+// Compare LCP solutions, return true is {x0, w0} is better than {x1, w1}, false
+// if {x1, w1} is better than {x0, w0}.
+bool CompareSolutions(const VectorXd& x0, const VectorXd& w0,
+                      const VectorXd& x1, const VectorXd& w1) {
+  const double sol0 = ComputeSolutionGoodness(x0, w0);
+  const double sol1 = ComputeSolutionGoodness(x1, w1);
+  return sol0 > sol1;
+}
+
+// Compare new {x, w} with the previous best solution {prev_x, prev_w}, update
+// with the new solution if necessary. Return false if {new_x, new_w} ==
+// {prev_x, prev_w}, else return true.
+bool UpdatePreviousBestSolution(const VectorXd& new_x, const VectorXd& new_w,
+                                VectorXd& prev_x, VectorXd& prev_w) {
+  if (new_x == prev_x && new_w == prev_w) {
+    return false;
+  }
+  if (CompareSolutions(new_x, new_w, prev_x, prev_w)) {
+    prev_x = new_x;
+    prev_w = new_w;
   }
   return true;
 }
@@ -62,6 +101,7 @@ bool Lcp::MurtyPrinciplePivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   const int dim = b.rows();
   const int max_iterations = pow(2, dim) > 1000 ? 1000 : pow(2, dim);
   int iter = 0;
+  bool cycle = false;
 
   // TODO: start from a different init S
   // TODO: make S a boolean array?
@@ -70,10 +110,15 @@ bool Lcp::MurtyPrinciplePivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   x = VectorXd::Zero(dim);
   w = -b;
 
+  // Remeber the last best x and w, {prev_x, prev_w}
+  VectorXd prev_x = x;
+  VectorXd prev_w = w;
+
+  // Compute solution
   while (iter < max_iterations) {
-    // If we are not at a solution, compute a new candidate solution after
-    // CheckMurtySolution() has updated S.
     if (!CheckMurtySolution(A, b, x, w, S)) {
+      // If we are not at a solution, compute a new candidate solution after
+      // CheckMurtySolution() has updated S.
       const VectorXd new_xs = Lcp::SelectSubmatrix(A, S, S).ldlt().solve(
           Lcp::SelectSubvector(b, S));
       Lcp::UpdateSubvector(x, S, new_xs);         // Update x(S)
@@ -83,25 +128,42 @@ bool Lcp::MurtyPrinciplePivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
                                Lcp::SelectSubvector(b, LogicalNot(S));
       Lcp::UpdateSubvector(w, LogicalNot(S), new_wsc);
       Lcp::UpdateSubvector(w, S, 0);
+      // Check whether this {x, w} is better than {prev_x, prev_w}.
+      if (!UpdatePreviousBestSolution(x, w, prev_x, prev_w)) {
+        cycle = true;
+        std::cout << "WARNING: Detected cycle in LCP solver, break. iter = "
+                  << iter << ".\n";
+        break;
+      }
     } else {
       break;
     }
     ++iter;
   }
-
   if (iter >= max_iterations) {
-    //printf("ERROR: iteration count exceeded max_iterations.\n");
-    std::cout << "ERROR: iteration count exceeded max_iterations "
-              << max_iterations << ".\n";
-    return false;
+    // std::cout << "DEBUG: \nA = \n" << A << "\nb = \n" << b;
+    // std::cout << "\nCurrent x = \n" << x << "\nCurrent w = \n" << w << "\n";
+    std::cout << "WARNING: iteration count exceeded max_iterations "
+              << max_iterations << ". Matrix size = " << dim << ".\n";
+  }
+
+  // Check solution
+  if (iter >= max_iterations || cycle) {
+    x = prev_x;
+    w = prev_w;
+    if (!CheckMurtySolution(A, b, x, w, S, kAllowNumericalError)) {
+      std::cout << "ERROR: iteration count = " << iter
+                << ", max_iterations = " << max_iterations
+                << ", cycle = " << cycle
+                << ". Did not reach a sensible solution.\n";
+      return false;
+    } else {
+      return true;
+    }
   } else if (!CheckMurtySolution(A, b, x, w, S)) {
     std::cout << "ERROR: check solution returned false, error in algorithm.\n";
     return false;
   } else {
-    // std::cout << "\nLCP Murty ... A = \n" << A << "\n";
-    // std::cout << "\nLCP Murty ... b = \n " << b << "\n";
-    // std::cout << "\nLCP Murty ... x = \n" << x << "\n";
-    // std::cout << "\nLCP Murty ... w = \n " << w << "\n";
     return true;
   }
 }
