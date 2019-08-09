@@ -1,8 +1,18 @@
 #include "util.h"
 
+#include <iostream>
+
 #include "constants.h"
+#include "error.h"
 
 using namespace Eigen;
+
+// TODO: put all this in a namespace or no?
+
+bool IsOrthonormal(const Matrix3d& R) {
+  auto m = R.transpose() * R;
+  return m.isIdentity(kAllowNumericalError);
+}
 
 Matrix3d CrossMat(const Vector3d& a) {
   Matrix3d m;
@@ -78,3 +88,127 @@ Quaterniond WtoQ(const Vector3d& w, double dt) {
   Quaterniond q(aa);
   return q;
 }
+
+Matrix3d AlignVectors(const Vector3d& a, const Vector3d& b) {
+  Quaterniond q = Quaterniond::FromTwoVectors(a, b);
+  Matrix3d R = q.toRotationMatrix();
+  return R;
+
+  // Method 2, equivalent to above.
+  // 1. a x b to find the axis of rotation
+  // 2. a . b to find rotation angle
+  // 3. build angle-axis or quarternion
+  // 4. transform into a rotation matrix
+  // Vector3d rotation_axis = a.cross(b);
+  // rotation_axis.normalize();
+  // double rotation_angle = acos(a.dot(b) / a.norm() / b.norm());
+  // AngleAxisd aa(rotation_angle, rotation_axis);
+  // Matrix3d R2 = aa.toRotationMatrix();
+  // std::cout << "\nQuaterniond::FromTwoVectors R = \n" << R1;
+  // std::cout << "\nRotation axis = \n" << rotation_axis;
+  // std::cout << "\nRotation angle = \n" << rotation_angle;
+  // std::cout << "\nAngleAxisd::toRorationMatrix R = \n" << R2;
+  // std::cout << "\n(R1 - R2).norm() = " << (R1 - R2).norm() << "\n";
+  // CHECK((R1 - R2).norm() < kAllowNumericalError);
+}
+
+//***************************************************************************
+// Testing.
+
+#include <stdio.h>
+
+#include "testing.h"
+
+// TODO: why anonymous namespace here?
+namespace {
+constexpr bool kVerbose = false;
+constexpr int kNumTestInsts = 10;  // num instances to run in each test
+
+TEST_FUNCTION(CrossMat) {
+  for (int i = 0; i < kNumTestInsts; i++) {
+    Vector3d v = Vector3d::Random();
+    Vector3d w = Vector3d::Random();
+    Matrix3d vbar = CrossMat(v);
+    if (kVerbose) {
+      std::cout << "--- Test " << i << " ---";
+      std::cout << "v: \n" << v;
+      std::cout << "w: \n" << w;
+      std::cout << "vbar: \n" << vbar;
+      std::cout << "vbar w: \n" << vbar * w;
+      std::cout << "v x w: \n" << v.cross(w);
+    }
+    CHECK((vbar * w - v.cross(w)).isZero(kAllowNumericalError));
+  }
+}
+
+TEST_FUNCTION(RandomRotationTest_DefaultOrthonormal) {
+  for (int i = 0; i < kNumTestInsts; i++) {
+    auto R = RandomRotation();
+    if (kVerbose) {
+      std::cout << "--- Test " << i << " ---";
+      std::cout << "random R: \n" << R;
+    }
+    CHECK(IsOrthonormal(R));
+  }
+}
+
+TEST_FUNCTION(RandomRotationTest_DefaultRandom) {
+  Matrix3d prev_R = Matrix3d::Zero();
+  for (int i = 0; i < kNumTestInsts; i++) {
+    auto R = RandomRotation();
+    if (kVerbose) {
+      std::cout << "\n--- Test " << i << " ---";
+      std::cout << "\nrandom R: \n" << R;
+    }
+    CHECK((prev_R - R).norm() >= kAllowNumericalError);
+    prev_R = R;
+  }
+}
+
+TEST_FUNCTION(RandomRotationTest_Quaternion) {
+  Matrix3d prev_R = Matrix3d::Zero();
+  for (int i = 0; i < kNumTestInsts; i++) {
+    auto R = RandomRotationViaQuaternion();
+    if (kVerbose) {
+      std::cout << "\n--- Test " << i << " ---";
+      std::cout << "\nrandom R: \n" << R;
+    }
+    CHECK(IsOrthonormal(R));
+    CHECK((prev_R - R).norm() >= kAllowNumericalError);
+    prev_R = R;
+  }
+}
+
+TEST_FUNCTION(RandomRotationTest_GramSchmidt) {
+  Matrix3d prev_R = Matrix3d::Zero();
+  for (int i = 0; i < kNumTestInsts; i++) {
+    auto R = RandomRotationViaGramSchmidt();
+    if (kVerbose) {
+      std::cout << "\n--- Test " << i << " ---";
+      std::cout << "\nrandom R: \n" << R;
+    }
+    CHECK(IsOrthonormal(R));
+    CHECK((prev_R - R).norm() >= kAllowNumericalError);
+    prev_R = R;
+  }
+}
+
+TEST_FUNCTION(AlignVectors) {
+  for (int i = 0; i < kNumTestInsts; i++) {
+    Vector3d a = Vector3d::Random();
+    Vector3d b = Vector3d::Random();
+    Matrix3d R = AlignVectors(a, b);
+    if (kVerbose) {
+      std::cout << "\n--- Test " << i << " ---";
+      std::cout << "\na = \n" << a;
+      std::cout << "\nb = \n" << b;
+      std::cout << "\nR = \n" << R;
+      std::cout << "\na.norm() = " << a.norm() << "\n";
+      std::cout << "\n(R*b).dot(a.normalized()) = "
+                << (R * b).dot(a.normalized()) << "\n";
+    }
+    CHECK(b.normalized().dot(R * a) - a.norm() < kAllowNumericalError);
+  }
+}
+
+}  // namespace

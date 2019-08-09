@@ -162,9 +162,20 @@ qt/ui_%.h: ../qt/%.ui
 $(APP): $(OBJ)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -lglog -o $(APP) $(OBJ) $(GUI_LIBS)
 
-# Include dependencies (only works from build directory).
--include *.d $(DIRS:build/%=%/*.d)
+#############################################################################
+# Files to run tests on
 
-# TODO: rid of googletest, use toolkit/testing.h instead
-unittest: util.o
-	$(CXX) $(CCFLAGS) -I$(EIGEN_DIR) $(LDFLAGS) -lgtest -lgflags -lglog ../unittest.cc -o unittest util.o
+TESTS = toolkit/testing.o \
+	toolkit/error.o \
+	util.o
+
+# TODO: fix
+#$(TESTS): CCFLAGS += -D__TOOLKIT_DEFINE_TESTING_MAIN__
+
+unittest: $(TESTS)
+	$(CXX) $(CCFLAGS) -I$(EIGEN_DIR) $(LDFLAGS) -o test $(TESTS)
+	./test
+	rm -rf ./test
+
+# Include dependencies (only works from build directory).
+#-include *.d $(DIRS:build/%=%/*.d)

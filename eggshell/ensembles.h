@@ -17,6 +17,7 @@ using Eigen::MatrixXd;
 using Eigen::Quaterniond;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
+typedef Eigen::Array<bool, Eigen::Dynamic, 1> ArrayXb;
 
 // Base class.
 class Ensemble {
@@ -25,7 +26,13 @@ class Ensemble {
 
   virtual void Init();
 
+  // Compute constraints Jacobian.
+  // When only joint constraints, can use ComputeJ() without C, x_lo, x_hi.
   virtual MatrixXd ComputeJ() const;
+  // For mixed constraints, C = constraint type, true for equality, false for
+  // inequality. For inequality constraints, {x_lo, x_hi} indicates lower and
+  // higher x bound in Ax = b+w.
+  virtual MatrixXd ComputeJ(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const;
   virtual VectorXd ComputePositionConstraintError() const;
 
   // JDot is a sparse matrix, computing JDot then JDot * v is doing a lot of
@@ -47,9 +54,13 @@ class Ensemble {
     OPEN_DYNAMICS_ENGINE,
     IMPLICIT_MIDPOINT
   };
-  virtual void Step(double dt, Integrator g = Integrator::EXPLICIT_EULER);
+  virtual void Step(double dt, Integrator g = Integrator::OPEN_DYNAMICS_ENGINE);
 
-  virtual void Draw() const;  // Render in EggshellView
+  // Position and/or velocity stablization
+  void Stablize(const int max_steps = 500);
+
+  // Render in EggshellView
+  virtual void Draw() const;
 
   // Post-stabilization: takes Ensemble's state after an integrator Step, apply
   // stabilization to bring the state closer to or back to the constraint
@@ -113,16 +124,29 @@ class Ensemble {
   // update contacts_
   void UpdateContacts();
 
+  // TODO: joint and contact constraints can be treated more or less the same
+  // way.
   // Compute J due to 1. joint constraints, 2. contact constraints
   MatrixXd ComputeJ_Joints() const;
-  MatrixXd ComputeJ_Contacts() const;
+  MatrixXd ComputeJ_Contacts(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const;
+  // TODO: Pass argument to capture inequality constraints to separately treat
+  // friction and non-penetrating contact. Is this the elegant thing to do?
+
+  // Check whether J is singular or rank-deficient. For now, return false if
+  // definitely singular and need to readdress the problem set-up.
+  bool CheckJ(const MatrixXd& J) const;
 
   // Compute JDotV due to 1. joint constraints, 2. contact constraints
   VectorXd ComputeJDotV_Joints() const;
   VectorXd ComputeJDotV_Contacts() const;
 
   // Compute v_dot for stepping velocity
+  // When there is only equality constraints, i.e. no contact constraints, used
+  // when Integrator::EXPLICIT_EULER.
   VectorXd ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const;
+  // For mixed equality and inequality constraints, general case.
+  VectorXd ComputeVDot(const MatrixXd& J, const VectorXd& rhs, const ArrayXb& C,
+                       const VectorXd& x_lo, const VectorXd& x_hi) const;
 
   // Various versions of time steppers. StepVelocities() and StepPosition()
   // decide which ones to use.

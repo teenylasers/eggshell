@@ -5,8 +5,10 @@
 
 #include "Eigen/Dense"
 
-// Generate the cross-product matrix for a vector a, so that a x b = a_bar
-// b.
+// Check whether columns of rotation matrix R are orthonormal
+bool IsOrthonormal(const Eigen::Matrix3d& R);
+
+// Generate the cross-product matrix for vector a, so that a x b = a_bar * b.
 Eigen::Matrix3d CrossMat(const Eigen::Vector3d& a);
 
 // Convert angular velocity w to equivalent quaternion
@@ -27,5 +29,9 @@ Eigen::Matrix3d RandomRotationViaQuaternion();
 Eigen::Matrix3d RandomRotationViaGramSchmidt();
 
 Eigen::Matrix3d GramSchmidt(const Eigen::Matrix3d& m);
+
+// Return the rotation matrix that aligns vector a to vector b
+Eigen::Matrix3d AlignVectors(const Eigen::Vector3d& a,
+                             const Eigen::Vector3d& b);
 
 #endif
