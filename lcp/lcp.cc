@@ -95,20 +95,23 @@ bool UpdatePreviousBestSolution(const VectorXd& new_x, const VectorXd& new_w,
 }  // namespace
 
 bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
-                              VectorXd& w) {
+                              VectorXd& w, const ArrayXb& init_S,
+                              int max_iterations) {
   // TODO: Check input arguments
   // TODO: Add support for problems with x_lo and x_hi
 
   // Dimension of the input Ax=b+w problem.
   const int dim = b.rows();
-  const int max_iterations = pow(2, dim) > 1000 ? 1000 : pow(2, dim);
+  max_iterations = pow(2, dim) > max_iterations ? max_iterations : pow(2, dim);
   int iter = 0;
   bool cycle = false;
 
-  // TODO: start from a different init S
-  // TODO: make S a boolean array?
-  // Initialize starting S, x, and w.
-  ArrayXb S = ArrayXb::Constant(dim, false);  // Start with S is empty.
+  // Initialize S, x, w
+  // Default S is empty if init_S is not provided.
+  ArrayXb S = ArrayXb::Constant(dim, false);
+  if (init_S.size() != 0) {
+    S << init_S;
+  }
   x = VectorXd::Zero(dim);
   w = -b;
 
@@ -137,7 +140,14 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
         cycle = true;
         std::cout << "WARNING: Detected cycle in LCP solver, break. iter = "
                   << iter << ".\n";
-        break;
+        // If cycle is detected and the result is not a solution, then jump to a
+        // new random init_S
+        if (!CheckMurtySolution(A, b, x, w, S, kAllowNumericalError)) {
+          const ArrayXb new_S = ArrayXb::Random(S.rows());
+          // max_iterations - iter, so that calling MurtyPrincipalPivot again
+          // doesn't reset max_iterations and risk infinite loop.
+          return MurtyPrincipalPivot(A, b, x, w, new_S, max_iterations - iter);
+        }
       }
     } else {
       break;
@@ -210,7 +220,12 @@ bool Lcp::MixedConstraintsSolver(const MatrixXd& A, const VectorXd& b,
       VectorXd::Constant(dim, std::numeric_limits<double>::infinity());
   UpdateSubvector(res_x, C, x_e);
   UpdateSubvector(res_x, !C, x_i);
-  CHECK(res_x.sum() < std::numeric_limits<double>::infinity());
+  if (res_x.sum() == std::numeric_limits<double>::infinity()) {
+    std::cout << C.transpose() << std::endl;
+    std::cout << !C.transpose() << std::endl;
+    std::cout << x_e.transpose() << std::endl;
+    std::cout << x_i.transpose() << std::endl;
+  }
   x << res_x;
 
   w = VectorXd::Zero(dim);
@@ -570,6 +585,9 @@ for (int i = 0; i < 10; i++) {
   a = Lcp::ArrayXb::Random(10);
   std::cout << "a = \n" << a.transpose() << std::endl;
 }
+a = Lcp::ArrayXb::Constant(0, false);
+std::cout << "a = " << a << std::endl;
+std::cout << "a.size() == 0: " << (a.size() != 0) << std::endl;
 }
 */
 
