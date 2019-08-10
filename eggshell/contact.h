@@ -19,8 +19,8 @@ class Contact {
 
   enum struct FrictionModel {
     NO_FRICTION,
-    INFINITE_W_CFM,
-    BOX_FRICTION,
+    INFINITE,
+    BOX,
     COULOMB_PYRAMID,
   };
 
@@ -29,7 +29,8 @@ class Contact {
   // TODO: should contact and joint all be part of a constraint base class?
   void ComputeJ(Eigen::MatrixXd& J_b0, Eigen::MatrixXd& J_b1,
                 Eigen::Array<bool, Eigen::Dynamic, 1>& constraint_type,
-                Eigen::VectorXd& constraint_lo, Eigen::VectorXd& constraint_hi) const;
+                Eigen::VectorXd& constraint_lo,
+                Eigen::VectorXd& constraint_hi) const;
   void ComputeJDot(Eigen::MatrixXd& Jdot_b0, Eigen::MatrixXd& Jdot_b1) const;
 
   void Draw() const;
@@ -42,7 +43,7 @@ class Contact {
   const ContactGeometry cg_;
   const CollisionInfo ci_;
 
-  const FrictionModel f_ = FrictionModel::INFINITE_W_CFM;
+  const FrictionModel f_ = FrictionModel::INFINITE;
 
   //==========================================================================
   // Different implementations of ComputeError, ComputeJ and ComputeJDot, varies
@@ -53,14 +54,13 @@ class Contact {
   void ComputeJDot_NoFriction(Eigen::MatrixXd& Jdot_b0,
                               Eigen::MatrixXd& Jdot_b1) const;
   // Infinite friction and add constraint force mixing
-  Eigen::VectorXd ComputeError_ConstraintForceMixing() const;
-  void ComputeJ_ConstraintForceMixing(Eigen::MatrixXd& J_b0,
-                                      Eigen::MatrixXd& J_b1,
-                                      Eigen::Array<bool, Eigen::Dynamic, 1>& C,
-                                      Eigen::VectorXd& x_lo,
-                                      Eigen::VectorXd& x_hi) const;
-  void ComputeJDot_ConstraintForceMixing(Eigen::MatrixXd& Jdot_b0,
-                                         Eigen::MatrixXd& Jdot_b1) const;
+  Eigen::VectorXd ComputeError_InfiniteFriction() const;
+  void ComputeJ_InfiniteFriction(Eigen::MatrixXd& J_b0, Eigen::MatrixXd& J_b1,
+                                 Eigen::Array<bool, Eigen::Dynamic, 1>& C,
+                                 Eigen::VectorXd& x_lo,
+                                 Eigen::VectorXd& x_hi) const;
+  void ComputeJDot_InfiniteFriction(Eigen::MatrixXd& Jdot_b0,
+                                    Eigen::MatrixXd& Jdot_b1) const;
   // Box friction with dynamic limits
   void ComputeJ_BoxFriction(Eigen::MatrixXd& J_b0, Eigen::MatrixXd& J_b1) const;
   void ComputeJDot_BoxFriction(Eigen::MatrixXd& Jdot_b0,
@@ -73,7 +73,7 @@ class Contact {
 
   //==========================================================================
   // Helper functions for error checking and experimentation
-  void CheckJ_ConstraintForceMixing() const;
+  void CheckJ_InfiniteFriction() const;
 };
 
 std::ostream& operator<<(std::ostream& out, const Contact& c);

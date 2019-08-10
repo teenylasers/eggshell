@@ -13,8 +13,8 @@ using Eigen::Quaterniond;
 using Eigen::Vector3d;
 using Eigen::Vector3f;
 
-static double angle1 = 0.5;
-static double angle2 = 0;
+// static double angle1 = 0.5;
+// static double angle2 = 0;
 
 // BoxTest
 static Matrix3d R_exp_euler = Matrix3d::Identity();
@@ -29,54 +29,68 @@ static Chain ch0 = Chain(10, Vector3d(0, 0, 8));
 static Chain ch1 = Chain(10, Vector3d(0, 0, 8));
 
 // Cairn
-static Cairn cairn(20, {-3, 3}, {-3, 3}, {1, 2});
+static Cairn cairn(5, {-0.3, 0.3}, {-0.5, 0.5}, {1, 1.5});
 
 void SimulationInitialization() {
-  SimulationInitialization_HangingChain();
+  // SimulationInitialization_HangingChain();
   SimulationInitialization_Cairn();
 };
 
 bool SimulationStep() {
-  Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
-  Eigen::AngleAxisd Raa2(angle2, Vector3d(0, 1, 0));
-  Quaterniond q = Raa1 * Raa2;
-  Matrix3d R = q.matrix();
-  DrawBox(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5));
-  DrawBox(Vector3d(1.65, 0, 0.5), Matrix3d::Identity(), Vector3d(0.3, 1, 1));
+  // Eigen::AngleAxisd Raa1(angle1, Vector3d(0, 0, 1));
+  // Eigen::AngleAxisd Raa2(angle2, Vector3d(0, 1, 0));
+  // Quaterniond q = Raa1 * Raa2;
+  // Matrix3d R = q.matrix();
+  // DrawBox(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5));
+  // DrawBox(Vector3d(1.65, 0, 0.5), Matrix3d::Identity(), Vector3d(0.3, 1, 1));
+  //
+  // DrawCapsule(Vector3d(-1, 0, 0.5), R, 0.2, 0.6);
+  // DrawSphere(Vector3d(0, 0, 0.5), R, 0.3);
+  //
+  // DrawPoint(Vector3d(0, 0, 0));
+  // DrawLine(Vector3d(0, 0, 0), Vector3d(0, 0, 1));
+  //
+  // // Generate contact points and normals from a box and render them.
+  // std::vector<ContactGeometry> contacts;
+  // CollideBoxAndGround(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
+  // &contacts); CollideBoxes(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
+  //              Vector3d(1.65, 0, 0.5), Matrix3d::Identity(),
+  //              Vector3d(0.3, 1, 1), 0, &contacts);
+  // for (int i = 0; i < contacts.size(); i++) {
+  //   DrawPoint(contacts[i].position);
+  //   DrawLine(contacts[i].position,
+  //            contacts[i].position + contacts[i].normal * 0.1);
+  // }
+  //
+  // angle1 += 0.01;
+  // angle2 += 0.002;
 
-  DrawCapsule(Vector3d(-1, 0, 0.5), R, 0.2, 0.6);
-  DrawSphere(Vector3d(0, 0, 0.5), R, 0.3);
-
-  DrawPoint(Vector3d(0, 0, 0));
-  DrawLine(Vector3d(0, 0, 0), Vector3d(0, 0, 1));
-
-  // Generate contact points and normals from a box and render them.
-  std::vector<ContactGeometry> contacts;
-  CollideBoxAndGround(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5), &contacts);
-  CollideBoxes(Vector3d(1, 0, 0.5), R, Vector3d(1, 0.5, 0.5),
-               Vector3d(1.65, 0, 0.5), Matrix3d::Identity(),
-               Vector3d(0.3, 1, 1), 0, &contacts);
-  for (int i = 0; i < contacts.size(); i++) {
-    DrawPoint(contacts[i].position);
-    DrawLine(contacts[i].position,
-             contacts[i].position + contacts[i].normal * 0.1);
-  }
-
-  angle1 += 0.01;
-  angle2 += 0.002;
-
-  //SimulationStep_HangingChain();
+  // SimulationStep_HangingChain();
   SimulationStep_Cairn();
 
   return true;
 }
 
 void SimulationInitialization_Cairn() {
-  cairn.Init();}
+  cairn.Init();
+  cairn.InitStabilize();
+}
 
 bool SimulationStep_Cairn() {
   cairn.Draw();
-  cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+  cairn.Step(kSimTimeStep*5, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+
+  //cairn.UpdateContacts();
+  //Eigen::VectorXd err = cairn.ComputePositionConstraintError();
+  //double err_sq = err.transpose() * err;
+  //LOG(INFO) << "err_sq = " << err_sq;
+  //
+  //if (err_sq > kAllowNumericalError) {
+  //  cairn.StepPositionRelaxation(kSimTimeStep * 100);
+  //} else {
+  //  cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+  //}
+
   return true;
 }
 
@@ -87,30 +101,14 @@ void SimulationInitialization_HangingChain() {
 
 bool SimulationStep_HangingChain() {
   ch0.Draw();
-  ch0.Step(kSimTimeStep);
-
-  // Post-stabilization
-  Eigen::VectorXd err = ch0.ComputePositionConstraintError();
-  double err_sq = (err * err.transpose()).sum();
-  // LOG(INFO) << "Pre-stabilization error sum : " << err_sq;
-  int max_stabilization_steps = 500;
-  int step_counter = 0;
-  while (err_sq > kAllowNumericalError &&
-         step_counter < max_stabilization_steps) {
-    // ch0.StepPositionRelaxation(kSimTimeStep*1000);
-    ch0.StepPostStabilization(kSimTimeStep * 100);
-    err = ch0.ComputePositionConstraintError();
-    err_sq = (err * err.transpose()).sum();
-    ++step_counter;
-  }
-  // LOG(INFO) << "Post-stabilization steps count : " << step_counter;
-  // LOG(INFO) << "Explicit Euler post-stabilization error_sq sum : " << err_sq;
+  ch0.Step(kSimTimeStep, Ensemble::Integrator::EXPLICIT_EULER);
+  ch0.PostStabilize();
 
   ch1.Draw();
   ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-  err = ch1.ComputePositionConstraintError();
-  err_sq = (err * err.transpose()).sum();
-  // LOG(INFO) << "ODE step error_sq sum " << err_sq;
+  VectorXd err = ch1.ComputePositionConstraintError();
+  double err_sq = err.transpose() * err;
+  LOG(INFO) << "ODE step error_sq sum " << err_sq;
 
   return true;
 }

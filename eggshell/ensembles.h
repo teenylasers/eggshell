@@ -56,19 +56,20 @@ class Ensemble {
   };
   virtual void Step(double dt, Integrator g = Integrator::OPEN_DYNAMICS_ENGINE);
 
-  // Position and/or velocity stablization
-  void Stablize(const int max_steps = 500);
+  // Find all contacts between Bodies or between Body and ground, clear and
+  // update contacts_
+  void UpdateContacts();
+
+  // When Ensemble is first initialized, check and correct for position errors.
+  void InitStabilize();
+  // Stabilize position only. Bring the ensemble into a legal configuration.
+  void StepPositionRelaxation(double dt, double step_scale = 0.2);
+
+  // Position and velocity post-stabilization
+  void PostStabilize(const int max_steps = 500);
 
   // Render in EggshellView
   virtual void Draw() const;
-
-  // Post-stabilization: takes Ensemble's state after an integrator Step, apply
-  // stabilization to bring the state closer to or back to the constraint
-  // manifold.
-  void StepPositionRelaxation(double dt, double step_scale = 0.2);
-
-  // Apply naive post-stabilization
-  void StepPostStabilization(double dt, double step_scale = 0.2);
 
  protected:
   // Number of Bodies that make up this ensemble
@@ -120,10 +121,6 @@ class Ensemble {
   // frame).
   void UpdateComponentsVelocities(const VectorXd& v);
 
-  // Find all contacts between Bodies or between Body and ground, clear and
-  // update contacts_
-  void UpdateContacts();
-
   // TODO: joint and contact constraints can be treated more or less the same
   // way.
   // Compute J due to 1. joint constraints, 2. contact constraints
@@ -162,8 +159,13 @@ class Ensemble {
                               double error_reduction_param = 0.2);
   void StepPositions_ODE(double dt, const VectorXd& v, const VectorXd& v_new);
 
-  // Post-stabilization: calculate velocity correction for post-stabilization
-  VectorXd CalculateVelocityRelaxation(double step_scale);
+  // Post-stabilization: takes Ensemble's state after an integrator Step, apply
+  // stabilization to bring the state closer to or back to the constraint
+  // manifold.
+  // Calculate velocity correction for post-stabilization
+  VectorXd CalculateVelocityRelaxation(double step_scale) const;
+  // Update both position and velocity using velocity relaxation results.
+  void StepPostStabilization(double dt, double step_scale = 0.2);
 };
 
 class Chain : public Ensemble {

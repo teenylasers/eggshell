@@ -16,9 +16,9 @@ void Ensemble::Init() {
 }
 
 MatrixXd Ensemble::ComputeJ() const {
-  CHECK(contacts_.empty())
-      << "Should never get here when there are contact constraints present.";
-  MatrixXd J = ComputeJ_Joints();
+  Array<bool, Dynamic, 1> C;
+  VectorXd x_lo, x_hi;
+  const MatrixXd J = ComputeJ(C, x_lo, x_hi);
   return J;
 }
 
@@ -55,7 +55,6 @@ MatrixXd Ensemble::ComputeJ(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const {
   // std::cout << "x_lo =\n" << x_lo << std::endl;
   // std::cout << "x_hi =\n" << x_hi << std::endl;
 
-  CHECK(CheckJ(J));
   return J;
 }
 
@@ -79,7 +78,8 @@ MatrixXd Ensemble::ComputeJ_Joints() const {
   return J;
 }
 
-MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const {
+MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb& C, VectorXd& x_lo,
+                                     VectorXd& x_hi) const {
   // TODO:
   // Do J dimensions need to be hard-coded here?
   const int jn = 3;  // num rows in J per contact
@@ -328,6 +328,7 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const {
   if (joints_.empty() && contacts_.empty()) {
     v_dot = M_inverse_ * external_force_torque_;
   } else {
+    CHECK(CheckJ(J));  // J needs to be non-singular for this algorithm to work.
     const MatrixXd JMJt = J * M_inverse_ * J.transpose();
     const VectorXd lambda = JMJt.ldlt().solve(rhs);
     v_dot = M_inverse_ * (external_force_torque_ + J.transpose() * lambda);
@@ -340,6 +341,7 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
                                const ArrayXb& C, const VectorXd& x_lo,
                                const VectorXd& x_hi) const {
   VectorXd v_dot(6 * n_);
+  const int J_rows = J.rows();
 
   if (joints_.empty() && contacts_.empty()) {
     v_dot = M_inverse_ * external_force_torque_;
@@ -348,9 +350,16 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
     // C indicates (in)equality constraints.
     // {x_lo, x_hi} set LCP solver x-limits in Ax=b+w.
     const MatrixXd JMJt = J * M_inverse_ * J.transpose();
-    VectorXd lambda(JMJt.rows());
-    VectorXd weights(JMJt.rows());
-    if (!Lcp::MixedConstraintsSolver(JMJt, rhs, C, x_lo, x_hi, lambda,
+    MatrixXd Cfm = MatrixXd::Zero(J_rows, J_rows);
+    if (!CheckJ(J)) {
+      const double cfm_coeff = 0.1;
+      Cfm = cfm_coeff * MatrixXd::Identity(J_rows, J_rows);
+    }
+    const MatrixXd lhs = JMJt + Cfm;
+    // Solve systems equation
+    VectorXd lambda(J_rows);
+    VectorXd weights(J_rows);
+    if (!Lcp::MixedConstraintsSolver(lhs, rhs, C, x_lo, x_hi, lambda,
                                      weights)) {
       Panic("Lcp::MixedConstraintsSolver exited without reaching a solution.");
     }
@@ -418,10 +427,32 @@ void Ensemble::StepPositions_ImplicitMidpoint(double dt, const VectorXd& v,
                                               const VectorXd& v_new,
                                               double alpha, double beta) {}
 
-void Ensemble::Stablize(const int max_steps) {
+void Ensemble::InitStabilize() {
+  UpdateContacts();
   Eigen::VectorXd err = ComputePositionConstraintError();
-  double err_sq = (err * err.transpose()).sum();
-  // std::cout << "Pre-stabilization error sum : " << err_sq;
+  double err_sq = err.transpose() * err;
+  std::cout << "Initial err_sq : " << err_sq << std::endl;
+
+  const int max_steps = 100;
+  int step_counter = 0;
+  while (err_sq > kAllowNumericalError && step_counter < max_steps) {
+    StepPositionRelaxation(kSimTimeStep * 100);
+    // StepPostStabilization(kSimTimeStep * 100);
+    UpdateContacts();
+    err = ComputePositionConstraintError();
+    err_sq = err.transpose() * err;
+    ++step_counter;
+  }
+
+  std::cout << "Pre-stabilization steps count : " << step_counter << std::endl;
+  std::cout << "Final err_sq : " << err_sq << std::endl;
+}
+
+void Ensemble::PostStabilize(const int max_steps) {
+  Eigen::VectorXd err = ComputePositionConstraintError();
+  double err_sq = err.transpose() * err;
+  // std::cout << "err = " << err.transpose() << std::endl;
+  // std::cout << "Pre-stabilization error sum : " << err_sq << std::endl;
   int step_counter = 0;
   while (err_sq > kAllowNumericalError && step_counter < max_steps) {
     // TODO: position relaxation versus post stablization
@@ -429,29 +460,32 @@ void Ensemble::Stablize(const int max_steps) {
     // StepPositionRelaxation(kSimTimeStep*1000);
     StepPostStabilization(kSimTimeStep * 100);
     err = ComputePositionConstraintError();
-    err_sq = (err * err.transpose()).sum();
+    err_sq = err.transpose() * err;
+    // std::cout << "err = " << err.transpose() << std::endl;
+    // std::cout << "err_sq = " << err_sq << std::endl;
     ++step_counter;
   }
-  // std::cout << "Post-stabilization steps count : " << step_counter;
-  // std::cout << "Explicit Euler post-stabilization error_sq sum : " <<
-  // err_sq;
+  // std::cout << "Post-stabilization steps count : " << step_counter <<
+  // std::endl; std::cout << "Explicit Euler post-stabilization error_sq sum : "
+  // << err_sq
+  //           << std::endl;
 }
 
 void Ensemble::StepPositionRelaxation(double dt, double step_scale) {
-  VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
+  const VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
   StepPositions_ExplicitEuler(dt, velocity_relaxation);
 }
 
 void Ensemble::StepPostStabilization(double dt, double step_scale) {
-  VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
+  const VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
   StepPositions_ExplicitEuler(dt, velocity_relaxation);
-  VectorXd v = GetCurrentVelocities();
+  const VectorXd v = GetCurrentVelocities();
   UpdateComponentsVelocities(v + velocity_relaxation);
 }
 
-VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) {
-  MatrixXd J = ComputeJ();
-  VectorXd err = ComputePositionConstraintError();
+VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) const {
+  const MatrixXd J = ComputeJ();
+  const VectorXd err = ComputePositionConstraintError();
   CHECK(J.rows() == err.rows()) << "(J.rows() = " << J.rows()
                                 << ") != (err.rows() = " << err.rows() << ")";
   VectorXd velocity_correction =
@@ -531,9 +565,6 @@ Cairn::Cairn(int num_rocks, const std::array<double, 2>& x_bound,
     w = RandomAngularVelocity(max_init_w_);
     components_.push_back(std::shared_ptr<Body>(new Body(p, v, m, R, w, I)));
   }
-
-  // TODO: Check for overlaps (severe collisions) and move them into a correct
-  // initial configuration.
 }
 
 bool Cairn::CheckErrorDims(VectorXd) const { return true; }

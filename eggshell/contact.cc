@@ -17,8 +17,8 @@ VectorXd Contact::ComputeError() const {
   switch (f_) {
     case FrictionModel::NO_FRICTION:
       return ComputeError_NoFriction();
-    case FrictionModel::INFINITE_W_CFM:
-      return ComputeError_ConstraintForceMixing();
+    case FrictionModel::INFINITE:
+      return ComputeError_InfiniteFriction();
     default:
       Panic("Contact constraint encountered an unknown FrictionModel::%i", f_);
   }
@@ -30,9 +30,9 @@ void Contact::ComputeJ(MatrixXd& J_b0, MatrixXd& J_b1, ArrayXb& C,
     case FrictionModel::NO_FRICTION:
       ComputeJ_NoFriction(J_b0, J_b1);
       break;
-    case FrictionModel::INFINITE_W_CFM:
-      // CheckJ_ConstraintForceMixing();
-      ComputeJ_ConstraintForceMixing(J_b0, J_b1, C, x_lo, x_hi);
+    case FrictionModel::INFINITE:
+      // CheckJ_InfiniteFriction();
+      ComputeJ_InfiniteFriction(J_b0, J_b1, C, x_lo, x_hi);
       break;
     default:
       Panic("Contact constraint encountered an unknown FrictionModel::%i", f_);
@@ -80,12 +80,16 @@ void Contact::ComputeJDot_NoFriction(MatrixXd& Jdot_b0,
   // }
 }
 
-VectorXd Contact::ComputeError_ConstraintForceMixing() const {
+VectorXd Contact::ComputeError_InfiniteFriction() const {
   Vector3d z_axis(0, 0, 1);
   Matrix3d R = AlignVectors(cg_.normal, z_axis);
 
   VectorXd error(3);
-  error << -cg_.depth * R * cg_.normal;
+  if (b1_ == nullptr) {
+    error << -cg_.depth * R * cg_.normal;
+  } else {
+    error << cg_.depth * R * cg_.normal;
+  }
   // std::cout << "contact_normal = \n" << cg_.normal << std::endl;
   // std::cout << "contact_depth = " << cg_.depth << std::endl;
   // std::cout << "contact error = \n" << error << std::endl;
@@ -106,9 +110,9 @@ VectorXd Contact::ComputeError_ConstraintForceMixing() const {
 //    - does the alignment/direction of transverse axes matter in some cases?
 // 2. implement LCP solver that takes in low and high limits
 // 3. Schur complement alternative to solve the mixed constraint problem.
-void Contact::ComputeJ_ConstraintForceMixing(MatrixXd& J_b0, MatrixXd& J_b1,
-                                             ArrayXb& C, VectorXd& x_lo,
-                                             VectorXd& x_hi) const {
+void Contact::ComputeJ_InfiniteFriction(MatrixXd& J_b0, MatrixXd& J_b1,
+                                        ArrayXb& C, VectorXd& x_lo,
+                                        VectorXd& x_hi) const {
   // Constraint in the direction of contact normal is an inequality,
   // constraints that are transverse to contact normal are equalities.
 
@@ -139,8 +143,8 @@ void Contact::ComputeJ_ConstraintForceMixing(MatrixXd& J_b0, MatrixXd& J_b1,
   x_hi << 0, 0, std::numeric_limits<double>::infinity();
 }
 
-void Contact::ComputeJDot_ConstraintForceMixing(MatrixXd& Jdot_b0,
-                                                MatrixXd& Jdot_b1) const {
+void Contact::ComputeJDot_InfiniteFriction(MatrixXd& Jdot_b0,
+                                           MatrixXd& Jdot_b1) const {
   Panic(
       "ODE time stepper does not need to compute JdotV for contact "
       "constraints. Other integrators do not yet support contacts.");
@@ -163,7 +167,7 @@ std::string Contact::PrintInfo() const {
   return s.str();
 }
 
-void Contact::CheckJ_ConstraintForceMixing() const {
+void Contact::CheckJ_InfiniteFriction() const {
   // J and Jdot for no friction
   MatrixXd J0_b0(1, 6), J0_b1(1, 6), Jdot0_b0(1, 6), Jdot0_b1(1, 6);
   MatrixXd J0(1, 12), Jdot0(1, 12);
@@ -175,8 +179,8 @@ void Contact::CheckJ_ConstraintForceMixing() const {
 
   ComputeJ_NoFriction(J0_b0, J0_b1);
   ComputeJDot_NoFriction(Jdot0_b0, Jdot0_b1);
-  ComputeJ_ConstraintForceMixing(JCfm_b0, JCfm_b1, C, x_lo, x_hi);
-  ComputeJDot_ConstraintForceMixing(JdotCfm_b0, JdotCfm_b1);
+  ComputeJ_InfiniteFriction(JCfm_b0, JCfm_b1, C, x_lo, x_hi);
+  ComputeJDot_InfiniteFriction(JdotCfm_b0, JdotCfm_b1);
   J0 << J0_b0, J0_b1;
   Jdot0 << Jdot0_b0, Jdot0_b1;
   JCfm << JCfm_b0, JCfm_b1;
