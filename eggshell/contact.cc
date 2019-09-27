@@ -45,7 +45,12 @@ void Contact::ComputeJDot(MatrixXd& Jdot_b0, MatrixXd& Jdot_b1) const {
 
 VectorXd Contact::ComputeError_NoFriction() const {
   VectorXd error(1);
-  error << -cg_.depth;
+  // TODO: why this distinction?
+  if (b1_ == nullptr) {
+    error << -cg_.depth;
+  } else {
+    error << cg_.depth;
+  }
   return error;
 }
 

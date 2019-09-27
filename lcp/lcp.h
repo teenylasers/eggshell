@@ -13,9 +13,9 @@ namespace Lcp {
 typedef Array<bool, Dynamic, 1> ArrayXb;
 
 bool MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
-                         VectorXd& w,
-                         const ArrayXb& init_S = ArrayXb::Constant(0, false),
-                         int max_iterations = 1000);
+                         VectorXd& w);
+bool MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
+                         VectorXd& w, const double x_lo, const double x_hi);
 
 // C = constraint_type, true for equality constraint, false for inequality
 // constraint

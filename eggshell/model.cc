@@ -25,14 +25,14 @@ static Body b1(Vector3d(1.5, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 
 // HangingChain
-static Chain ch0 = Chain(10, Vector3d(0, 0, 8));
+// static Chain ch0 = Chain(10, Vector3d(0, 0, 8));
 static Chain ch1 = Chain(10, Vector3d(0, 0, 8));
 
 // Cairn
-static Cairn cairn(5, {-0.3, 0.3}, {-0.5, 0.5}, {1, 1.5});
+static Cairn cairn(5, {-0.5, 0.5}, {-0.5, 0.5}, {1, 2});
 
 void SimulationInitialization() {
-  // SimulationInitialization_HangingChain();
+  //SimulationInitialization_HangingChain();
   SimulationInitialization_Cairn();
 };
 
@@ -65,7 +65,7 @@ bool SimulationStep() {
   // angle1 += 0.01;
   // angle2 += 0.002;
 
-  // SimulationStep_HangingChain();
+  //SimulationStep_HangingChain();
   SimulationStep_Cairn();
 
   return true;
@@ -73,36 +73,37 @@ bool SimulationStep() {
 
 void SimulationInitialization_Cairn() {
   cairn.Init();
-  cairn.InitStabilize();
+  //cairn.InitStabilize();
 }
 
 bool SimulationStep_Cairn() {
   cairn.Draw();
   cairn.Step(kSimTimeStep*5, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
 
-  //cairn.UpdateContacts();
-  //Eigen::VectorXd err = cairn.ComputePositionConstraintError();
-  //double err_sq = err.transpose() * err;
-  //LOG(INFO) << "err_sq = " << err_sq;
+  // // Visualize position relaxation
+  // cairn.UpdateContacts();
+  // Eigen::VectorXd err = cairn.ComputePositionConstraintError();
+  // double err_sq = err.transpose() * err;
+  // LOG(INFO) << "err_sq = " << err_sq;
   //
-  //if (err_sq > kAllowNumericalError) {
-  //  cairn.StepPositionRelaxation(kSimTimeStep * 100);
-  //} else {
-  //  cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-  //}
+  // if (err_sq > kAllowNumericalError) {
+  //   cairn.StepPositionRelaxation(kSimTimeStep * 100);
+  // } else {
+  //   cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+  // }
 
   return true;
 }
 
 void SimulationInitialization_HangingChain() {
-  ch0.Init();
+  //ch0.Init();
   ch1.Init();
 }
 
 bool SimulationStep_HangingChain() {
-  ch0.Draw();
-  ch0.Step(kSimTimeStep, Ensemble::Integrator::EXPLICIT_EULER);
-  ch0.PostStabilize();
+  // ch0.Draw();
+  // ch0.Step(kSimTimeStep, Ensemble::Integrator::EXPLICIT_EULER);
+  // ch0.PostStabilize();
 
   ch1.Draw();
   ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);

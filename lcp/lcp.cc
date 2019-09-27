@@ -13,49 +13,81 @@ namespace {
 // Check whether {x, w, S} form a solution to the LCP problem. If not, update
 // one offending element in S.
 bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
-                        const VectorXd& w, Lcp::ArrayXb& S,
+                        const VectorXd& w, Lcp::ArrayXb& S, ArrayXd& C,
+                        const double x_lo, const double x_hi,
                         const double err = 0) {
   // Option to allow for numerical error. When checking x(S) < zero and
   // w(S_complement) < zero, zero can be 0 or a small negative number.
-  const double zero = std::abs(err) > 0 ? std::abs(err) : 0;
+  // const double zero = std::abs(err) > 0 ? std::abs(err) : 0;
   const double solution_check_err = std::abs(err) > kAllowNumericalError
                                         ? std::abs(err)
                                         : kAllowNumericalError;
 
-  VectorXd::Index offending_index;
+  // dimension of the problem.
+  const int dim = S.rows();
 
   // TODO: why do I need S here? Since x(!S) and w(S) are all 0.
 
-  // Check x(S) are all >0.
-  // const VectorXd x_s Lcp::SelectSubvector(x, S);
-  const ArrayXd x_s = x.array() * S.cast<double>();
-  if (x_s.minCoeff(&offending_index) < -1 * zero) {
-    if (S(offending_index) == 1) {
-      S(offending_index) = 0;
-      return false;
+  for (int i = 0; i < dim; ++i) {
+    if (S(i)) {
+      if (x(i) < x_lo) {
+        S(i) = false;
+        C(i) = x_lo;
+        return false;
+      } else if (x(i) > x_hi) {
+        S(i) = false;
+        C(i) = x_hi;
+        return false;
+      }  // else do nothing
+    } else {
+      if (C(i) == x_lo && w(i) < 0) {
+        S(i) = true;
+        return false;
+      } else if (C(i) == x_hi && w(i) > 0) {
+        S(i) = true;
+        return false;
+      }  // else do nothing
     }
   }
 
-  // Check w(~S) are all >0.
-  const ArrayXd w_sc = w.array() * (!S).cast<double>();
-  if (w_sc.minCoeff(&offending_index) < -1 * zero) {
-    if (S(offending_index) == 0) {
-      S(offending_index) = 1;
-      return false;
-    }
+  // Passed both x(S) and w(!S) checks above, check goodness of solution.
+  if ((x.array() < x_lo).any() || (x.array() > x_hi).any()) {
+    // std::cout << "Some elements of x are less than x_lo or greater than
+    // x_hi:\n"
+    //           << x;
+    return false;
+  }
+  const VectorXd w_at_xlo = Lcp::SelectSubvector(w, x.array() == x_lo);
+  const VectorXd w_at_xhi = Lcp::SelectSubvector(w, x.array() == x_hi);
+  if ((w_at_xlo.array() < 0).any() || (w_at_xhi.array() > 0).any()) {
+    // std::cout << "Some elements of w are out of bound. \nx = \n"
+    //           << x << "w = \n"
+    //           << w;
+    return false;
   }
 
   const VectorXd lhs = A * x;
   const VectorXd rhs = b + w;
   if ((lhs - rhs).norm() > solution_check_err) {
     std::cout << "Found solution does not satisfy equation Ax = b+w\n";
-    std::cout << "lhs = " << lhs << "\n";
-    std::cout << "rhs = " << rhs << "\n";
-    std::cout << "lhs - rhs = " << lhs - rhs << "\n";
-    std::cout << (lhs - rhs).norm();
+    // std::cout << "lhs = " << lhs << "\n";
+    // std::cout << "rhs = " << rhs << "\n";
+    // std::cout << "S = " << S.transpose() << std::endl;
+    // std::cout << "x = " << x.transpose() << std::endl;
+    // std::cout << "w = " << w.transpose() << std::endl;
+    // std::cout << "lhs - rhs = " << (lhs - rhs).transpose() << std::endl;
+    std::cout << "(lhs - rhs).norm() = " << (lhs - rhs).norm() << std::endl;
     return false;
   }
   return true;
+}
+
+bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, VectorXd& x,
+                        VectorXd& w, Lcp::ArrayXb& S, const double err = 0) {
+  const double x_lo = 0;
+  const double x_hi = std::numeric_limits<double>::infinity();
+  ArrayXd C = ArrayXd::Zero(S.rows());
+  return CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi, err);
 }
 
 // Compute the "goodness" of {x, w}, even if it is not strictly a solution.
@@ -95,59 +127,84 @@ bool UpdatePreviousBestSolution(const VectorXd& new_x, const VectorXd& new_w,
 }  // namespace
 
 bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
-                              VectorXd& w, const ArrayXb& init_S,
-                              int max_iterations) {
-  // TODO: Check input arguments
-  // TODO: Add support for problems with x_lo and x_hi
+                              VectorXd& w) {
+  const double x_lo = 0;
+  const double x_hi = std::numeric_limits<double>::infinity();
+  return MurtyPrincipalPivot(A, b, x, w, x_lo, x_hi);
+}
+
+bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
+                              VectorXd& w, const double x_lo,
+                              const double x_hi) {
+  // Check input arguments
+  CHECK(x_lo < x_hi);
+  // TODO: why does x_lo need to be <= 0?
+  CHECK(x_lo <= 0);
+  CHECK(x_hi > 0);
 
   // Dimension of the input Ax=b+w problem.
   const int dim = b.rows();
-  max_iterations = pow(2, dim) > max_iterations ? max_iterations : pow(2, dim);
+  const int max_iterations = pow(2, dim) > 1000 ? 1000 : pow(2, dim);
   int iter = 0;
   bool cycle = false;
 
   // Initialize S, x, w
   // Default S is empty if init_S is not provided.
-  ArrayXb S = ArrayXb::Constant(dim, false);
-  if (init_S.size() != 0) {
-    S << init_S;
-  }
+
+  /////////////////// TODO ////////////////////////
+  // TODO!! Why does S need to initialize as all true now?!
+  ArrayXb S = ArrayXb::Constant(dim, true);
+  /////////////////// TODO ////////////////////////
+  // Is LCP solver slower?
+  // Does S == all true or S == all false change time to solution?
+  /////////////////// TODO ////////////////////////
+  // WithBound solutions are trivial
+  /////////////////// TODO ////////////////////////
+
   x = VectorXd::Zero(dim);
   w = -b;
-
+  // For elements in !S, C indicates which domain w(i) should be in, whether it
+  // is C(i) == x_lo && w >= 0, or C(i) == x_hi && w <= 0. Initialize C to all
+  // x_lo to start.
+  ArrayXd C = ArrayXd::Ones(dim) * x_lo;
   // Remeber the last best x and w, {prev_x, prev_w}
   VectorXd prev_x = x;
   VectorXd prev_w = w;
 
   // Compute solution
   while (iter < max_iterations) {
-    if (!CheckMurtySolution(A, b, x, w, S)) {
+    if (!CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi)) {
+      // std::cout << "S = " << S.transpose();
+      // std::cout << "C = " << C.transpose();
+
       // If we are not at a solution, compute a new candidate solution after
       // CheckMurtySolution() has updated S.
       const VectorXd new_xs = Lcp::SelectSubmatrix(A, S, S).ldlt().solve(
           Lcp::SelectSubvector(b, S));
       Lcp::UpdateSubvector(x, S, new_xs);  // Update x(S)
-      Lcp::UpdateSubvector(x, !S, 0);      // Update x(!S)
+      Lcp::UpdateSubvector(x, !S * (C.array() == x_lo),
+                           x_lo);  // Update x(!S) = x_lo
+      Lcp::UpdateSubvector(x, !S * (C.array() == x_hi),
+                           x_hi);  // Update x(!S) = x_hi
       const VectorXd new_wsc =
           Lcp::SelectSubmatrix(A, !S, S) * Lcp::SelectSubvector(x, S) -
           Lcp::SelectSubvector(b, !S);
-      Lcp::UpdateSubvector(w, !S, new_wsc);
-      Lcp::UpdateSubvector(w, S, 0);
+      Lcp::UpdateSubvector(w, !S, new_wsc);  // Update w(!S)
+      Lcp::UpdateSubvector(w, S, 0);         // Update w(S)
       // Check whether this {x, w} is better than {prev_x, prev_w}.
       if (!UpdatePreviousBestSolution(x, w, prev_x, prev_w)) {
         // TODO: this will NOT detect cycles that do not include the current
         // best solution.
         cycle = true;
-        std::cout << "WARNING: Detected cycle in LCP solver, break. iter = "
-                  << iter << ".\n";
+        std::cout << "WARNING: Detected cycle in LCP solver. iter = " << iter
+                  << ".\n";
         // If cycle is detected and the result is not a solution, then jump to a
         // new random init_S
-        if (!CheckMurtySolution(A, b, x, w, S, kAllowNumericalError)) {
-          const ArrayXb new_S = ArrayXb::Random(S.rows());
-          // max_iterations - iter, so that calling MurtyPrincipalPivot again
-          // doesn't reset max_iterations and risk infinite loop.
-          return MurtyPrincipalPivot(A, b, x, w, new_S, max_iterations - iter);
-        }
+        // const ArrayXb new_S = ArrayXb::Random(S.rows());
+        // max_iterations - iter, so that calling MurtyPrincipalPivot again
+        // doesn't reset max_iterations and risk infinite loop.
+        // return MurtyPrincipalPivot(A, b, x, w, new_S, max_iterations - iter);
+        break;
       }
     } else {
       break;
@@ -165,7 +222,8 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   if (iter >= max_iterations || cycle) {
     x = prev_x;
     w = prev_w;
-    if (!CheckMurtySolution(A, b, x, w, S, kAllowNumericalError)) {
+    if (!CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi,
+                            kAllowNumericalError)) {
       std::cout << "ERROR: iteration count = " << iter
                 << ", max_iterations = " << max_iterations
                 << ", cycle = " << cycle
@@ -174,7 +232,7 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
     } else {
       return true;
     }
-  } else if (!CheckMurtySolution(A, b, x, w, S)) {
+  } else if (!CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi)) {
     std::cout << "ERROR: check solution returned false, error in algorithm.\n";
     return false;
   } else {
@@ -523,8 +581,8 @@ TEST_FUNCTION(MurtyPrincipalPivot_simple) {
   std::cout << "... passed\n";
 }
 
-TEST_FUNCTION(MurtyPrincipalPivot_batch) {
-  std::cout << "Batch test of larger matrix sizes.\n";
+TEST_FUNCTION(MurtyPrincipalPivot_NoBounds) {
+  std::cout << "Batch test of larger matrix sizes, x = {0, inf}.\n";
   constexpr int num_tests = 100;
   constexpr int matrix_size = 50;
   VectorXd x(matrix_size), w(matrix_size);
@@ -540,8 +598,35 @@ TEST_FUNCTION(MurtyPrincipalPivot_batch) {
       }
     }
   }
-  std::cout << "Murty Principal Pivot: matrix size " << matrix_size << "x"
-            << matrix_size << ", " << trivial_count
+  std::cout << "Murty Principal Pivot, x = {0, inf}: matrix size "
+            << matrix_size << "x" << matrix_size << ", " << trivial_count
+            << " had trivial solutions, " << success_count << " of "
+            << num_tests << " tests passed.\n";
+  CHECK(success_count == num_tests);
+}
+
+TEST_FUNCTION(MurtyPrincipalPivot_WithBounds) {
+  std::cout << "Batch test of larger matrix sizes, x = {x_lo, x_hi}.\n";
+  constexpr int num_tests = 100;
+  constexpr int matrix_size = 50;
+  VectorXd x(matrix_size), w(matrix_size);
+  VectorXd zeros = VectorXd::Zero(matrix_size);
+  int success_count = 0, trivial_count = 0;
+  for (int i = 0; i < num_tests; ++i) {
+    const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
+    const VectorXd b = VectorXd::Random(matrix_size);
+    const MatrixXd x_lim = MatrixXd::Random(2, 1) + MatrixXd::Ones(2, 1);
+    const double x_lo = -1 * x_lim(0, 0);
+    const double x_hi = x_lim(1, 0);
+    if (Lcp::MurtyPrincipalPivot(A, b, x, w, x_lo, x_hi)) {
+      ++success_count;
+      if (x == zeros) {
+        ++trivial_count;
+      }
+    }
+  }
+  std::cout << "Murty Principal Pivot, x = {x_lo, x_hi}: matrix size "
+            << matrix_size << "x" << matrix_size << ", " << trivial_count
             << " had trivial solutions, " << success_count << " of "
             << num_tests << " tests passed.\n";
   CHECK(success_count == num_tests);

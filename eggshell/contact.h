@@ -43,7 +43,7 @@ class Contact {
   const ContactGeometry cg_;
   const CollisionInfo ci_;
 
-  const FrictionModel f_ = FrictionModel::INFINITE;
+  const FrictionModel f_ = FrictionModel::NO_FRICTION;
 
   //==========================================================================
   // Different implementations of ComputeError, ComputeJ and ComputeJDot, varies

@@ -24,7 +24,7 @@ MatrixXd Ensemble::ComputeJ() const {
 
 MatrixXd Ensemble::ComputeJ(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const {
   const int jn = 3;  // num rows in J per joint
-  const int cn = 3;  // num rows in J per contact
+  const int cn = 1;  // num rows in J per contact
   const int num_joint_constraints = jn * joints_.size();
   const int num_contact_constraints = cn * contacts_.size();
   MatrixXd J(num_joint_constraints + num_contact_constraints, 6 * n_);
@@ -82,26 +82,26 @@ MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb& C, VectorXd& x_lo,
                                      VectorXd& x_hi) const {
   // TODO:
   // Do J dimensions need to be hard-coded here?
-  const int jn = 3;  // num rows in J per contact
+  const int cn = 1;  // num rows in J per contact
 
-  MatrixXd J = MatrixXd::Zero(jn * contacts_.size(), 6 * n_);
+  MatrixXd J = MatrixXd::Zero(cn * contacts_.size(), 6 * n_);
 
   for (int i = 0; i < contacts_.size(); ++i) {
-    MatrixXd j0(jn, 6), j1(jn, 6);
-    Array<bool, Dynamic, 1> ct(jn);
-    VectorXd c_lo(jn), c_hi(jn);
+    MatrixXd j0(cn, 6), j1(cn, 6);
+    Array<bool, Dynamic, 1> ct(cn);
+    VectorXd c_lo(cn), c_hi(cn);
     contacts_.at(i).c.ComputeJ(j0, j1, ct, c_lo, c_hi);
 
     if (contacts_.at(i).b1 != -1) {
-      J.block<jn, 6>(i * jn, contacts_.at(i).b0 * 6) = j0;
-      J.block<jn, 6>(i * jn, contacts_.at(i).b1 * 6) = j1;
+      J.block<cn, 6>(i * cn, contacts_.at(i).b0 * 6) = j0;
+      J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
     } else {
-      J.block<jn, 6>(i * jn, contacts_.at(i).b0 * 6) = j0;
+      J.block<cn, 6>(i * cn, contacts_.at(i).b0 * 6) = j0;
     }
 
-    C.block<jn, 1>(i * jn, 0) = ct;
-    x_lo.block<jn, 1>(i * jn, 0) = c_lo;
-    x_hi.block<jn, 1>(i * jn, 0) = c_hi;
+    C.block<cn, 1>(i * cn, 0) = ct;
+    x_lo.block<cn, 1>(i * cn, 0) = c_lo;
+    x_hi.block<cn, 1>(i * cn, 0) = c_hi;
   }
   return J;
 }
@@ -179,23 +179,17 @@ VectorXd Ensemble::ComputeJDotV_Contacts() const {
 
 VectorXd Ensemble::ComputePositionConstraintError() const {
   VectorXd prev_errors(0, 0);
-  if (contacts_.empty()) {
-    for (const auto& joint : joints_) {
-      const auto e = joint.j->ComputeError();
-      VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
-      errors << prev_errors, e;
-      prev_errors = errors;
-    }
-  } else if (joints_.empty()) {
-    for (const auto& contact : contacts_) {
-      const auto e = contact.c.ComputeError();
-      VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
-      errors << prev_errors, e;
-      prev_errors = errors;
-    }
-  } else {
-    LOG(ERROR) << "Mixed joints and contact constraints not yet implemented.";
-    CHECK(false);
+  for (const auto& joint : joints_) {
+    const auto e = joint.j->ComputeError();
+    VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
+    errors << prev_errors, e;
+    prev_errors = errors;
+  }
+  for (const auto& contact : contacts_) {
+    const auto e = contact.c.ComputeError();
+    VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
+    errors << prev_errors, e;
+    prev_errors = errors;
   }
   CHECK(CheckErrorDims(prev_errors))
       << "Unexpected error vector dimensions: " << prev_errors.rows() << "x"
@@ -436,7 +430,7 @@ void Ensemble::InitStabilize() {
   const int max_steps = 100;
   int step_counter = 0;
   while (err_sq > kAllowNumericalError && step_counter < max_steps) {
-    StepPositionRelaxation(kSimTimeStep * 100);
+    StepPositionRelaxation(kSimTimeStep * 500);
     // StepPostStabilization(kSimTimeStep * 100);
     UpdateContacts();
     err = ComputePositionConstraintError();

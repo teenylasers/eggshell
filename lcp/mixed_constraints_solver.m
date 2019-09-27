@@ -14,7 +14,7 @@ b_i = b(~C);
 % solve for x_i using lcp
 lcp_lhs = A_ii - A_ie * inv(A_ee) * A_ei;
 lcp_rhs = b_i - A_ie * inv(A_ee) * b_e;
-[A_, b_, x_i, w_i, ret] = murty_principal_pivot (lcp_lhs, lcp_rhs);
+[x_i, w_i, ret] = murty_principal_pivot (lcp_lhs, lcp_rhs);
 if ret ~= 0
   return_code = ret;
 end
@@ -37,6 +37,6 @@ if sum(abs(lhs-rhs)) > numerical_tolerance
   disp('ERROR: Found solution does not satisfy equation Ax = b+w');
   return_code = 3;
 else
-  fprintf('sum(abs(lhs - rhs)) = %d\n', sum(abs(lhs-rhs)));
+  %fprintf('sum(abs(lhs - rhs)) = %d\n', sum(abs(lhs-rhs)));
   return_code = 0;
 end
