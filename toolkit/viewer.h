@@ -77,7 +77,7 @@ class GLViewerBase {
   bool ModelToPixelCoords(const Eigen::Vector3d &model_pt,
                           double *px, double *py);
 
-  // ********** Virtual functions supplied in subclasses. Non-abstract
+  // ********** Virtual functions supplied in subclasses. Most non-abstract
   //            functions have default implementations that do nothing.
 
   // Draw everything into the current GL context. 2D objects render themselves
@@ -112,6 +112,11 @@ class GLViewerBase {
   // Return the OpenGL viewport size in raw pixels not points (e.g. on retina
   // displays each point can be 2x2 pixels).
   virtual void GetScaledClientSize(int *window_width, int *window_height) = 0;
+
+  // Find the model point that was clicked on. The x,y are window coordinates.
+  // The default implementation calls PixelToModelCoords() but this may not
+  // generate sensible model coordinates for all renderings.
+  virtual void FindModelPoint(int x, int y, Eigen::Vector3d *model_pt);
 
  protected:
   // Drawing state.

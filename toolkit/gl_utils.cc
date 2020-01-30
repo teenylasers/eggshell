@@ -435,4 +435,21 @@ TextureRectangle::~TextureRectangle() {
   GL(DeleteTextures)(1, &tex_);
 }
 
+//***************************************************************************
+// Texture3D.
+
+Texture3D::Texture3D(int width, int height, int depth, unsigned char *data,
+                     int internal_format, int format) {
+  SetNormalPixelPacking();
+  GL(GenTextures)(1, &tex_);
+  GL(ActiveTexture)(GL_TEXTURE0);
+  GL(BindTexture)(GL_TEXTURE_3D, tex_);
+  GL(TexImage3D)(GL_TEXTURE_3D, 0, internal_format, width, height, depth, 0,
+                 format, GL_UNSIGNED_BYTE, data);
+}
+
+Texture3D::~Texture3D() {
+  GL(DeleteTextures)(1, &tex_);
+}
+
 }  // namespace gl

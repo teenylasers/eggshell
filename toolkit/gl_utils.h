@@ -361,6 +361,18 @@ class TextureRectangle {
   GLuint tex_;
 };
 
+// A 3D texture.
+class Texture3D {
+ public:
+  Texture3D(int width, int height, int depth, unsigned char *data,
+            int internal_format = GL_RGB, int format = GL_RGB);
+  ~Texture3D();
+  void Bind() const { GL(BindTexture)(GL_TEXTURE_3D, tex_); }
+
+ private:
+  GLuint tex_;
+};
+
 }  // namespace gl
 
 #endif
