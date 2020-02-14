@@ -118,6 +118,10 @@ class GLViewerBase {
   // generate sensible model coordinates for all renderings.
   virtual void FindModelPoint(int x, int y, Eigen::Vector3d *model_pt);
 
+  // The framebuffer object that we render into. The default implementation
+  // returns 0.
+  virtual uint32_t FramebufferObject();
+
  protected:
   // Drawing state.
   bool have_depth_buffer_;              // Property of current GL context
@@ -220,6 +224,7 @@ class GLViewer : public QOpenGLWidget, public GLViewerBase {
   void Redraw() override;
   void MakeOpenGLContextCurrent() override;
   void GetScaledClientSize(int *window_width, int *window_height) override;
+  uint32_t FramebufferObject() override;
 
  private:
   void initializeGL() override;

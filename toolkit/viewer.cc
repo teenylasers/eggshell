@@ -108,7 +108,8 @@ void GLViewerBase::PixelToModelCoords(int x, int y, Vector3d *model_pt) {
     MakeOpenGLContextCurrent();         // So reading the depth buffer can work
 
     // A depth buffer is available to compute the full tranformation.
-    if (!gl::PixelToModelCoordinates(x, y, gl::Transform(), model_pt)) {
+    if (!gl::PixelToModelCoordinates(FramebufferObject(), x, y,
+                                     gl::Transform(), model_pt)) {
       // x,y is at maximum depth (the far clip plane) so instead assume a depth
       // at the middle of the bounding box.
       double bounds[6];
@@ -179,6 +180,10 @@ double GLViewerBase::GetAspectRatio() {
   int width, height;
   GetScaledClientSize(&width, &height);
   return double(width) / double(height);
+}
+
+uint32_t GLViewerBase::FramebufferObject() {
+  return 0;
 }
 
 //***************************************************************************
@@ -696,6 +701,10 @@ void GLViewer::GetScaledClientSize(int *window_width, int *window_height) {
   const qreal retinaScale = devicePixelRatio();
   *window_width = width() * retinaScale;
   *window_height = height() * retinaScale;
+}
+
+uint32_t GLViewer::FramebufferObject() {
+  return defaultFramebufferObject();
 }
 
 void GLViewer::initializeGL() {
