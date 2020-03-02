@@ -12,6 +12,10 @@
 #include "shaders.h"
 #include "error.h"
 
+#ifdef QT_CORE_LIB
+#include "QOpenGLFramebufferObjectFormat"
+#endif
+
 using namespace Eigen;
 
 namespace gl {
@@ -112,10 +116,10 @@ void SetDefaultOpenGLSurfaceFormat() {
   // ensure that resource sharing between contexts stays functional as all
   // internal contexts are created using the correct version and profile.
   QSurfaceFormat format;
-  format.setDepthBufferSize(24);
+  format.setDepthBufferSize(32);
   format.setVersion(kGLMajorVersion, kGLMinorVersion);
   format.setProfile(QSurfaceFormat::CoreProfile);
-  format.setSamples(4);     // Multisampling
+  format.setSamples(4);     // Multisampling (0 to disable)
   QSurfaceFormat::setDefaultFormat(format);
 }
 
@@ -236,12 +240,52 @@ void SetNormalPixelPacking() {
   GL(PixelStorei)(GL_UNPACK_ALIGNMENT, 1);
 }
 
-bool PixelToModelCoordinates(int x, int y, const Matrix4d &transform,
-                             Vector3d *p) {
-  // Find the depth of this pixel. Note that glReadPixels() returns undefined
-  // values for pixels outside the window.
+float ReadDepthValue(uint32_t fbo, int x, int y) {
+#ifdef QT_CORE_LIB
+  // We take an 'fbo' argument here because QOpenGLWidget renders into an
+  // underlying FBO that is different from the default. First we try
+  // glReadPixels() directly, but if that doesn't do anything then it's likely
+  // because we can't read depth components from an FBO if multi sampling is
+  // enabled. So instead we use an additional FBO without multisampling to
+  // which the depth buffer can be copied. This is not fast, but this function
+  // is usually only called for mouse clicks so the speed is not a problem.
+
+  GL(BindFramebuffer)(GL_FRAMEBUFFER, fbo);
+  float depth = 1e9;
+  GL(ReadPixels)(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+  if (depth >= 0 && depth <= 1) {
+    return depth;
+  }
+
+  {
+    QOpenGLFramebufferObjectFormat format;
+    format.setSamples(0);
+    format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    QOpenGLFramebufferObject fbo2(1, 1, format);
+    CHECK(fbo2.isValid());
+    GL(BindFramebuffer)(GL_READ_FRAMEBUFFER, fbo);
+    GL(BindFramebuffer)(GL_DRAW_FRAMEBUFFER, fbo2.handle());
+    GL(BlitFramebuffer)(x, y, x+1, y+1, 0, 0, 1, 1,
+        GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    fbo2.bind();
+    GL(ReadPixels)(0, 0, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+  }
+  // Restore state. The fbo2 destructor will re-bind the current context's
+  // default framebuffer but that may not be the same as fbo, so re-bind fbo.
+  GL(BindFramebuffer)(GL_FRAMEBUFFER, fbo);
+  return depth;
+#else
+  GL(BindFramebuffer)(GL_FRAMEBUFFER, fbo);
   float depth = 0;  // Must initialize, buggy OpenGLs fail if this is NaN
   GL(ReadPixels)(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+  return depth;
+#endif
+}
+
+bool PixelToModelCoordinates(uint32_t fbo, int x, int y,
+                             const Matrix4d &transform, Vector3d *p) {
+  // Find the depth of this pixel.
+  float depth = ReadDepthValue(fbo, x, y);
   bool found_good_depth = (depth != 1.0);
   Vector3d xyd(x, y, depth);
   PixelToModelCoordinates(xyd, transform, p);
@@ -432,6 +476,23 @@ TextureRectangle::TextureRectangle(int width, int height, unsigned char *data) {
 }
 
 TextureRectangle::~TextureRectangle() {
+  GL(DeleteTextures)(1, &tex_);
+}
+
+//***************************************************************************
+// Texture3D.
+
+Texture3D::Texture3D(int width, int height, int depth, unsigned char *data,
+                     int internal_format, int format) {
+  SetNormalPixelPacking();
+  GL(GenTextures)(1, &tex_);
+  GL(ActiveTexture)(GL_TEXTURE0);
+  GL(BindTexture)(GL_TEXTURE_3D, tex_);
+  GL(TexImage3D)(GL_TEXTURE_3D, 0, internal_format, width, height, depth, 0,
+                 format, GL_UNSIGNED_BYTE, data);
+}
+
+Texture3D::~Texture3D() {
   GL(DeleteTextures)(1, &tex_);
 }
 

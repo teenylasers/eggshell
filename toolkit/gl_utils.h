@@ -139,6 +139,12 @@ inline void SetUniform(const char *name, const Eigen::Matrix4f &M) {
 // Set the "normal" pixel packing modes.
 void SetNormalPixelPacking();
 
+// A robust version of glReadPixels(...GL_DEPTH_COMPONENT...) that uses the
+// given framebuffer object, and that works even if the framebuffer object has
+// multi-sample enabled. This function is useful when using QOpenGLWidget since
+// that renders into an FBO.
+float ReadDepthValue(uint32_t fbo, int x, int y);
+
 // Given pixel coordinates x,y and depth in 'xyd', return the corresponding
 // model coordinates given the current camera transform and viewport. The x,y
 // are viewport coordinates where 0,0 is the bottom left of the window. If
@@ -148,11 +154,13 @@ void PixelToModelCoordinates(const Eigen::Vector3d &xyd,
                              Eigen::Vector3d *p, Eigen::Vector3d *dp_by_dd = 0);
 
 // A version of PixelToModelCoordinates() where the depth is looked up from the
-// currently rendered scene in the depth buffer. Return true if x,y corresponds
-// to an actual model pixel, or false if x,y seems to be at the far clip plane.
-// If false is returned then 'p' will be the projection of x,y to the far clip
-// plane. The result is undefined for pixels outside the window.
-bool PixelToModelCoordinates(int x, int y, const Eigen::Matrix4d &transform,
+// currently rendered scene in the depth buffer of the given framebuffer
+// object. Return true if x,y corresponds to an actual model pixel, or false if
+// x,y seems to be at the far clip plane. If false is returned then 'p' will be
+// the projection of x,y to the far clip plane. The result is undefined for
+// pixels outside the window.
+bool PixelToModelCoordinates(uint32_t fbo, int x, int y,
+                             const Eigen::Matrix4d &transform,
                              Eigen::Vector3d *p);
 
 // Return in v the viewport x,y,depth coordinates of the model coordinate m.
@@ -356,6 +364,18 @@ class TextureRectangle {
   TextureRectangle(int width, int height, unsigned char *data);
   ~TextureRectangle();
   void Bind() const { GL(BindTexture)(GL_TEXTURE_RECTANGLE, tex_); }
+
+ private:
+  GLuint tex_;
+};
+
+// A 3D texture.
+class Texture3D {
+ public:
+  Texture3D(int width, int height, int depth, unsigned char *data,
+            int internal_format = GL_RGB, int format = GL_RGB);
+  ~Texture3D();
+  void Bind() const { GL(BindTexture)(GL_TEXTURE_3D, tex_); }
 
  private:
   GLuint tex_;

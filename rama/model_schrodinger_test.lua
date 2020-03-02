@@ -8,6 +8,9 @@ config = {
   mesh_refines = 0,
   excited_port = 1,
   frequency = Parameter{label='Momentum', min=0.1, max=1, default=0.1},
+  -- Another option is to look at a wideband pulse:
+  --   frequency = LinearRange(0.4,2,40),
+  --   wideband_window = 'hamming',
 }
 
 L = 50         -- Total length

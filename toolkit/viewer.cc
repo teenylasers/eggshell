@@ -108,7 +108,8 @@ void GLViewerBase::PixelToModelCoords(int x, int y, Vector3d *model_pt) {
     MakeOpenGLContextCurrent();         // So reading the depth buffer can work
 
     // A depth buffer is available to compute the full tranformation.
-    if (!gl::PixelToModelCoordinates(x, y, gl::Transform(), model_pt)) {
+    if (!gl::PixelToModelCoordinates(FramebufferObject(), x, y,
+                                     gl::Transform(), model_pt)) {
       // x,y is at maximum depth (the far clip plane) so instead assume a depth
       // at the middle of the bounding box.
       double bounds[6];
@@ -158,6 +159,10 @@ void GLViewerBase::HandleClick(int x, int y, bool button,
 void GLViewerBase::HandleDrag(int x, int y, const Vector3d &model_pt) {
 }
 
+void GLViewerBase::FindModelPoint(int x, int y, Eigen::Vector3d *model_pt) {
+  PixelToModelCoords(x, y, model_pt);
+}
+
 void GLViewerBase::ApplyViewport() {
   int window_width, window_height;
   GetScaledClientSize(&window_width, &window_height);
@@ -175,6 +180,10 @@ double GLViewerBase::GetAspectRatio() {
   int width, height;
   GetScaledClientSize(&width, &height);
   return double(width) / double(height);
+}
+
+uint32_t GLViewerBase::FramebufferObject() {
+  return 0;
 }
 
 //***************************************************************************
@@ -351,7 +360,7 @@ void GLViewer::OnMouseEvent(wxMouseEvent &event) {
     SetFocus();
 
     // Find the model point that was clicked on.
-    PixelToModelCoords(x, y, &model_pt_);
+    FindModelPoint(x, y, &model_pt_);
 
     // Handle left button clicks in subclass code. On mac, cmd+left click
     // starts a rotation.
@@ -416,7 +425,7 @@ void GLViewer::OnMouseEvent(wxMouseEvent &event) {
   }
   else if (event.GetWheelRotation()) {
     double r = event.GetWheelRotation();
-    PixelToModelCoords(last_x_, last_y_, &model_pt_);
+    FindModelPoint(last_x_, last_y_, &model_pt_);
     if (event.GetWheelDelta() == 1) {
       // We have precise scrolling deltas, probably from a mac trackpad. Use
       // this for panning.
@@ -436,7 +445,7 @@ void GLViewer::OnMouseEvent(wxMouseEvent &event) {
     // wxEVT_LEAVE_WINDOW.
   } else if (event.Magnify()) {
     // OS X pinch-to-zoom events.
-    PixelToModelCoords(last_x_, last_y_, &model_pt_);
+    FindModelPoint(last_x_, last_y_, &model_pt_);
     camera_->Zoom(pow(4, -event.GetMagnification()), model_pt_);
     Refresh();
     // Don't update last_x_,last_y_ in case it was set by the the handler for
@@ -515,7 +524,7 @@ void GLViewer::wheelEvent(QWheelEvent *event) {
   makeCurrent();                // So reading the depth buffer can work
 
   double scale = devicePixelRatio();    // Usually 1 or 2
-  PixelToModelCoords(last_x_, last_y_, &model_pt_);
+  FindModelPoint(last_x_, last_y_, &model_pt_);
 
   if (event->source() == Qt::MouseEventNotSynthesized) {
     // The event comes from an actual wheel on an actual mouse. Use this for
@@ -553,7 +562,7 @@ void GLViewer::gestureEvent(QGestureEvent *event) {
 
     makeCurrent();                // So reading the depth buffer can work
 
-    PixelToModelCoords(last_x_, last_y_, &model_pt_);
+    FindModelPoint(last_x_, last_y_, &model_pt_);
     camera_->Zoom(1.0 / scale, model_pt_);
     update();
   }
@@ -622,7 +631,7 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
     setFocus();
 
     // Find the model point that was clicked on.
-    PixelToModelCoords(x, y, &model_pt_);
+    FindModelPoint(x, y, &model_pt_);
 
     // Handle left button clicks in subclass code. On mac, cmd+left click
     // starts a rotation.
@@ -692,6 +701,10 @@ void GLViewer::GetScaledClientSize(int *window_width, int *window_height) {
   const qreal retinaScale = devicePixelRatio();
   *window_width = width() * retinaScale;
   *window_height = height() * retinaScale;
+}
+
+uint32_t GLViewer::FramebufferObject() {
+  return defaultFramebufferObject();
 }
 
 void GLViewer::initializeGL() {
