@@ -1,7 +1,15 @@
 
-// Solve for u the PDE: Laplacian[u] + g(x,y)*u = f(x,y)
+// Solve for u the PDE: Diamond[u] + g(x,y)*u = f(x,y)
+// Where Diamond[u] = sigma_xx d^2u/dx^2 +
+//                    sigma_yy d^2u/dy^2 +
+//                    2 sigma_xy d^2u/dxdy
+// Emphasis is on the common case where sigma_xx = sigma_yy = 1, sigma_xy = 0,
+// which makes Diamond[u] into the Laplacian.
 
 // @@@ TODO
+// * Interpolate k instead of k^2 ?
+// * Fix the discontinuous gradient stuff
+// * Naming consistency: k^2, g(), C. Rename g as 'k2'?
 // * Is there a way we can avoid the copy of triplets on SolveSystem.
 // * Use an 'Index' type instead of 'int', for when we need more than 2^31
 //   points
@@ -241,14 +249,28 @@ struct ExampleFEMProblem : public FEMProblem {
 // include functions that do not have parameters dependent on the problem
 // types. Also there is no mention of EigenSystem() here as it can not be
 // instantiated for all kinds of problems.
+// @@@ Check which of the functions below are still needed.
 class FEMSolverBase {
  public:
   virtual ~FEMSolverBase() {}
+
+  // The number of elements in the solution vector.
   virtual size_t SystemSize() const = 0;
-  virtual const char *Verify() const = 0;
+
+  // If the internal data structures are consistent then return 0, or return an
+  // error message otherwise.
+  virtual const char *Verify() const MUST_USE_RESULT = 0;
+
+  // Generate internal maps.
   virtual void CreateIndexMaps() = 0;
+
+  // Reset internal caches.
   virtual void UnCreateSystem() = 0;
-  virtual void CreateSystem(bool create_Gtriplets = false) = 0;
+
+  // Create the system.
+  virtual void CreateSystem(bool create_Ctriplets = false) = 0;
+
+  // Compute the solution. Return true on success, false otherwise.
   virtual bool SolveSystem() MUST_USE_RESULT = 0;
 };
 
@@ -267,34 +289,36 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
 
   typedef eigensolvers::LaplacianEigenSolver EigenSolver;
 
-  // Various outputs of the functions below. The index_map_ is a representation
-  // of the mesh with all Dirichlet points removed. The index_map_ maps point
-  // indexes into offsets into a smaller system matrix that does not represent
-  // those points. Dirichlet points have value -1. The size of the system
-  // matrix and the right hand side is the size of reverse_index_map_. The
-  // factorizer is kept around so that some clients can update derivative
+  // Various outputs of the functions below.
+  //
+  // The index_map_ is a representation of the mesh with all Dirichlet points
+  // removed. The index_map_ maps the original point indexes into indexes into
+  // a smaller system matrix with no Dirichlet points. Dirichlet points have
+  // value -1. The size of the system matrix and the right hand side is the
+  // size of reverse_index_map_.
+  //
+  // The factorizer is kept around so that some clients can update derivative
   // information.
   vector<int> index_map, reverse_index_map;     // Created by CreateIndexMaps()
-  vector<Triplet> triplets, Gtriplets;          // Created by CreateSystem()
+  vector<Triplet> triplets, Ctriplets;          // Created by CreateSystem()
   NumberVector rhs;                             // Created by CreateSystem()
-  Factorizer *factorizer;                       // Created by SolveSystem()
+  Factorizer *factorizer = 0;                   // Created by SolveSystem()
   MNumberVector solution;                       // Created by SolveSystem()
-  int solvesystem_retval;                       // Set by SolveSystem()
-  EigenSolver *eigensolver;                     // Created by EigenSystem()
-  int eigensystem_retval;                       // Set by EigenSystem()
+  int solvesystem_retval = -1;                  // Set by SolveSystem()
+  EigenSolver *eigensolver = 0;                 // Created by EigenSystem()
+  int eigensystem_retval = -1;                  // Set by EigenSystem()
 
-  FEMSolver() : factorizer(0), solvesystem_retval(-1),
-                eigensolver(0), eigensystem_retval(-1) {}
+  FEMSolver() {}
   ~FEMSolver() {
     delete factorizer;
     delete eigensolver;
   }
 
-  size_t SystemSize() const { return reverse_index_map.size(); }
+  size_t SystemSize() const override { return reverse_index_map.size(); }
 
   // Check the mesh for consistency. Return 0 if the mesh looks good, or an
   // error message otherwise.
-  const char *Verify() const {
+  const char *Verify() const override MUST_USE_RESULT {
     if (T::NumPoints() <= 0) {
       return "Mesh has zero points";
     }
@@ -330,18 +354,26 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
         int p2 = T::Triangle(i, (j + 1) % 3);
         auto index = std::make_pair(std::min(p1, p2), std::max(p1, p2));
         if (edge_type.count(index) > 0) {
-          CHECK(edge_type[index] == T::EdgeType(i, j));    // Consistent type?
+          if (edge_type[index] != T::EdgeType(i, j)) {
+            return "Inconsistent edge type";
+          }
         }
         edge_type[index] = T::EdgeType(i, j);
         edge_count[index]++;
       }
     }
     for (auto it : edge_count) {
-      CHECK(it.second == 1 || it.second == 2);
+      if (!(it.second == 1 || it.second == 2)) {
+        return "Edge does not bound just one or two triangles";
+      }
       if (it.second == 1) {
-        CHECK(edge_type[it.first] != T::INTERIOR);
+        if (edge_type[it.first] == T::INTERIOR) {
+          return "Exterior edge is not marked as such";
+        }
       } else {
-        CHECK(edge_type[it.first] == T::INTERIOR);
+        if (edge_type[it.first] != T::INTERIOR) {
+          return "Interior edge is not marked as such";
+        }
       }
     }
 
@@ -355,7 +387,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
   bool CreateIndexMapsNeedsCalling() const {
     return index_map.empty();
   }
-  void CreateIndexMaps() {
+  void CreateIndexMaps() override {
     if (!CreateIndexMapsNeedsCalling()) {
       return;
     }
@@ -412,17 +444,18 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
   }
 
   // Create the system matrix A (as a list in 'triplets') and the right hand
-  // side 'rhs' for the FEM problem. If create_Gtriplets , separate out the
-  // contribution of the nonzero g() function into a separate matrix stored in
-  // Gtriplets.
+  // side 'rhs' for the FEM problem. If create_Ctriplets is true, separate out
+  // the contribution of the nonzero g() function into a separate matrix C
+  // stored in Ctriplets, which is useful for solving eigenproblems.
   bool CreateSystemNeedsCalling() const {
     return triplets.empty();
   }
-  void UnCreateSystem() {
+  void UnCreateSystem() override {
     triplets.clear();
+    Ctriplets.clear();
     rhs.resize(0);
   }
-  void CreateSystem(bool create_Gtriplets = false) {
+  void CreateSystem(bool create_Ctriplets = false) override {
     // Prerequisites.
     DoTrace trace(__func__);
     if (!CreateSystemNeedsCalling()) {
@@ -432,7 +465,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
       CreateIndexMaps();
     }
     triplets.clear();
-    Gtriplets.clear();
+    Ctriplets.clear();
 
     // Handle zero system size. This can happen if the mesh is 100% Dirichlet
     // boundary points, i.e. there are no nonzero solution points.
@@ -450,9 +483,9 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     int triplets_size = T::NumTriangles() * 6 + system_size;
     triplets.reserve(triplets_size);
     vector<Number> diagonal(system_size);
-    vector<Number> Gdiagonal(create_Gtriplets ? system_size : 0);
-    if (create_Gtriplets) {
-      Gtriplets.reserve(triplets_size);
+    vector<Number> Cdiagonal(create_Ctriplets ? system_size : 0);
+    if (create_Ctriplets) {
+      Ctriplets.reserve(triplets_size);
     }
 
     // Build the triplets and right hand side.
@@ -473,8 +506,12 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
         area2 = T::Absolute(d1[0]*d2[1] - d1[1]*d2[0]);
       }
 
-      // Compute system matrix contributions for each vertex and edge of the
-      // triangle.
+      // Compute system matrix and right hand side contributions for each
+      // vertex and edge of the triangle. The signs of everything that goes in
+      // the system matrix and the right hand side are inverted here compared
+      // to the documented FEM derivation. The reason is so that, in the cases
+      // we end up with symmetric definite matrices, the matrices are positive
+      // (and not negative) definite so that e.g. Cholesky solvers can be used.
       for (int j0 = 0; j0 < 3; j0++) {
         // Triangle indexes (j0,j1,j2 has the sequence 0,1,2 -> 1,2,0 ->
         // 2,0,1).
@@ -494,21 +531,27 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
           cot = d1.dot(d2) / area2;
         }
 
-        // Contributions to off diagonal entry A(sj0, sj1) and A(sj1, sj0).
+        // Off-diagonal contribution to the C matrix.
         Number g0 = T::PointG(i, j0), g1 = T::PointG(i, j1),
                g2 = T::PointG(i, j2);
-        Number Aij_value = -T::GNumberToNumber(cot / 2.0);
         Number Cij_value = -((g0 + g1) * 2.0 + g2) *
                             T::GNumberToNumber(area2 / 120.0);
 
-        // Add contributions to on-diagonal entry A(sj2, sj2).
+        // Add contribution to on-diagonal entry C(sj2, sj2).
         GNumber opplen2 = (pt[j0] - pt[j1]).squaredNorm();
         if (sj2 >= 0) {
-          // Aii
-          diagonal[sj2] -= T::GNumberToNumber(-opplen2 / (area2 * 2.0));
-          // Cii
-          (create_Gtriplets ? Gdiagonal : diagonal)[sj2] -=
+          (create_Ctriplets ? Cdiagonal : diagonal)[sj2] -=
               (g0 + g1 + g2 * 3.0) * T::GNumberToNumber(area2 / 60.0);
+        }
+
+        // Contributions to A(sj0, sj1) and A(sj1, sj0), and the diagonal.
+        Number Aij_value;
+        if (true) {
+          // Isotropic Laplacian.
+          Aij_value = -T::GNumberToNumber(cot / 2.0);
+          if (sj2 >= 0) {  // Handle diagonal entry at sj2
+            diagonal[sj2] -= T::GNumberToNumber(-opplen2 / (area2 * 2.0));
+          }
         }
 
         // Contribution of 'f' to right hand side.
@@ -518,7 +561,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
         }
 
         // Add contributions for triangle edges with robin boundary conditions,
-        // i.e. du/df . n + alpha*u = beta.
+        // i.e. grad u . n + alpha*u = beta.
         if (T::EdgeType(i, j0) == T::ROBIN) {
           // Points j0->j1 are on the boundary.
           GNumber side_length = sqrt(opplen2);          // Length j0->j1
@@ -607,22 +650,22 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
           }
 
           // @@@ It's not clear how well this works in eigensystems when we
-          // have to compute a separate matrix for G, since it's not clear if
-          // these additional terms go in the main system matrix or in G.
-          CHECK(!create_Gtriplets);
+          // have to compute a separate matrix for C, since it's not clear if
+          // these additional terms go in the main system matrix or in C.
+          CHECK(!create_Ctriplets);
         }
         // @@@@@@@@@@ ^^^ VERIFY THAT THIS ACTUALLY WORKS!
 
         // Add off-diagonal matrix entries to triplets.
         if (sj0 >= 0 && sj1 >= 0) {
-          if (!create_Gtriplets) {
+          if (!create_Ctriplets) {
             Aij_value += Cij_value;
           }
           if (T::ProblemIsLowerTriangular()) {
             triplets.push_back(Triplet(std::max(sj0, sj1), std::min(sj0, sj1),
                                        Aij_value));
-            if (create_Gtriplets) {
-              Gtriplets.push_back(Triplet(std::max(sj0, sj1),
+            if (create_Ctriplets) {
+              Ctriplets.push_back(Triplet(std::max(sj0, sj1),
                                           std::min(sj0, sj1), Cij_value));
             }
           } else {
@@ -633,8 +676,8 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
             triplets.push_back(Triplet(sj0, sj1, Aij_value));
             triplets.push_back(Triplet(sj1, sj0, Aij_value));
             // We do not yet handle the case of creating a fully symmetric
-            // matrix for Gtriplets.
-            CHECK(!create_Gtriplets);
+            // matrix for Ctriplets.
+            CHECK(!create_Ctriplets);
           }
         }
       }
@@ -643,12 +686,12 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     // Add diagonal entries to triplets.
     for (int i = 0; i < system_size; i++) {
       triplets.push_back(Triplet(i, i, diagonal[i]));
-      if (create_Gtriplets) {
-        Gtriplets.push_back(Triplet(i, i, Gdiagonal[i]));
+      if (create_Ctriplets) {
+        Ctriplets.push_back(Triplet(i, i, Cdiagonal[i]));
       }
     }
     // We may not have used all entries in triplets if we have Dirichlet
-    // boundaries.
+    // boundaries, but check that we didn't use more than we reserved.
     CHECK(triplets.size() <= triplets_size);
   }
 
@@ -656,7 +699,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
   // success or false if the factorization failed. This only does work the
   // first time it is called, subsequent times it simply returns the same
   // return code as the first time.
-  bool SolveSystem() MUST_USE_RESULT {
+  bool SolveSystem() override MUST_USE_RESULT {
     // Prerequisites.
     DoTrace trace(__func__);
     if (solvesystem_retval >= 0) {
@@ -665,7 +708,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     if (CreateSystemNeedsCalling()) {
       CreateSystem();
     }
-    CHECK(Gtriplets.empty());   // 'triplets' must contain the whole problem
+    CHECK(Ctriplets.empty());   // 'triplets' must contain the whole problem
 
     // Initialize the FEM system matrix 'A' from the triplets. Convert from
     // Number to MNumber if necessary.
@@ -731,8 +774,8 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
       MNumber deriv = T::Derivative(triplets[i].value());
       int col = reverse_index_map[triplets[i].col()];
       tmp[triplets[i].row()] -= deriv * solution[col];
-      // If the problem is lower triangular then only the lower triangle of
-      // trips is filled in and we'll need to handle each off-diagonal entry
+      // If the problem is lower triangular then only the lower triangle of the
+      // triplets is filled in and we'll need to handle each off-diagonal entry
       // twice.
       if (T::ProblemIsLowerTriangular() &&
           triplets[i].row() != triplets[i].col()) {
@@ -766,13 +809,13 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
       return eigensystem_retval;
     }
     CreateSystem(true);
-    CHECK(!Gtriplets.empty());
+    CHECK(!Ctriplets.empty());
 
     // Initialize the FEM system matrix 'A' from the triplets. Convert from
     // Number to MNumber if necessary.
     Eigen::SparseMatrix<MNumber> A, B;
     GetSystemMatrix(triplets, &A, true);
-    GetSystemMatrix(Gtriplets, &B, true);
+    GetSystemMatrix(Ctriplets, &B, true);
 
     // Compute the smallest eigenvalues, with eigenvectors.
     eigensolver = new EigenSolver(A, &B, eigenpair_count, sigma);

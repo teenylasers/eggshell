@@ -1,6 +1,8 @@
 
 // Testing for FEMSolver.
 
+#define __FEM_SOLVER_TEST__  // Enable some test code in femsolver.h
+
 #include "femsolver.h"
 #include <stdio.h>
 #include "testing.h"
@@ -279,7 +281,7 @@ TEST_FUNCTION(EigenSystem) {
   // Make sure A*x = lambda*B*x for all x,lambda.
   Eigen::SparseMatrix<double> A, B;
   solver.GetSystemMatrix(solver.triplets, &A, true);
-  solver.GetSystemMatrix(solver.Gtriplets, &B, true);
+  solver.GetSystemMatrix(solver.Ctriplets, &B, true);
   for (int i = 0; i < 5; i++) {
     const Eigen::VectorXd vec = solver.GetRawEigenvector(i);
     Eigen::VectorXd error = A*vec - solver.GetEigenvalue(i)*B*vec;
