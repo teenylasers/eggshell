@@ -19,6 +19,7 @@ class EdgeKind {
   bool IsDirichlet() const { return value_ == DIRICHLET; }
   bool IsNeumann() const { return value_ == NEUMANN; }
   bool IsABC() const { return value_ == ABC; }
+  int IntegerForDebugging() const { return int(value_); }
 
   // Convert a port number p (>= 1) to an EdgeKind.
   explicit EdgeKind(int port_number) : value_(port_number - 1 + PORT1) {}
@@ -54,8 +55,8 @@ struct EdgeInfo {
   // points of a mesh will have an EdgeInfo also, but it is not used for
   // anything.
   //
-  // This cumbersome scheme for assign properties to edges is a consequence of
-  // the clipper API dealing with vertices not edges in its callback. If we
+  // This cumbersome scheme for assigning properties to edges is a consequence
+  // of the clipper API dealing with vertices not edges in its callback. If we
   // designed our own polygon clipper then edge properties would be assigned to
   // edges and not distributed among the vertices.
 
@@ -101,6 +102,17 @@ struct ClipperEdgeInfo : public EdgeInfo {
   ClipperEdgeInfo(const EdgeInfo &e, double dx, double dy) : EdgeInfo(e) {
     derivative_x = dx;
     derivative_y = dy;
+  }
+  bool IsDefault() const {
+    return kind[0].IsDefault() && kind[1].IsDefault() && dist[0] == 0 &&
+           dist[1] == 0 && derivative_x == 0 && derivative_y == 0;
+  }
+  void SetDefault() {
+    kind[0].SetDefault();
+    kind[1].SetDefault();
+    dist[0] = 0;
+    dist[1] = 0;
+    derivative_x = derivative_y = 0;
   }
 };
 
