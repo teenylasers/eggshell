@@ -69,7 +69,6 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
   typedef Eigen::Matrix<MNumber, Eigen::Dynamic, 1> MNumberVector;
   typedef Eigen::SparseLU<Eigen::SparseMatrix<MNumber>,
                           Eigen::COLAMDOrdering<int> > Factorizer;
-  bool ProblemIsLowerTriangular() const { return false; }
   bool GradientStepAtDielectricBoundary() const {
     return s->config_.type == ScriptConfig::EXY;
   }
@@ -87,9 +86,9 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
     // For EM cavities, k^2 = omega^2*mu_0*epsilon_0*epsilon_r = k0^2*epsilon_r.
     JetComplex epsilon;
     const Material &material = s->materials_[s->triangles_[i].material];
-    if (!s->dielectric_.empty() && !material.callback.empty()) {
+    if (!s->mat_params_.empty() && !material.callback.empty()) {
       // This material has a dielectric field.
-      epsilon = s->dielectric_[s->triangles_[i].index[j]];
+      epsilon = s->mat_params_[s->triangles_[i].index[j]].epsilon;
     } else {
       epsilon = material.epsilon;
     }
@@ -101,6 +100,7 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
   }
 
   Number PointF(int i, int j) const {
+    // @@@ Perhaps allow sources to be distributed through materials?
     return Number(0.0);
   }
 
@@ -118,9 +118,10 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
 
   void Robin(int i, int j, int point_number, const Number &k2,
              Number *alpha, Number *beta) const {
+    // Note that k2 == PointG(i, point_number).
     JetComplex k = sqrt(k2);
     if (k2.real() < 0) {
-      // For nonpropagating modes in Exy cavities we need a different branch
+      // For nonpropagating modes in Ez cavities we need a different branch
       // cut for the sqrt(k2) to ensure we get exponential decay at the port
       // boundary conditions and not exponential increase.
       k = -k;
@@ -169,17 +170,44 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
       *alpha = JetComplex(0, 1) * k;          // Works for all ports and ABC
       *beta = JetComplex(0);
     } else {
-      // At non-port robin boundaries we have alpha = beta = 0;
+      // At non-port robin boundaries we have alpha = beta = 0.
       *alpha = JetComplex(0.0);
       *beta = JetComplex(0.0);
     }
   }
 
-  GNumber Absolute(const GNumber &a) { return abs(a); }
-  bool SetSparseMatrixFromTriplets(const std::vector<Triplet> &triplets,
-                                   Eigen::SparseMatrix<MNumber> *A) {
-    return false;
+  bool AnisotropicSigma(int i, NumberVector *sigma_xx, NumberVector *sigma_yy,
+                        NumberVector *sigma_xy) {
+    const Material &material = s->materials_[s->triangles_[i].material];
+    if (!s->mat_params_.empty() && !material.callback.empty()) {
+      // This material has a material parameters field.
+      bool is_isotropic = true;
+      for (int j = 0; j < 3; j++) {
+        is_isotropic &= s->mat_params_[s->triangles_[i].index[j]].is_isotropic;
+      }
+      if (is_isotropic) {
+        return false;
+      }
+      for (int j = 0; j < 3; j++) {
+        (*sigma_xx)[j] = s->mat_params_[s->triangles_[i].index[j]].sigma_xx;
+        (*sigma_yy)[j] = s->mat_params_[s->triangles_[i].index[j]].sigma_yy;
+        (*sigma_xy)[j] = s->mat_params_[s->triangles_[i].index[j]].sigma_xy;
+      }
+      return true;
+    } else {
+      if (material.is_isotropic) {
+        return false;
+      }
+      for (int j = 0; j < 3; j++) {
+        (*sigma_xx)[j] = material.sigma_xx;
+        (*sigma_yy)[j] = material.sigma_yy;
+        (*sigma_xy)[j] = material.sigma_xy;
+      }
+      return true;
+    }
   }
+
+  GNumber Absolute(const GNumber &a) { return abs(a); }
   MNumber Derivative(const Number &a) {
     return Complex(a.real().Derivative(), a.imag().Derivative());
   }
@@ -206,7 +234,6 @@ struct WaveguideModeFEMProblem : FEM::FEMProblem {
   typedef Eigen::Matrix<MNumber, Eigen::Dynamic, 1> MNumberVector;
   typedef Eigen::SimplicialLLT<Eigen::SparseMatrix<MNumber>, Eigen::Lower,
                                Eigen::AMDOrdering<int> > Factorizer;
-  bool ProblemIsLowerTriangular() const { return true; }
   bool GradientStepAtDielectricBoundary() const { return false; }
   MNumber MNumberFromNumber(Number n) const { return ToDouble(n); }
   Number GNumberToNumber(GNumber n) const { return n; }
@@ -227,11 +254,11 @@ struct WaveguideModeFEMProblem : FEM::FEMProblem {
     *alpha = 0.0;
     *beta = 0.0;
   }
-  GNumber Absolute(const GNumber &a) { return abs(a); }
-  bool SetSparseMatrixFromTriplets(const std::vector<Triplet> &triplets,
-                                   Eigen::SparseMatrix<MNumber> *A) {
+  bool AnisotropicSigma(int i, NumberVector *sigma_xx, NumberVector *sigma_yy,
+                        NumberVector *sigma_xy) {
     return false;
   }
+  GNumber Absolute(const GNumber &a) { return abs(a); }
   MNumber Derivative(const Number &a) {
     return a.Derivative();
   }
@@ -410,17 +437,17 @@ bool Solver::SameAs(const Shape &s, const ScriptConfig &config, Lua *lua) {
   }
   // The shape and config are the same. The material values and implementation
   // of the material callback functions are the same. However we don't know if
-  // the dielectric field computed by the material callback functions are the
-  // same, because those functions can use parameter values that we can't see
-  // here. Therefore build a new dielectric field and compare it with the
-  // existing one.
-  if (dielectric_.empty()) {
+  // the material parameters field computed by the material callback functions
+  // are the same, because those functions can use parameter values that we
+  // can't see here. Therefore build a new material parameters field and
+  // compare it with the existing one.
+  if (mat_params_.empty()) {
     return true;
   }
-  vector<JetComplex> d;
-  DeterminePointDielectric(lua, &d);
-  CHECK(dielectric_.size() == d.size());
-  return dielectric_ == d;
+  vector<MaterialParameters> d;
+  DeterminePointMaterial(lua, &d);
+  CHECK(mat_params_.size() == d.size());
+  return mat_params_ == d;
 }
 
 bool Solver::UpdateDerivatives(const Shape &s) {
@@ -435,7 +462,9 @@ bool Solver::UpdateDerivatives(const Shape &s) {
   // Recreate the system (this will use the updated derivatives in the mesh
   // points and materials).
   solver_->UnCreateSystem();            // Resets triplets and rhs
-  solver_->CreateSystem();
+  if (!solver_->CreateSystem()) {
+    return false;
+  }
 
   // Recompute derivatives.
   solution_derivative_.resize(0);
@@ -1035,12 +1064,12 @@ void Solver::SaveMeshAndSolutionToMatlab(const char *filename) {
   }
 
   // Write mesh dielectric properties (if available).
-  if (!dielectric_.empty()) {
-    int dims[2] = {(int) dielectric_.size(), 1};
-    vector<double> pr(dielectric_.size()), pi(dielectric_.size());
-    for (int i = 0; i < dielectric_.size(); i++) {
-      pr[i] = ToDouble(dielectric_[i].real());
-      pi[i] = ToDouble(dielectric_[i].imag());
+  if (!mat_params_.empty()) {
+    int dims[2] = {(int) mat_params_.size(), 1};
+    vector<double> pr(mat_params_.size()), pi(mat_params_.size());
+    for (int i = 0; i < mat_params_.size(); i++) {
+      pr[i] = ToDouble(mat_params_[i].epsilon.real());
+      pi[i] = ToDouble(mat_params_[i].epsilon.imag());
     }
     mat.WriteMatrix("pp", 2, dims, MatFile::mxDOUBLE_CLASS,
                     pr.data(), pi.data());

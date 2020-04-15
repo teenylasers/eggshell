@@ -54,18 +54,17 @@ class Mesh {
   vector<Triangle> triangles_;
   vector<Material> materials_;          // Copies of shape piece materials
   friend class BoundaryIterator;
-  // Optional, material dielectric properties at each point (size = 0 or
-  // points_.size()).
-  vector<JetComplex> dielectric_;       // epsilon at each point
+  // Optional, material parameters at each point (size = 0 or points_.size()).
+  vector<MaterialParameters> mat_params_;
   // Spatial index that is built when FindTriangle() is called.
   int cell_size_;                       // Spatial index cell size is 2^this
   typedef std::map<uint64, std::vector<int> > SpatialIndex;
   SpatialIndex spatial_index_;
 
-  // If any materials have callback functions to determine their dielectric
-  // parameters, call them and populate the dielectric vector. Otherwise clear
-  // the dielectric vector.
-  void DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric);
+  // If any materials have callback functions to determine their material
+  // parameters, call them and populate the epsilon and (optionally) sigma
+  // values in mat_params. vectors. Otherwise clear mat_params.
+  void DeterminePointMaterial(Lua *lua, vector<MaterialParameters> *mat_params);
 
   // For testing:
   friend void __RunTest_SpatialIndex();

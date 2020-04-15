@@ -72,11 +72,33 @@ lua: dirs
 docs: dirs
 	$(MAKE) $(MY_MAKEFLAGS) docs2
 docs2:
+	cp ../doc/*.{png,gif} .       # So locally building and viewing the manual works
 	$(DOCCER) -Dversion=$(VERSION) ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama.html
-	cp ../doc/*.{png,gif} .       # So locally viewing the manual works
 
-test: all
-	./build/$(APP) -test
+test: unittest script_test
+
+unittest: all
+	./build/$(APP) -unittest
+
+script_test: all
+	./build/$(APP) -test test_vector.lua
+	./build/$(APP) -test test_complex.lua
+	./build/$(APP) -test test_autodiff.lua
+	./build/$(APP) -test model_ALMA_coupler_Exy.lua
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=1
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=2
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=3
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=4
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=5
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=6
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=7
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=8
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=9
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=10
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=11
+	./build/$(APP) -test model_anisotropic_test.lua -test_number=12
+	@echo
+	@echo '*** Success ***'
 
 windeploy: all test
 	$(MAKE) $(MY_MAKEFLAGS) windeploy2

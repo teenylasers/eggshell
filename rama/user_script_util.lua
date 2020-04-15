@@ -79,7 +79,7 @@ __ZeroTable__ = setmetatable({}, {__index = function(T,k) return 0 end })
 -- functions.
 __Optimize3rdArg__ = {
   Complex = function(x, y)
-    return _GetField(x, y)
+    return Complex(_GetField(x, y))
   end,
   Magnitude = function(x, y)
     local re,im = _GetField(x, y)
@@ -138,4 +138,108 @@ end
 
 function Max(a, b)
   if a > b then return a else return b end
+end
+
+-----------------------------------------------------------------------------
+-- Complex numbers represented as tables {real_part, imaginary_part, fn=T}. The
+-- real and imaginary parts can be scalars or vectors. The table T is either
+-- the global 'math' or 'vec' table which provides access to math functions,
+-- depending on the types of the real and imaginary parts.
+
+__complex_metatable__ = {}
+
+-- Given than a and b are complex tables, check that they are compatible.
+-- It is assumed that the real and imaginary parts are already compatible.
+local function CheckComplexCompatibility(a, b)
+  local avec = vec.IsVector(a[1])
+  local bvec = vec.IsVector(b[1])
+  assert( (type(a[1]) == 'number' or avec) or
+          (type(b[1]) == 'number' or bvec), 'Complex type incompatibility')
+  if avec and bvec then
+    assert(#a[1] == #a[2], 'Complex vector sizve incompatibility')
+  end
+  return a, b
+end
+
+-- Check that a and b are tables containing complex numbers. If they are just
+-- scalars then cast them to complex tables. Return the two complex tables, and
+-- check that the return values are compatible.
+local function CheckComplexArguments(a, b)
+  if getmetatable(a) == __complex_metatable__ then          -- 'a' is complex
+    if getmetatable(b) == __complex_metatable__ then
+      return CheckComplexCompatibility(a, b)
+    else
+      assert(type(b) == 'number' or vec.IsVector(b), 'Invalid complex number operation')
+      return CheckComplexCompatibility(a, Complex(b))
+    end
+  else                                                  -- 'a' is not complex
+    assert(getmetatable(b) == __complex_metatable__)
+    return CheckComplexCompatibility(Complex(a), b)
+  end
+end
+
+__complex_metatable__.__add = function(a, b)  -- the addition (+) operation
+  a,b = CheckComplexArguments(a, b)
+  return setmetatable({a[1]+b[1], a[2]+b[2], fn=a.fn}, __complex_metatable__)
+end
+__complex_metatable__.__sub = function(a, b)  -- the subtraction (-) operation
+  a,b = CheckComplexArguments(a, b)
+  return setmetatable({a[1]-b[1], a[2]-b[2], fn=a.fn}, __complex_metatable__)
+end
+__complex_metatable__.__mul = function(a, b)  -- the multiplication (*) operation
+  a,b = CheckComplexArguments(a, b)
+  return setmetatable({a[1]*b[1] - a[2]*b[2], a[2]*b[1] + a[1]*b[2], fn=a.fn}, __complex_metatable__)
+end
+__complex_metatable__.__div = function(a, b)  -- the division (/) operation
+  a,b = CheckComplexArguments(a, b)
+  local bm = b[1]*b[1] + b[2]*b[2]
+  return setmetatable({(a[1]*b[1] + a[2]*b[2])/bm, (a[2]*b[1] - a[1]*b[2])/bm, fn=a.fn}, __complex_metatable__)
+end
+__complex_metatable__.__pow = function(a, b)  -- the exponentiation (^) operation
+  a,b = CheckComplexArguments(a, b)
+  local am = a[1]*a[1] + a[2]*a[2]
+  -- If am == 0 this will fail as the complex power of zero is indeterminate.
+  -- However we do not test for this case as 'am' could be a vector.
+  local aa = a.fn.atan(a[2], a[1])
+  local angle = aa*b[1] + b[2]/2*a.fn.log(am)
+  local mag = am^(b[1]/2)*a.fn.exp(-aa*b[2])
+  return setmetatable({mag*a.fn.cos(angle), mag*a.fn.sin(angle), fn=a.fn}, __complex_metatable__)
+end
+__complex_metatable__.__unm = function(a)  -- the negation (unary -) operation
+  a = CheckComplexArguments(a, a)
+  return setmetatable({-a[1],-a[2], fn=a.fn}, __complex_metatable__)
+end
+__complex_metatable__.__index = function(T, key)  -- The indexing operation T[key]
+  if key == 're' then
+    return T[1]
+  elseif key == 'im' then
+    return T[2]
+  elseif key == 'abs' then
+    return T.fn.sqrt(T[1]*T[1] + T[2]*T[2])
+  elseif key == 'angle' then
+    return T.fn.atan(T[2], T[1])
+  else
+    error 'Unknown complex number operation'
+  end
+end
+
+function Complex(re, im)
+  local revec = vec.IsVector(re)
+  if not im then
+    -- Allow Complex(re) to be written:
+    if revec then
+      im = Vector():Resize(#re)
+    else
+      im = 0
+    end
+  end
+  local imvec = vec.IsVector(im)
+  assert ((revec and imvec) or (not revec and not imvec),
+          'Vector and nonvector arguments to Complex() not allowed')
+  local fn_table = math
+  if revec then
+    assert(#re == #im, 'Two vector arguments should have the same size')
+    fn_table = vec
+  end
+  return setmetatable({re, im, fn=fn_table}, __complex_metatable__)
 end

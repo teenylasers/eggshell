@@ -396,7 +396,7 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
   UpdateDerivatives(s);
 
   if (lua) {
-    DeterminePointDielectric(lua, &dielectric_);
+    DeterminePointMaterial(lua, &mat_params_);
   }
 }
 
@@ -408,7 +408,7 @@ void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
 
   if (draw_type == MESH_DIELECTRIC_REAL || draw_type == MESH_DIELECTRIC_IMAG ||
       draw_type == MESH_DIELECTRIC_ABS) {
-    if (dielectric_.empty()) {
+    if (mat_params_.empty()) {
       return;                             // Nothing to show
     }
     // Create color map.
@@ -430,11 +430,11 @@ void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
         int k = triangles_[i].index[j];
         double value;
         if (draw_type == MESH_DIELECTRIC_REAL) {
-          value = ToDouble(dielectric_[k].real());
+          value = ToDouble(mat_params_[k].epsilon.real());
         } else if (draw_type == MESH_DIELECTRIC_IMAG) {
-          value = ToDouble(dielectric_[k].imag());
+          value = ToDouble(mat_params_[k].epsilon.imag());
         } else {
-          value = ToDouble(abs(dielectric_[k]));
+          value = ToDouble(abs(mat_params_[k].epsilon));
         }
         int c = std::max(0, std::min(kNumColors - 1,
           int(round((value - minval) * (kNumColors / (maxval-minval))))));
@@ -616,21 +616,19 @@ int Mesh::FindTriangle(double x, double y) {
   return -1;
 }
 
-void Mesh::DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric) {
+void Mesh::DeterminePointMaterial(Lua *lua,
+                                  vector<MaterialParameters> *mat_params) {
   Trace trace(__func__);
+  mat_params->clear();
   bool have_callbacks = false;
   for (int i = 0; i < materials_.size(); i++) {
     have_callbacks = have_callbacks || (!materials_[i].callback.empty());
   }
   if (!have_callbacks) {
-    dielectric->clear();
     return;
   }
-  dielectric->resize(points_.size());
-  // Set default to 1.
-  for (int i = 0; i < dielectric->size(); i++) {
-    (*dielectric)[i] = 1;
-  }
+  mat_params->resize(0);
+  mat_params->resize(points_.size());   // Sets material parameters to defaults
   for (int i = 0; i < materials_.size(); i++) {
     // Skip materials without property callback functions.
     if (materials_[i].callback.empty()) {
@@ -668,25 +666,21 @@ void Mesh::DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric) {
       }
       // Call the callback function. RunCallback() will pop the callback
       // function and arguments.
-      LuaVector *result[2];
-      if (!materials_[i].RunCallback(lua, result)) {
+      vector<MaterialParameters> result;
+      if (!materials_[i].RunCallback(lua, &result)) {
         // A lua error message will have been displayed at this point.
-        dielectric->clear();
+        mat_params->clear();
         return;
       }
-      // Set point dielectric properties from the callback function's results.
-      count = 0;
+      // Set point material properties from the callback function's results.
+      int index = 0;
       for (int j = 0; j < mark.size(); j++) {
         if (mark[j]) {
-          if (result[1]) {
-            (*dielectric)[j] = JetComplex((*result[0])[count],
-                                          (*result[1])[count]);
-          } else {
-            (*dielectric)[j] = (*result[0])[count];
-          }
+          (*mat_params)[j] = result[index];
         }
-        count += mark[j];
+        index += mark[j];
       }
+      CHECK(index == count);
     }
   }
 }

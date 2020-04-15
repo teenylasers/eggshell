@@ -17,7 +17,7 @@ class Cavity : public LuaModelViewer {
   bool IsModelEmpty();
   void ResetModel();
   void ScriptJustRan(bool only_compute_derivatives);
-  void CreateArgumentsToOptimize(bool optimize_output_requested);
+  void CreateArgumentsToOptimize(bool real_invocation);
   void DrawModel();
   bool PlotSweepResults(int plot_type,
       const std::string &sweep_parameter_name,

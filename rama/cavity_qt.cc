@@ -164,23 +164,21 @@ void Cavity::CreatePortPowerAndPhase(int solution_index) {
   }
 }
 
-void Cavity::CreateArgumentsToOptimize(bool optimize_output_requested) {
+void Cavity::CreateArgumentsToOptimize(bool real_invocation) {
   // If we know we are going to need the solver later (e.g. because we're
-  // drawing fields or the mesh) then we will create it here, so that the
-  // call to the lua optimize() function below can look up correct field
+  // drawing fields or the mesh) then we will create it here, so that the call
+  // to the lua optimize() or test() function later can look up correct field
   // values through the 3rd argument. If we will not be needing the solver
-  // later then we let the field lookups return 0 (e.g. when the field
-  // display is turned off, which is a case that we want to render
-  // quickly).
+  // later then we let the field lookups return 0 (e.g. when the field display
+  // is turned off, which is a case that we want to render quickly).
   if (WillCreateSolverInDraw()) {
     CreateSolver();
   }
 
-  // We only compute port powers/phases if optimization output is being
-  // requested, as ComputePortOutgoingPower() triggers a complete solve
-  // which is too expensive if all we are going to do later is draw the cd
-  // or the mesh.
-  if (optimize_output_requested) {
+  // We only compute port powers/phases if this is a real invocation, as
+  // ComputePortOutgoingPower() triggers a complete solve which is too
+  // expensive if all we are going to do later is draw the cd or the mesh.
+  if (real_invocation) {
     CreatePortPowerAndPhase(displayed_soln_);
   } else {
     // Push two dummy arguments for (port_power, port_phase).
@@ -188,10 +186,10 @@ void Cavity::CreateArgumentsToOptimize(bool optimize_output_requested) {
     LuaRawGetGlobal(GetLua()->L(), "__ZeroTable__");
   }
 
-  // Push the 3rd argument to config.optimize. If optimizer output is not
-  // requested then push a dummy argument that allows execution of the function
-  // but that does not actually do any work.
-  if (optimize_output_requested) {
+  // Push the 3rd argument to config.optimize or config.test. If this is not a
+  // real invocation then push a dummy argument that allows execution of the
+  // function but that does not actually do any real work.
+  if (real_invocation) {
     LuaRawGetGlobal(GetLua()->L(), "__Optimize3rdArg__");
   } else {
     LuaRawGetGlobal(GetLua()->L(), "__DummyOptimize3rdArg__");

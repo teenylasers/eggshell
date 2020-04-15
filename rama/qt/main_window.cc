@@ -23,8 +23,7 @@
 #endif
 
 MainWindow::MainWindow(QWidget *parent) :
-  QMainWindow(parent), ui(new Ui::MainWindow), autorun_(true),
-  watcher_(this)
+  QMainWindow(parent), ui(new Ui::MainWindow), watcher_(this)
 {
   ui->setupUi(this);
 
@@ -70,6 +69,14 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow() {
   delete ui;
+}
+
+void MainWindow::ToggleRunTestAfterSolve() {
+  ui->model->ToggleRunTestAfterSolve();
+}
+
+void MainWindow::ScriptTestMode() {
+  ui->model->ScriptTestMode();
 }
 
 void MainWindow::LoadFile(const QString &full_path) {
@@ -152,6 +159,10 @@ void MainWindow::ReloadTimeout() {
   }
 }
 
+void MainWindow::SetCommandLineArguments(int argc, char **argv) {
+  ui->model->SetCommandLineArguments(argc, argv);
+}
+
 void MainWindow::ResetCurrentModelBackground() {
   ui->current_model->setStyleSheet("QLabel { }");
 }
@@ -172,7 +183,8 @@ void MainWindow::on_actionSweep_triggered() {
     ui->model->Sweep(sweep.GetParameterName().toUtf8().data(),
                      sweep.GetStartValue(),
                      sweep.GetEndValue(),
-                     sweep.GetNumSteps());
+                     sweep.GetNumSteps(),
+                     sweep.GetTestOutput());
   }
 }
 
@@ -191,7 +203,7 @@ void MainWindow::on_actionReload_triggered() {
 void MainWindow::on_actionAutoRun_triggered() {
   autorun_ = !autorun_;
   if (autorun_) {
-      ReloadScript(false);
+    ReloadScript(false);
   }
 }
 
@@ -488,4 +500,8 @@ void MainWindow::on_time_dial_valueChanged(int value) {
 void MainWindow::on_actionSet_animation_time_to_0_triggered() {
   ui->time_dial->setValue(0);
   ui->model->TimeDialToZero();
+}
+
+void MainWindow::on_actionRunTest_triggered() {
+  ui->model->ToggleRunTestAfterSolve();
 }

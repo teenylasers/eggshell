@@ -125,15 +125,6 @@ assumed that the fields at the ports have the @m{TE_{10}} mode. In each
 simulation one port is the excited port, where energy in injected. Energy will
 exit through the other ports.
 
-@subsection{Modelling tips}
-
-TODO: write this section. Things to include:
-@list{
-@* Minimum mesh size for accuracy.
-@* Don't violate the @m{TE_{10}} mode assumption at ports, i.e. use an
-   appropriate width and keep this width for a short distance.
-}
-
 #############################################################################
 @section{Rama user interface}
 
@@ -261,7 +252,7 @@ the following fields:
   field.SolveAll()      -- A hint that Select will be called for all n.
                         -- This pre-solves the fields in parallel, for speed
   field.Ports()         -- The port_power,port_phase for the selected field
-  field.Complex(x,y)    -- real,imaginary field components (2 return values)
+  field.Complex(x,y)    -- field components as a complex number
   field.Magnitude(x,y)  -- magnitude of the field
   field.Phase(x,y)      -- phase of the field (in radians)
   field.Poynting(x,y)   -- x,y components of Poynting vector (2 return values)
@@ -285,6 +276,23 @@ the following fields:
   If @c{config.optimize} is defined it is also called once for each regular
   (non-optimization) run of the script, to help verify the function contains no
   runtime errors. For these calls the @c{field} functions may return zeros.
+
+  @* @c{test} (optional)
+  @| When the ``Run test() after each solve'' checkbox is ticked, the @c{test}
+     function is called every time a new solution is created. It has exactly
+     the same arguments as @c{optimize}:
+@===[
+  test=function(port_power, port_phase, field)
+    ...
+    return value1,value2,...
+  end
+]===@
+  The @c{test} function can optionally return values, that can be plotted
+  during a sweep. It can also send output to the script messages tab using
+  either @c{print} or @c{error}. This function is callable when parameters are
+  changed, during sweeps, and optimizations.
+  The @c{test} feature can be used to generate reports, and it is also used as
+  part of the internal Rama unit test system.
 
   @* @c{boresight} (optional)
   @| For antenna simulations, the angle that is nominally the highest gain part
@@ -409,7 +417,7 @@ another function, so for example the following is a convenient idiom:
   shape:AddPoint(ParameterMarker{...})
 ]===@
 
-@subsection{Functions accessible to the Lua script}
+@subsection{Functions and variables accessible to the Lua script}
 
 The following @link{http://www.lua.org/manual/5.3/manual.html}{Lua standard libraries}
 can be used: base, table, string, utf8 and
@@ -437,13 +445,23 @@ tab also. The following extra miscellaneous functions are defined:
      decibels.
 }
 
+In addition to the standard Lua global variables, the following are available:
+
+@table{
+  @* @c{FLAGS}
+  @| A table populated with any @c{-key=value} arguments given on the command
+     line. This is useful for testing. For example if @c{-test_number=5} is
+     given on the command line then @c{FLAGS.test_number} will return the value
+     @c{'5'} (note that this is the string @c{'5'} and not the number 5).
+}
+
 @subsection{@label{vectors} Vectors}
 
-Rama Lua supports vectors in addition to regular Lua numbers. Vectors are
+Rama Lua supports vectors in addition to real numbers. Vectors are
 arrays of numbers that are treated as a single block by math operators.
 Vector are mostly used by @link{dielectrics}{dielectric callback functions},
 for efficiency reasons. Below are the operations and functions available for
-vectors (@c{a} and @c{b} are vectors of the same size and @c{k} is a regular
+vectors (@c{a} and @c{b} are vectors of the same size and @c{k} is a real
 number).
 
 @table{
@@ -460,7 +478,8 @@ number).
   @* @c{@#a}
   @| The number of elements in @c{a}.
   @* @c{a:Resize(n)}
-  @| Resize the vector to have @c{n} elements.
+  @| Resize the vector to have @c{n} elements. All elements will be set to
+     zero. Return @c{a}, so that @c{v = Vector():Resize(n)} can be written.
   @* @c{a[i]}
   @| Access the @c{i}'th element of @c{a}, where @c{i} is in the range
      @c{1...@#a}.
@@ -473,13 +492,55 @@ number).
      @c{vec.sin(a)},@~@c{vec.sqrt(a)}, @_
      @c{vec.tan(a)}
   @| Math functions on vectors, similar to the regular functions in the
-     Lua math library.
+     Lua math library. The @c{atan} function accepts one argument or two
+     as in Lua 5.3, the @c{atan2} function accepts two arguments as in Lua 5.0.
   @* @c{vec.eq(a,b)} @| A vector with ones where @m{a = b} and zero otherwise.
+     Named comparison functions are used for elementwise comparison instead of
+     overloading the comparison operators, because the latter can only return
+     single bools.
   @* @c{vec.ne(a,b)} @| A vector with ones where @m{a \ne b} and zero otherwise.
   @* @c{vec.lt(a,b)} @| A vector with ones where @m{a < b} and zero otherwise.
   @* @c{vec.gt(a,b)} @| A vector with ones where @m{a > b} and zero otherwise.
   @* @c{vec.le(a,b)} @| A vector with ones where @m{a \le b} and zero otherwise.
   @* @c{vec.ge(a,b)} @| A vector with ones where @m{a \ge b} and zero otherwise.
+  @* @c{vec.IsVector(a)} @| True if @c{a} is a vector, false otherwise.
+}
+
+@subsection{@label{complex} Complex numbers}
+
+Rama Lua supports complex numbers in addition to real numbers. The real and
+imaginary parts of the complex numbers can be either real numbers or vectors.
+Below are the operations and functions available for complex numbers
+(@c{a} and @c{b} are complex numbers, @c{k} is a real number and @c{v} is
+a vector).
+
+@table{
+  @* @c{Complex(re,im)}@_@c{Complex(re)}
+  @| Create a new complex value from the real and (optionally) imaginary
+     parts, which are either both real numbers or both vectors of the same
+     size.
+  @* @c{a + b}, @c{a - b}, @_
+     @c{a * b}, @c{a / b}, @_
+     @c{a ^ b}
+  @| The complex sum (product, etc). The values @c{a} and @c{b} must be
+     compatible in the sense that their real and imaginary parts must either
+     both be real numbers or both be vectors of the same size.
+  @* @c{a + k}, @c{k + a}, etc.
+  @| The sum of complex value @c{a} and real number @c{k} (and likewise for the
+     other operators).
+  @* @c{a + v}, @c{a * v}, etc.
+  @| The sum (product, etc) of complex value @c{a} and vector @c{v}, which
+     must be compatible.
+     In binary operations the complex value @c{a} must appear before the
+     vector @c{v} to ensure @c{v} is treated as the real part of a complex
+     vector. Due to the way overloaded operators work in Lua, if @c{v} appears
+     first then @c{a} will be treated as a vector, which will fail.
+  @* @c{a.abs}
+  @| The absolute value or magnitude of @c{a}.
+  @* @c{a.angle}
+  @| The angle of @c{a} in radians.
+  @* @c{a.re}, @c{a.im}
+  @| The real and imaginary parts of @c{a}.
 }
 
 @subsection{Programming style}
@@ -546,7 +607,8 @@ this.
 
 Note that all shapes must contain at least three vertices. If the vertices wind
 in an anticlockwise manner the new shape will have positive area, and vice
-versa.
+versa. The shape union operator (@c{A+B}) currently only works with shapes that
+have positive area.
 
 @subsection{Shapes are copy-by-reference}
 
@@ -564,7 +626,7 @@ can do this:
 
 @===[
   q = Rectangle(0, 0, 1, 1)     -- q is a new rectangle shape
-  r = q:s:Clone()               -- r is a copy (or "clone") of q
+  r = q:Clone()                 -- r is a copy (or "clone") of q
   q.Offset(10, 10)              -- q is moved, r stays the same
 ]===@
 
@@ -775,28 +837,31 @@ relative epsilon (@m{\epsilon}) or potential value.
 The following functions can be used to define dielectrics in shape @c{s}:
 
 @table{
-  @* @c{s:Paint(q,col,epsilon)} @_
-     or @_
-     @c{s:Paint(q,col,epsilon_r, @_@~@~epsilon_i)}
+  @* @c{s:Paint(q,col,@m{\epsilon})}
   @| Paint a new dielectric into @c{s}. The painted area is shape @c{q}, which
      should intersect @c{s}. The on-screen color used to represent this is
      @c{col}, which is an @c{0xrrggbb} color constant. The relative epsilon
-     value of the dielectric is @m{\epsilon} (e.g. for air @m{\epsilon=1}) or
-     @m{\epsilon_r+i\epsilon_i}. For Schrödinger cavities @c{epsilon} is
-     actually the potential @m{V}.
+     value of the dielectric is @m{\epsilon} (e.g. for air @m{\epsilon=1}).
+     The @m{\epsilon} value can be a @link{complex}{complex} number.
+     For Schrödinger cavities @m{\epsilon} is actually the potential "@m{V}".
 
-  @* @===[
-s:Paint(q,col,function(x,y)
-          ...
-          return er,ei
-        end)
-]===@
-  @| Similar to the @c{Paint()} function above except that the relative
-     epsilon value of the dielectric is specified with a function that takes
-     @c{x,y} coordinates are returns the real (and optionally, imaginary) part
-     of @m{\epsilon}. For performance reasons @c{x,y} are vectors of
-     coordinates and the returned values must be vectors of the same size.
-     See the section on @link{vectors}{Vectors}.
+  @* @c{s:Paint(q,col,@m{\epsilon},@_@~@~@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}})}
+  @| Similar to the @c{Paint()} function above except that the sigma values
+     for anisotropic dielectrics are also specified. If the sigma values are
+     not given then the default is the isotropic case
+     @m{\sigma_{xx}=\sigma_{yy}=1, \sigma_{xy}=0}.
+     Each of the @m{\epsilon,\sigma_{xx},\sigma_{yy},\sigma_{xy}} values can be
+     a real number or @link{complex}{complex} number.
+
+  @* @c{s:Paint(q,col,function(x,y)@_@~@~...@_@~@~return @m{\epsilon},@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}}@_end)}
+  @| Similar to the @c{Paint()} function above except that the @m{\epsilon}
+     and @m{\sigma} values are specified with a function that takes
+     @c{x,y} coordinates and returns those values. The @m{\sigma} values are
+     optional.
+     Each return value can be a real or complex number.
+     For performance reasons @c{x,y} are vectors of coordinates and the
+     returned values must be vectors of the same size. See the section on
+     @link{vectors}{Vectors}.
 }
 
 In the current implementation of @c{Paint()} the shape is split into several
@@ -915,10 +980,54 @@ in a rectangle with 2:1 aspect ratio, modes 4 and 5 will have this issue. The
 best that the mode solver can do is find an orthogonal subspace for all modes
 with the same cutoff frequency.
 
+#############################################################################
+@section{Modeling}
 
-#############################################################################
-#############################################################################
-#############################################################################
+@subsection{Modelling tips}
+
+Here are suggestions for how to make models that best describe a real physical
+setup.
+
+Notes for now:
+@list{
+@* Use a smaller mesh size for better accuracy.
+@* Don't violate the @m{TE_{10}} mode assumption at ports, i.e. use an
+   appropriate width and keep this width for a short distance.
+}
+
+@subsection{Rama model errors}
+
+Here are things that Rama does not yet model. Correct modeling of these things
+may be implemented later, if there is need.
+
+@list{
+@*  Painting of dielectrics does not work in @c{Exy} cavities with finite
+    depth. Areas can be painted, and this will affect the solution, but the
+    solution will not satisfy Maxwell's equations and will not necessarily be
+    physically meaningful. Since this situation results in a 3D field with
+    complex structure, this limitation is not likely to be fixed.
+@*  Painting of constant dielectric areas works in @c{Ez} cavities and @c{Exy}
+    cavities with infinite depth, but painting of dielectric @emph{fields} does
+    not work in @c{Exy} cavities with infinite depth. This limitation will be
+    fixed once we add the dielectric term
+    @m{(\nabla \epsilon/\epsilon)\times(\nabla\times H)} to the Helmholtz
+    equation for such fields.
+@*  Dielectric painting does not work in @c{TE} and @c{TM} cavities.
+@*  Some ports on areas with non-default @m{\epsilon} or @m{\sigma} are not
+    well matched. This currently happens when
+    @list{
+    @* The @m{\epsilon} or @m{\sigma} values have imaginary components, meaning
+       there is attenuation or gain in the material.
+    @* @c{Ez} models have non-default @m{\sigma} values.
+    @* @c{Exy} models have non-default @m{\sigma} values and don't have a
+       principle axis of the anisotropy aligned with the port.
+    }
+    Ports that are not well matched do not deliver or absorb energy with
+    perfect efficiency. The effect is most noticeable at output ports where
+    there is some reflected wave. The S parameters computed at poorly matched
+    ports will not be correct.
+}
+
 #############################################################################
 @section{Rama Internals}
 

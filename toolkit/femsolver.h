@@ -61,6 +61,7 @@ struct name { \
   bool operator==(const name &a) const { return value == a.value; } \
   bool operator!=(const name &a) const { return value != a.value; } \
   bool operator>(double a) const { return value > a; } \
+  bool operator>(const name &a) const { return value > a.value; } \
 }; \
 inline name sqrt(const name &a) { return name(::sqrt(a.value)); }
 
@@ -113,23 +114,20 @@ struct ExampleFEMProblem : public FEMProblem {
 
   // The sparse matrix factorizer that will be used. When solving the Helmholtz
   // equation and MNumber is complex the SparseLU should be used as the system
-  // matrix is symmetric but not hermitian. When MNumber is real then the
-  // problem is positive definite and SimplicialLLT or SimplicialLDLT can be
-  // used. COLAMDOrdering is the only ordering that makes sense for SparseLU,
-  // the AMD and METIS-based orderings are only effective for symmetric
-  // factorizations and will slow down SparseLU. For efficiency of the
-  // factorizer and Eigen-compatibility reasons, MNumber should be a regular
-  // real or complex type.
+  // matrix is often symmetric, but not hermitian. When MNumber is real then
+  // the problem can be symmetric positive definite and SimplicialLLT or
+  // SimplicialLDLT can be used. Even for symmetric problems we set the full
+  // system matrix but the factorizer may only read e.g. the lower triangle.
+  // COLAMDOrdering is the only ordering that makes sense for SparseLU, the AMD
+  // and METIS-based orderings are only effective for symmetric factorizations
+  // and will slow down SparseLU. For efficiency of the factorizer and
+  // Eigen-compatibility reasons, MNumber should be a regular real or complex
+  // type.
   typedef Eigen::SimplicialLLT<Eigen::SparseMatrix<MNumber>, Eigen::Lower,
                                Eigen::AMDOrdering<int> > Factorizer;
   // Or this:
   //     typedef Eigen::SparseLU<Eigen::SparseMatrix<MNumber>,
   //                             Eigen::COLAMDOrdering<int> > Factorizer;
-
-  // Return true if the Factorizer only requires the lower triangle of the
-  // sparse matrix to be set (e.g. if Factorizer is SimplicialLDLT), or false
-  // if the entire matrix must be set (e.g. SparseLU).
-  bool ProblemIsLowerTriangular() const { return true; }
 
   // Return true if we should add terms for discontinuous gradients at
   // dielectric boundaries. This is currently specialized to epsilon
@@ -189,21 +187,19 @@ struct ExampleFEMProblem : public FEMProblem {
     *beta = Number(test_b.at(i*3 + k));
   }
 
+  // Return false if Diamond[u] is the Laplacian for triangle i. Otherwise
+  // return true and set the sigma values. Each return vector will have 3
+  // preallocated slots for the three points in triangle i.
+  bool AnisotropicSigma(int i, NumberVector *sigma_xx, NumberVector *sigma_yy,
+                        NumberVector *sigma_xy) {
+    return false;
+  }
+
   // Return the absolute value of 'a'. We call this instead of a global
   // abs(GNumber) because there might be confusion with the C standard
   // library's abs(int) if GNumber is double. However we do call a global
   // sqrt(GNumber).
   GNumber Absolute(const GNumber &a) { return GNumber(fabs(a.value)); }
-
-  // If Number and MNumber are the same type, this function sets A from the
-  // triplets and returns true. Otherwise it does nothing and returns false.
-  bool SetSparseMatrixFromTriplets(const std::vector<Triplet> &triplets,
-                                   Eigen::SparseMatrix<MNumber> *A) {
-    // Optionally, this:
-    //   A->setFromTriplets(triplets.begin(), triplets.end());
-    //   return true;
-    return false;
-  }
 
   // Some Number types will know their derivative with respect to a parameter.
   // Extract this information, for ComputeSolutionDerivative().
@@ -267,8 +263,8 @@ class FEMSolverBase {
   // Reset internal caches.
   virtual void UnCreateSystem() = 0;
 
-  // Create the system.
-  virtual void CreateSystem(bool create_Ctriplets = false) = 0;
+  // Create the system. Return true on success, false otherwise.
+  virtual bool CreateSystem(bool create_Ctriplets = false) MUST_USE_RESULT = 0;
 
   // Compute the solution. Return true on success, false otherwise.
   virtual bool SolveSystem() MUST_USE_RESULT = 0;
@@ -455,11 +451,11 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     Ctriplets.clear();
     rhs.resize(0);
   }
-  void CreateSystem(bool create_Ctriplets = false) override {
+  bool CreateSystem(bool create_Ctriplets = false) override {
     // Prerequisites.
     DoTrace trace(__func__);
     if (!CreateSystemNeedsCalling()) {
-      return;
+      return true;
     }
     if (CreateIndexMapsNeedsCalling()) {
       CreateIndexMaps();
@@ -472,7 +468,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     int system_size = reverse_index_map.size();
     if (system_size == 0) {
       rhs.resize(0);
-      return;
+      return true;
     }
 
     // We put each triangle's sparse matrix assignments separately into
@@ -487,6 +483,9 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     if (create_Ctriplets) {
       Ctriplets.reserve(triplets_size);
     }
+
+    // Buffers used below, declared here so we don't keep reallocating.
+    NumberVector sigma_xx(3), sigma_yy(3), sigma_xy(3);
 
     // Build the triplets and right hand side.
     rhs.resize(system_size);
@@ -505,6 +504,10 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
         Point d2 = pt[2] - pt[0];
         area2 = T::Absolute(d1[0]*d2[1] - d1[1]*d2[0]);
       }
+
+      // See if the triangle is anisotropic and collect the sigma values.
+      bool anisotropic = T::AnisotropicSigma(i, &sigma_xx, &sigma_yy,
+                                             &sigma_xy);
 
       // Compute system matrix and right hand side contributions for each
       // vertex and edge of the triangle. The signs of everything that goes in
@@ -545,12 +548,48 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
         }
 
         // Contributions to A(sj0, sj1) and A(sj1, sj0), and the diagonal.
-        Number Aij_value;
-        if (true) {
+        Number Aij_value;          // Adds to A(sj0, sj1) and A(sj1, sj0)
+        Number Aji_correction(0);  // Adds only to A(sj1, sj0)
+        Number sigma_xx_avg, sigma_yy_avg, sigma_xy_avg;  // Triangle averages
+        if (!anisotropic) {
           // Isotropic Laplacian.
           Aij_value = -T::GNumberToNumber(cot / 2.0);
           if (sj2 >= 0) {  // Handle diagonal entry at sj2
             diagonal[sj2] -= T::GNumberToNumber(-opplen2 / (area2 * 2.0));
+          }
+        } else {
+          // Handle the anisotropic Laplacian. Rotate the sigma values so that
+          // the edge j2-->j0 is effectively in the +X direction (to match the
+          // derivation in fem.nb). We take the average of the three vertex
+          // sigmas and assume this applies across the entire triangle. This
+          // approximation is necessary for now to create a symmetric 'A'
+          // matrix.
+          // @@@ TODO interpolate sigmas across the triangle.
+          Point j2j0 = pt[j0] - pt[j2];
+          GNumber j2j0_length2 = j2j0.squaredNorm();  // x1^2 in docs
+          j2j0 = j2j0  / sqrt(j2j0_length2);          // j2j0 is now normalized
+          // Cosine and sine of angle of j2->j0.
+          const Number c = T::GNumberToNumber(j2j0[0]);
+          const Number s = T::GNumberToNumber(j2j0[1]);
+          // Compute sigma averages.
+          sigma_xx_avg = (sigma_xx[0] + sigma_xx[1] + sigma_xx[2]) / 3.0;
+          sigma_yy_avg = (sigma_yy[0] + sigma_yy[1] + sigma_yy[2]) / 3.0;
+          sigma_xy_avg = (sigma_xy[0] + sigma_xy[1] + sigma_xy[2]) / 3.0;
+          // Rotate sigmas.
+          Number a1 = c*sigma_xy_avg - s*sigma_xx_avg;
+          Number a2 = c*sigma_yy_avg - s*sigma_xy_avg;
+          Number rsigma_xy = c*a1 + s*a2;
+          Number rsigma_yy = c*a2 - s*a1;
+          // Compute matrix entries. Aij and Aji are symmetric.
+          const Number x2_by_y2 = T::GNumberToNumber(cot);
+          Aij_value = -( (x2_by_y2 * rsigma_yy)/2.0 - rsigma_xy/2.0 );
+          if (sj1 >= 0) {
+            // Compute diagonal entry at sj1. Note that this is a different
+            // entry than the one computed for the isotropic case above, but
+            // all the entries get covered in the end.
+            // Note that x1/y2 = x1^2 / (x1*y2) == j2j0_length2 / area2
+            diagonal[sj1] -= rsigma_yy *
+                             T::GNumberToNumber(-j2j0_length2 / (area2 * 2.0));
           }
         }
 
@@ -568,6 +607,25 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
           Number alpha0, alpha1, beta0, beta1;
           T::Robin(i, j0, j0, g0, &alpha0, &beta0);
           T::Robin(i, j0, j1, g1, &alpha1, &beta1);
+
+          // For anisotropic materials scale alpha so the boundary conditions
+          // make sense. @@@ This currently only results in a well-matched port
+          // in Exy cavities and when the port is aligned with an anisotropy
+          // principle axis.
+          if (anisotropic) {
+            // Use a propagation direction normal to the boundary.
+            Point boundary = (pt[j1] - pt[j0]).normalized();
+            auto px = boundary[1];      // px,py is a unit length vector
+            auto py = -boundary[0];     //   normal to the boundary
+            Number scale = sqrt(T::GNumberToNumber(px*px)*sigma_xx_avg +
+                                T::GNumberToNumber(px*py*2.0)*sigma_xy_avg +
+                                T::GNumberToNumber(py*py)*sigma_yy_avg);
+            alpha0 = alpha0 * scale;
+            alpha1 = alpha1 * scale;
+            beta0 = beta0 * scale;
+            beta1 = beta1 * scale;
+          }
+
           Number sl = T::GNumberToNumber(side_length);
           Aij_value += (alpha0 + alpha1) * sl / 12.0;              // L(sj0,sj1)
           if (sj0 >= 0) {
@@ -580,104 +638,77 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
           }
         }
 
-        // @@@@@@@@@@ VERIFY THAT THIS ACTUALLY WORKS!
         // If required, add terms for discontinuous gradients at dielectric
         // boundaries. This triangle must have all 3 vertices represented in
-        // the solution. Possibly we could make this work at Dirchlet
-        // boundaries too but those don't occur in Exy cavities.
+        // the solution.
         if (T::GradientStepAtDielectricBoundary() &&
             sj0 >= 0 && sj1 >= 0 && sj2 >= 0) {
-          // This triangle must have a neighbor, on the other side of the
-          // dielectric boundary.
+          // This triangle must have a neighbor on edge j0, on the other side
+          // of the dielectric boundary, otherwise there can't be a
+          // discontinuity.
           int ni = T::Neighbor(i, j0);
           if (ni != -1) {
             // Discontinuous gradients are only produced where we have
-            // discontinuities in epsilon, so we don't specially handle the
-            // case where we have a slowly varying epsilon field. Detect these
-            // epsilon fields indirectly, by looking for g variance across the
-            // triangles.
-            Number this_g = T::PointG(i, 0);
-            Number neighbor_g = T::PointG(ni, 0);
-            if (this_g == T::PointG(i, 1) && this_g == T::PointG(i, 2) &&
-                neighbor_g == T::PointG(ni, 1) &&
-                neighbor_g == T::PointG(ni, 2)) {
-              // Add contributions for the edge j0 --> j1. We want to compute
-              // q=(e2-e1)/(e2+e1) where e2 is the epsilon of this triangle and
-              // e1 is the epsilon of the neighbor triangle. We don't know
-              // epsilon directly here but we know that the g() function is
-              // k0^2*epsilon, so we can substitute g for epsilon in the above
-              // expression and still get the same result. Only if this edge is
-              // at an epsilon discontinuity (i.e. a dielectric boundary) will
-              // q be nonzero.
-              Number qfactor = (this_g - neighbor_g) / (this_g + neighbor_g);
-              const Number zero(0);
-              if (qfactor != zero) {
-                // Compute x1,x2,y2 for this triangle (i.e. when this edge is
-                // translated and rotated to y=0.
-                Point edge = pt[j1] - pt[j0];
-                GNumber x1 = edge.norm();
-                Point tangent = edge / x1;                  // Normalized
-                Point normal(-edge[1] / x1, edge[0] / x1);  // Normalized
-                GNumber x2 = tangent.dot(pt[j2] - pt[j0]);
-                GNumber y2 = normal.dot(pt[j2] - pt[j0]);
-
-                // If y2 > 0 then the winding order of the triangle is counter
-                // clockwise (and clockwise is y2 < 0). The winding order
-                // changes the sign of the results.
-                CHECK(y2 > 0.0);  // @@@ Make sure we can handle y2 < 0 too
-
-                // The boundary term at this edge is a0*u0 + a1*u1 + a2*u2,
-                // where the u's are the solution values at j0, j1, j2.
-                GNumber a0 = (x2 - x1) / (y2 * 2.0);
-                GNumber a1 = (-x2) / (y2 * 2.0);
-                GNumber a2 = x1 / (y2 * 2.0);
-
+            // discontinuities in epsilon. Detect this by looking for step
+            // changes in g() across triangles.
+            Number e1 = T::PointG(i, 0);   // \propto epsilon of this triangle
+            Number e2 = T::PointG(ni, 0);  // \propto epsilon of neighbor
+            // Require that all vertices have the same epsilon, as will happen
+            // when we use Paint().
+            if (e1 != e2 &&
+                e1 == T::PointG(i, 1) && e1 == T::PointG(i, 2) &&
+                e2 == T::PointG(ni, 1) && e2 == T::PointG(ni, 2)) {
+              // Add contributions for the edge j0 --> j1.
+              // Compute q=(e2-e1)/(e2+e1). Only if this edge is at an epsilon
+              // discontinuity (i.e. a dielectric boundary) will q be nonzero.
+              Number qfactor = (e2 - e1) / (e1 + e2);
+              if (qfactor != Number(0)) {
+                // Compute cot(theta) for the triangle internal angle opposite
+                // the j0->j1 edge.
+                Number cot0, cot1;              // cotN is angle at point jN
+                Point d1 = pt[j1] - pt[j0];
+                Point d2 = pt[j2] - pt[j0];
+                cot0 = T::GNumberToNumber(d1.dot(d2) / area2);
+                d1 = pt[j0] - pt[j1];
+                d2 = pt[j2] - pt[j1];
+                cot1 = T::GNumberToNumber(d1.dot(d2) / area2);
                 // Add terms to the system matrix. Note that this is not
                 // symmetric!
-                diagonal[sj0] += qfactor * T::GNumberToNumber(a0);
-                triplets.push_back(Triplet(sj0, sj1,
-                                           qfactor * T::GNumberToNumber(a1)));
+                diagonal[sj0] += qfactor * cot1 / 2.0;
+                diagonal[sj1] += qfactor * cot0 / 2.0;
+                Aij_value += qfactor * cot0 / 2.0;
+                Aji_correction += qfactor * (cot1 - cot0) / 2.0;
                 triplets.push_back(Triplet(sj0, sj2,
-                                           qfactor * T::GNumberToNumber(a2)));
-                triplets.push_back(Triplet(sj1, sj0,
-                                           qfactor * T::GNumberToNumber(a0)));
-                diagonal[sj1] += qfactor * T::GNumberToNumber(a1);
+                    qfactor * T::GNumberToNumber(-opplen2 / (area2 * 2.0))));
                 triplets.push_back(Triplet(sj1, sj2,
-                                           qfactor * T::GNumberToNumber(a2)));
-                triplets_size += 4;     // Ensure check below passes
+                    qfactor * T::GNumberToNumber(-opplen2 / (area2 * 2.0))));
+                triplets_size += 2;     // Ensure check below passes
+                if (create_Ctriplets) {
+                  // @@@ It's not clear how well this works in eigensystems
+                  // when we have to compute a separate matrix for C, since
+                  // it's not clear if these additional terms go in the main
+                  // system matrix or in C.
+                  return false;
+                }
               }
             }
           }
-
-          // @@@ It's not clear how well this works in eigensystems when we
-          // have to compute a separate matrix for C, since it's not clear if
-          // these additional terms go in the main system matrix or in C.
-          CHECK(!create_Ctriplets);
         }
-        // @@@@@@@@@@ ^^^ VERIFY THAT THIS ACTUALLY WORKS!
 
         // Add off-diagonal matrix entries to triplets.
         if (sj0 >= 0 && sj1 >= 0) {
           if (!create_Ctriplets) {
             Aij_value += Cij_value;
           }
-          if (T::ProblemIsLowerTriangular()) {
-            triplets.push_back(Triplet(std::max(sj0, sj1), std::min(sj0, sj1),
-                                       Aij_value));
-            if (create_Ctriplets) {
-              Ctriplets.push_back(Triplet(std::max(sj0, sj1),
-                                          std::min(sj0, sj1), Cij_value));
-            }
-          } else {
-            // If Number is not the same as MNumber but the problem is
-            // symmetric we might consider creating just a lower triangle here
-            // and converting it to a full matrix in SolveSystem(). However
-            // this is not likely to be a bottleneck.
-            triplets.push_back(Triplet(sj0, sj1, Aij_value));
-            triplets.push_back(Triplet(sj1, sj0, Aij_value));
-            // We do not yet handle the case of creating a fully symmetric
-            // matrix for Ctriplets.
-            CHECK(!create_Ctriplets);
+          // If Number is not the same as MNumber but the problem is
+          // symmetric we might consider creating just a lower triangle here
+          // and converting it to a full matrix in SolveSystem(). However
+          // this is not likely to be a bottleneck.
+          triplets.push_back(Triplet(sj0, sj1, Aij_value));
+          triplets.push_back(Triplet(sj1, sj0, Aij_value + Aji_correction));
+          if (create_Ctriplets) {
+            Ctriplets.push_back(Triplet(sj0, sj1, Cij_value));
+            Ctriplets.push_back(Triplet(sj1, sj0, Cij_value));
           }
         }
       }
@@ -693,6 +724,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     // We may not have used all entries in triplets if we have Dirichlet
     // boundaries, but check that we didn't use more than we reserved.
     CHECK(triplets.size() <= triplets_size);
+    return true;
   }
 
   // Factor and solve the system created by CreateSystem(). Return true on
@@ -706,14 +738,16 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
       return solvesystem_retval;
     }
     if (CreateSystemNeedsCalling()) {
-      CreateSystem();
+      if (!CreateSystem()) {
+        return (solvesystem_retval = false);
+      }
     }
     CHECK(Ctriplets.empty());   // 'triplets' must contain the whole problem
 
     // Initialize the FEM system matrix 'A' from the triplets. Convert from
     // Number to MNumber if necessary.
     Eigen::SparseMatrix<MNumber> A;
-    GetSystemMatrix(triplets, &A, false);
+    GetSystemMatrix(triplets, &A);
 
     // Convert from Number to MNumber for the right hand side b, if necessary.
     const int system_size = reverse_index_map.size();
@@ -774,14 +808,6 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
       MNumber deriv = T::Derivative(triplets[i].value());
       int col = reverse_index_map[triplets[i].col()];
       tmp[triplets[i].row()] -= deriv * solution[col];
-      // If the problem is lower triangular then only the lower triangle of the
-      // triplets is filled in and we'll need to handle each off-diagonal entry
-      // twice.
-      if (T::ProblemIsLowerTriangular() &&
-          triplets[i].row() != triplets[i].col()) {
-        int row = reverse_index_map[triplets[i].row()];
-        tmp[triplets[i].col()] -= deriv * solution[row];
-      }
     }
 
     // Add in d(right_hand_side)/dparameter.
@@ -808,14 +834,16 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
     if (eigensystem_retval >= 0) {
       return eigensystem_retval;
     }
-    CreateSystem(true);
+    if (!CreateSystem(true)) {
+      return (eigensystem_retval = false);
+    }
     CHECK(!Ctriplets.empty());
 
     // Initialize the FEM system matrix 'A' from the triplets. Convert from
-    // Number to MNumber if necessary.
+    // Number to MNumber.
     Eigen::SparseMatrix<MNumber> A, B;
-    GetSystemMatrix(triplets, &A, true);
-    GetSystemMatrix(Ctriplets, &B, true);
+    GetSystemMatrix(triplets, &A);
+    GetSystemMatrix(Ctriplets, &B);
 
     // Compute the smallest eigenvalues, with eigenvectors.
     eigensolver = new EigenSolver(A, &B, eigenpair_count, sigma);
@@ -879,28 +907,19 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
   }
 
   // Utility: Initialize the FEM system matrix 'A' from the triplets. Convert
-  // from Number to MNumber if necessary. If full_matrix is true and
-  // ProblemIsLowerTriangular() then add in the transpose of the strictly lower
-  // triangular part.
+  // from Number to MNumber.
   void GetSystemMatrix(const std::vector<Triplet> &triplets,
-                       Eigen::SparseMatrix<MNumber> *A, bool full_matrix) {
+                       Eigen::SparseMatrix<MNumber> *A) {
     const int system_size = reverse_index_map.size();
     A->resize(system_size, system_size);
-    bool add_transpose = (T::ProblemIsLowerTriangular() && full_matrix);
-    if (add_transpose || !T::SetSparseMatrixFromTriplets(triplets, A)) {
-      typedef Eigen::Triplet<MNumber> Trip;
-      vector<Trip> trips;
-      trips.reserve(triplets.size());
-      for (int i = 0; i < triplets.size(); i++) {
-        trips.push_back(Trip(triplets[i].row(), triplets[i].col(),
-                             T::MNumberFromNumber(triplets[i].value())));
-        if (add_transpose && triplets[i].row() != triplets[i].col()) {
-          trips.push_back(Trip(triplets[i].col(), triplets[i].row(),
-                               T::MNumberFromNumber(triplets[i].value())));
-        }
-      }
-      A->setFromTriplets(trips.begin(), trips.end());
+    typedef Eigen::Triplet<MNumber> Trip;
+    vector<Trip> trips;
+    trips.reserve(triplets.size());
+    for (int i = 0; i < triplets.size(); i++) {
+      trips.push_back(Trip(triplets[i].row(), triplets[i].col(),
+                           T::MNumberFromNumber(triplets[i].value())));
     }
+    A->setFromTriplets(trips.begin(), trips.end());
   }
 };
 

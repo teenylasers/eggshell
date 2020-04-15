@@ -365,6 +365,8 @@ LuaModelViewer::LuaModelViewer(QWidget *parent, int gl_type)
   brightness_ = 500;
   antialiasing_ = true;
   show_markers_ = true;
+  run_test_after_solve_ = false;
+  script_test_mode_ = false;
 
   // Setup the camera for 2D operation. This can be changed in a subclass.
   SetPerspective(false);
@@ -490,7 +492,7 @@ void LuaModelViewer::SetBrightness(int brightness) {
 
 void LuaModelViewer::Sweep(const string &parameter_name,
                            double start_value, double end_value,
-                           int num_steps) {
+                           int num_steps, bool sweep_over_test_output) {
   if (!IsModelValid()) {
     Error("The model is not yet valid");
     return;
@@ -499,6 +501,7 @@ void LuaModelViewer::Sweep(const string &parameter_name,
   // Sweeping parameters is the same as an invisible hand moving the slider and
   // recording the results after each solve.
   ih_.Start();
+  ih_.sweep_over_test_output = sweep_over_test_output;
   const Parameter &p = GetParameter(parameter_name);
   if (p.integer) {
     // Integer parameter.
@@ -592,6 +595,14 @@ void LuaModelViewer::CopyParametersToClipboard() {
   QGuiApplication::clipboard()->setText(s);
 }
 
+void LuaModelViewer::ToggleRunTestAfterSolve() {
+  run_test_after_solve_ ^= 1;
+}
+
+void LuaModelViewer::ScriptTestMode() {
+  script_test_mode_ = true;
+}
+
 void LuaModelViewer::Connect(QListWidget *script_messages,
                              QWidget *parameter_window, qtPlot *plot,
                              QWidget *model_pane, QWidget *plot_pane,
@@ -671,6 +682,7 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
 
 bool LuaModelViewer::RerunScript(bool refresh_window,
                                  vector<JetNum> *optimize_output,
+                                 vector<JetNum> *test_output,
                                  bool only_compute_derivatives) {
   if (in_rerun_script_) {
     // The custom controls for parameter changing can sometimes cause this
@@ -725,6 +737,22 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
   lua_pushcfunction(lua_->L(),
                     (LuaGlobalStub<MyLua, &MyLua::LuaJetDerivative>));
   lua_setglobal(lua_->L(), "_JetDerivative");
+
+  // Populate the global 'FLAGS' table with the -key=value command line
+  // arguments.
+  lua_newtable(lua_->L());                                      // stack: T
+  for (int i = 1; i < copy_of_argc_; i++) {
+    char *arg = copy_of_argv_[i];
+    if (arg[0] == '-') {
+      char *equals = strchr(arg, '=');
+      if (equals && equals >= arg + 2) {
+        lua_pushlstring(lua_->L(), arg + 1, equals - arg - 1);  // stack: T k
+        lua_pushstring(lua_->L(), equals + 1);                  // stack: T k v
+        lua_rawset(lua_->L(), -3);                              // stark: T
+      }
+    }
+  }
+  lua_setglobal(lua_->L(), "FLAGS");
 
   // Run the script. First load the lua utility functions that are available to
   // user scripts.
@@ -795,6 +823,35 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
           }
         }
       }
+    }
+  }
+
+  // Call the script's test() function, if requested.
+  if (!lua_->ThereWereErrors() && run_test_after_solve_) {
+    // Find the function. Since there are no errors so far, the config table is
+    // guaranteed to exist.
+    LuaRawGetGlobal(lua_->L(), "config");
+    lua_getfield(lua_->L(), -1, "test");
+    int top = lua_gettop(lua_->L());
+    if (lua_type(lua_->L(), -1) != LUA_TFUNCTION) {
+      lua_->Error("Script does not define the config.test() function");
+    } else {
+      CreateArgumentsToOptimize(true);
+      if (!lua_->ThereWereErrors()) {
+        int err = lua_->PCall(3, LUA_MULTRET);
+        if (err != LUA_OK) {
+          lua_->Error("The config.test() function failed");
+        } else if (test_output) {
+          int n = lua_gettop(lua_->L()) - top + 1;
+          for (int i = 0; i < n; i++) {
+            test_output->push_back(lua_tonumber(lua_->L(), top + i));
+          }
+        }
+      }
+    }
+    // In script test mode, exit after running the test function.
+    if (script_test_mode_) {
+      exit(lua_->ThereWereErrors());
     }
   }
 
@@ -986,6 +1043,11 @@ void LuaModelViewer::AddScriptMessageNotThreadSafe(QString msg,
   // added item is visible. script_messages_->scrollToItem() is quite slow so
   // we make sure that it's only called once, when idle.
   scroll_to_bottom_of_script_messages_ = true;
+
+  // Send script messages to standard output in script test mode.
+  if (script_test_mode_) {
+    printf("%s\n", msg.toUtf8().data());
+  }
 }
 
 void LuaModelViewer::SelectPane(QWidget *win, bool sticky) {
@@ -1193,17 +1255,29 @@ bool LuaModelViewer::OnInvisibleHandSweep() {
     Error("Sweep interrupted (internal error)");
     return false;
   }
+  if (ih_.sweep_over_test_output && !run_test_after_solve_) {
+    Error("If sweeping over test output, enable 'Run test() after each solve'");
+    return false;
+  }
 
-  // Rerun the script.
-  if (!RerunScript(false)) {
+  // Rerun the script, collect the test function output if requested.
+  std::vector<JetNum> test_output;
+  if (!RerunScript(false, 0, ih_.sweep_over_test_output ? &test_output : 0)) {
     Error("Sweep interrupted");
     return false;
   }
 
-  // Compute the sweep output.
-  if (!ComputeSweptOutput(&ih_.sweep_output[ih_.sweep_index])) {
-    Error("Sweep interrupted");
-    return false;
+  // If the test function was run and generated output, use it as the swept
+  // output. Otherwise compute the sweep output by ComputeSweptOutput().
+  if (!test_output.empty()) {
+    for (int i = 0; i < test_output.size(); i++) {
+      ih_.sweep_output[ih_.sweep_index].push_back(JetComplex(test_output[i]));
+    }
+  } else {
+    if (!ComputeSweptOutput(&ih_.sweep_output[ih_.sweep_index])) {
+      Error("Sweep interrupted");
+      return false;
+    }
   }
 
   // Display the result.
@@ -1285,7 +1359,7 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
       // i==0 were already computed above.
       if (i > 0) {
         derivative_index_ = i;
-        if (!RerunScript(false, &optimize_errors, true) ||
+        if (!RerunScript(false, &optimize_errors, 0, true) ||
             optimize_errors.empty()) {
           Error("Optimizer interrupted (script failed)");
           return false;

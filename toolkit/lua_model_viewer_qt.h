@@ -80,12 +80,15 @@ public:
     runscript_resets_param_map_ = runscript_resets_param_map;
   }
   void Sweep(const std::string &parameter_name,
-             double start_value, double end_value, int num_steps);
+             double start_value, double end_value, int num_steps,
+             bool sweep_over_test_output);
   void Optimize();
   void StopSweepOrOptimize();
   void ToggleEmitTraceReport();
   void SetOptimizer(OptimizerType type) { ih_.optimizer_type = type; }
   void CopyParametersToClipboard();
+  void ToggleRunTestAfterSolve();
+  void ScriptTestMode();
 
   // Connect to external controls.
   void Connect(QListWidget *script_messages, QWidget *parameter_window,
@@ -106,12 +109,15 @@ public:
   // parameter values have changed. If optimize_output is nonzero return the
   // output of the config.optimize function, emitting an error and setting
   // optimize_output to the empty vector if no optimizer output could be
-  // obtained (e.g. because of script error). The return value is false if
-  // there were script errors (this value is also stored in valid_). If
+  // obtained (e.g. because of script error). If run_test_after_solve_ is true
+  // then run the config.test function, which may emit an error, and set
+  // test_output to its return values. The return value is false if there were
+  // script errors (this value is also stored in valid_). If
   // only_compute_derivatives is true then the script is being redundantly
   // rerun with the same parameters but different derivatives.
   bool RerunScript(bool refresh_window = true,
                    std::vector<JetNum> *optimize_output = 0,
+                   std::vector<JetNum> *test_output = 0,
                    bool only_compute_derivatives = false);
 
   // Get information about a parameter. It's a fatal error if the parameter
@@ -159,6 +165,12 @@ public:
   // Export plot data to a matlab file.
   void ExportPlotMatlab(const char *filename);
 
+  // Set command line arguments.
+  void SetCommandLineArguments(int argc, char **argv) {
+    copy_of_argc_ = argc;
+    copy_of_argv_ = argv;
+  }
+
   // ********** Override these to implement the model functionality.
 
   // Is there something to display? This is false if DrawModel() will draw
@@ -176,11 +188,11 @@ public:
   // but different derivatives.
   virtual void ScriptJustRan(bool only_compute_derivatives)=0;
 
-  // Push the Lua arguments for the optimize() function. If
-  // optimize_output_requested is true then this is a real call which should
-  // generate actual results, otherwise this is a dummy call to make sure the
-  // function runs.
-  virtual void CreateArgumentsToOptimize(bool optimize_output_requested)=0;
+  // Push the Lua arguments for the optimize() or test() functions. If
+  // real_invocation is true then this is a real call which should generate
+  // actual results, otherwise this is a dummy call to make sure the function
+  // runs.
+  virtual void CreateArgumentsToOptimize(bool real_invocation)=0;
 
   // Draw the model.
   virtual void DrawModel()=0;
@@ -212,6 +224,10 @@ public:
   int plot_type_;                       // Given to SelectPlot()
   QIcon *error_icon_, *warning_icon_, *info_icon_;
   bool scroll_to_bottom_of_script_messages_;
+  bool run_test_after_solve_;
+  bool script_test_mode_;
+  int copy_of_argc_ = 0;                // Copy of argument given to main()
+  char **copy_of_argv_ = 0;             // Copy of argument given to main()
 
   // Connections to external controls.
   QListWidget *script_messages_;
@@ -252,6 +268,7 @@ public:
     std::string sweep_parameter_name;         // Parameter name we're sweeping
     int sweep_index;                          // Current parameter value index
     std::vector<double> sweep_values;         // All values of parameter to use
+    bool sweep_over_test_output;              // Plot test() output?
     std::vector<std::vector<JetComplex> > sweep_output;
     OptimizerType optimizer_type;             // Algorithm to use
     CeresInteractiveOptimizer *optimizer;     // Nonzero if currently optimizing

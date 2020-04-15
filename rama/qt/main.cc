@@ -13,9 +13,9 @@ int main(int argc, char *argv[]) {
     SetupCrashHandling();
   #endif
 
-  // If the -test flag is given on the command line, run all tests and exit.
+  // If the -unittest flag is given on the command line, run all tests and exit.
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-test") == 0) {
+    if (strcmp(argv[i], "-unittest") == 0) {
       testing::RunAll();
       exit(0);
     }
@@ -53,8 +53,17 @@ int main(int argc, char *argv[]) {
   SetErrorHandler(new qtErrorHandler);
 
   // Start the main window. If a filename was specified on the command line,
-  // load it.
+  // load it. If the -test flag is given on the command line then run the
+  // test() function in that file then exit.
   MainWindow w;
+  w.SetCommandLineArguments(argc, argv);
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-test") == 0) {
+      w.ToggleRunTestAfterSolve();
+      w.ScriptTestMode();
+      break;
+    }
+  }
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
       w.LoadFile(argv[i]);

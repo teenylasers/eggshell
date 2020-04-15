@@ -17,10 +17,13 @@ public:
   explicit MainWindow(QWidget *parent = 0);
   ~MainWindow();
 
+  void ToggleRunTestAfterSolve();
+  void ScriptTestMode();
   void LoadFile(const QString &full_path);
   bool ReloadScript(bool rerun_even_if_same);
   void OnFileChanged(const QString &path);
   void ReloadTimeout();
+  void SetCommandLineArguments(int argc, char **argv);
 
 private slots:
   void ResetCurrentModelBackground();
@@ -75,13 +78,13 @@ private slots:
   void on_sparam_plot_type_currentIndexChanged(int index);
   void on_show_sparams_stateChanged(int arg1);
   void on_time_dial_valueChanged(int value);
-
   void on_actionSet_animation_time_to_0_triggered();
+  void on_actionRunTest_triggered();
 
 private:
-  Ui::MainWindow *ui;
+  Ui::MainWindow *ui = 0;
   QString script_filename_;
-  bool autorun_;
+  bool autorun_ = true;
   QFileSystemWatcher watcher_;
 
   void UpdateDisplayStyle(int index);

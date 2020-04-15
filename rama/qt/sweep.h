@@ -21,6 +21,7 @@ public:
   double GetStartValue();
   double GetEndValue();
   int GetNumSteps();
+  bool GetTestOutput();
 
 private slots:
   void on_cancel_button_clicked();

@@ -456,6 +456,80 @@ void MyZFillCallback(IntPoint &e1bot, IntPoint &e1top,
   pt.Z = new_et;
 }
 
+// Set 'value' to the real or complex lua value at position 'index' on the
+// stack. Return true on success or false if the stack value can not be
+// interpreted as a complex value. Leave the stack unchanged on exit.
+static bool ToJetComplex(lua_State *L, int index, JetComplex *value) {
+  int top = lua_gettop(L);
+  if (lua_type(L, index) == LUA_TNUMBER) {
+    *value = JetComplex(lua_tonumber(L, index));
+    return true;
+  }
+  if (lua_getmetatable(L, index)) {             // Stack: T
+    lua_getglobal(L, "__complex_metatable__");  // Stack: T T
+    if (lua_rawequal(L, -1, -2)) {
+      // This looks like a complex table, make sure the real and imaginary
+      // components are scalars.
+      lua_pop(L, 2);                            // Stack:
+      lua_rawgeti(L, index, 1);                 // Stack: re
+      if (lua_type(L, -1) == LUA_TNUMBER) {
+        JetNum real_part = lua_tonumber(L, -1);
+        lua_pop(L, 1);                          // Stack:
+        lua_rawgeti(L, index, 2);               // Stack: im
+        if (lua_type(L, -1) == LUA_TNUMBER) {
+          JetNum imag_part = lua_tonumber(L, -1);
+          *value = JetComplex(real_part, imag_part);
+          lua_settop(L, top);
+          return true;
+        }
+      }
+    }
+  }
+  lua_settop(L, top);
+  return false;
+}
+
+// Set 'value' to the real or complex lua vector at position 'index' on the
+// stack. Return true on success or false if the stack value can not be
+// interpreted as a complex vector. Leave the stack unchanged on exit.
+static bool ToJetComplexVector(lua_State *L, int index,
+                               vector<JetComplex> *value) {
+  int top = lua_gettop(L);
+  LuaVector *result_real = LuaCastTo<LuaVector>(L, index);
+  if (result_real) {
+    value->resize(result_real->size());
+    for (int i = 0; i < result_real->size(); i++) {
+      (*value)[i] = (*result_real)[i];
+    }
+    return true;
+  }
+  if (lua_getmetatable(L, index)) {             // Stack: T
+    lua_getglobal(L, "__complex_metatable__");  // Stack: T T
+    if (lua_rawequal(L, -1, -2)) {
+      // This looks like a complex table, make sure the real and imaginary
+      // components are vectors of the same size.
+      lua_pop(L, 2);                            // Stack:
+      lua_rawgeti(L, index, 1);                 // Stack: re
+      result_real = LuaCastTo<LuaVector>(L, -1);
+      if (result_real) {
+        lua_pop(L, 1);                          // Stack:
+        lua_rawgeti(L, index, 2);               // Stack: im
+        LuaVector *result_imag = LuaCastTo<LuaVector>(L, -1);
+        if (result_imag && result_imag->size() == result_real->size()) {
+          value->resize(result_real->size());
+          for (int i = 0; i < result_real->size(); i++) {
+            (*value)[i] = JetComplex((*result_real)[i], (*result_imag)[i]);
+          }
+          lua_settop(L, top);
+          return true;
+        }
+      }
+    }
+  }
+  lua_settop(L, top);
+  return false;
+}
+
 //***************************************************************************
 // Lua global functions.
 
@@ -543,7 +617,7 @@ void Material::GetCallbackFromRegistry(lua_State *L) {
   CHECK(lua_type(L, -1) == LUA_TFUNCTION);
 }
 
-bool Material::RunCallback(Lua *lua, LuaVector *result[2]) {
+bool Material::RunCallback(Lua *lua, vector<MaterialParameters> *result) {
   // Check that we have the callback function and two vector arguments on the
   // stack.
   int n = lua_gettop(lua->L()) - 2;     // First return argument slot
@@ -558,18 +632,33 @@ bool Material::RunCallback(Lua *lua, LuaVector *result[2]) {
     return false;
   }
   int nret = lua_gettop(lua->L()) - n + 1;
-  if (nret < 1 || nret > 2) {
-    LuaError(lua->L(),"Callback should return 1 or 2 values");
+  if (nret != 1 && nret != MAX_PARAMS) {
+    if (nret == 2) {
+      LuaError(lua->L(), "Two material parameters were returned so you might "
+          "be using a deprecated complex number API. Use Complex() instead.");
+    }
+    LuaError(lua->L(),"Callback should return 1 or %d material parameters",
+             MAX_PARAMS);
     return false;
   }
-  result[0] = 0;
-  result[1] = 0;
+  vector<vector<JetComplex>> vec(nret);
   for (int i = 0; i < nret; i++) {
-    result[i] = LuaCastTo<LuaVector>(lua->L(), n + i);
-    if (!result[i] || result[i]->size() != x->size()) {
-      LuaError(lua->L(), "Callback should return vectors of the same size as "
-                         "the x,y arguments");
+    if (!ToJetComplexVector(lua->L(), n + i, &vec[i])) {
+      LuaError(lua->L(), "Invalid vectors (or complex vectors) returned");
       return false;
+    }
+    if (vec[i].size() != x->size()) {
+      LuaError(lua->L(), "Callback should return vectors (or complex vectors) "
+          "of the same size as the x,y arguments");
+      return false;
+    }
+  }
+  result->clear();
+  result->resize(x->size());    // Sets material parameters to their defaults
+  for (int i = 0; i < x->size(); i++) {
+    (*result)[i].epsilon = vec[0][i];
+    if (vec.size() >= 4) {
+      (*result)[i].SetSigmas(vec[1][i], vec[2][i], vec[3][i]);
     }
   }
   lua_settop(lua->L(), n - 1);
@@ -625,8 +714,12 @@ void Shape::Dump() const {
   for (int i = 0; i < polys_.size(); i++) {
     printf("Poly %d:\n", i);
     for (int j = 0; j < polys_[i].p.size(); j++) {
-      printf("\t(%g, %g)\n", ToDouble(polys_[i].p[j].p[0]),
-                             ToDouble(polys_[i].p[j].p[1]));
+      printf("\t(pt=%g,%g, kind=%d,%d, dist=%.2g,%.2g)\n",
+             ToDouble(polys_[i].p[j].p[0]), ToDouble(polys_[i].p[j].p[1]),
+             polys_[i].p[j].e.kind[0].IntegerForDebugging(),
+             polys_[i].p[j].e.kind[1].IntegerForDebugging(),
+             polys_[i].p[j].e.dist[0],
+             polys_[i].p[j].e.dist[1]);
     }
   }
 }
@@ -940,7 +1033,7 @@ void Shape::Paint(const Shape &s, const Material &mat) {
   // (non-merged) polygon piece.
   Shape area_to_paint;
   area_to_paint.RunClipper(this, &s, ctIntersection, offset_x, offset_y, scale);
-  if (IsEmpty()) {
+  if (area_to_paint.IsEmpty()) {
     return;
   }
   for (int i = 0; i < area_to_paint.polys_.size(); i++) {
@@ -2002,18 +2095,29 @@ int Shape::LuaPaint(lua_State *L) {
     LuaVector *y = LuaUserClassCreateObj<LuaVector>(L);
     x->resize(10);
     y->resize(10);
-    LuaVector *result[2];
-    if (!Material::RunCallback(LuaGetObject(L), result)) {
+    vector<MaterialParameters> result;
+    if (!Material::RunCallback(LuaGetObject(L), &result)) {
       LuaError(L, "Callback function can not be run");
     }
   } else {
     int num_params = lua_gettop(L) - 3;
-    if (num_params > Material::MaxParameters()) {
-      LuaError(L, "Too many material parameters");
+    if (num_params != 1 && num_params != Material::MAX_PARAMS) {
+      if (num_params == 2) {
+        LuaError(L, "Two material parameters were given so you might be using "
+            "a deprecated complex number API. Use Complex() instead.");
+      } else {
+        LuaError(L, "Expecting 1 or %d material parameters",
+                 Material::MAX_PARAMS);
+      }
     }
-    vector<JetNum> list;
+    vector<JetComplex> list;
     for (int i = 0; i < num_params; i++) {
-      list.push_back(luaL_checknumber(L, i + 4));
+      JetComplex value;
+      if (!ToJetComplex(L, i + 4, &value)) {
+        LuaError(L, "Material parameter %d is not a real or complex number",
+                 i + 1);
+      }
+      list.push_back(value);
     }
     mat.SetParameters(list);
   }

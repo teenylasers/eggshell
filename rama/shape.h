@@ -46,9 +46,58 @@ struct RPoint {
   }
 };
 
-struct Material {        // Polygon and triangle material properties
+// Parameters that will have a value at each point in a material.
+struct MaterialParameters {
+  enum { MAX_PARAMS = 4 };
+  JetComplex epsilon;           // Multiplies k^2
+  JetComplex sigma_xx;          // Sigma values for anisotropic Laplacians
+  JetComplex sigma_yy;          // The isotropic Laplacian has xx=yy=1, xy=0
+  JetComplex sigma_xy;
+  bool is_isotropic;
+
+  MaterialParameters() {
+    SetDefault();
+  }
+  void SetSigmas(const JetComplex &xx, const JetComplex &yy,
+                 const JetComplex &xy) {
+    sigma_xx = xx;
+    sigma_yy = yy;
+    sigma_xy = xy;
+    is_isotropic = (sigma_xx == JetComplex(1.0)) &&
+      (sigma_yy == JetComplex(1.0)) && (sigma_xy == JetComplex(0.0));
+  }
+
+  bool operator==(const MaterialParameters &a) const {
+    return epsilon == a.epsilon && sigma_xx == a.sigma_xx &&
+           sigma_yy == a.sigma_yy && sigma_xy == a.sigma_xy;
+  }
+
+  // Mechanism to set parameters from a Lua function's argument list.
+  void SetParameters(const vector<JetComplex> &list) {
+    CHECK(list.size() == 1 || list.size() == MAX_PARAMS);
+    epsilon = list[0];
+    if (list.size() >= MAX_PARAMS) {
+      sigma_xx = list[1];
+      sigma_yy = list[2];
+      sigma_xy = list[3];
+    }
+    is_isotropic = (sigma_xx == JetComplex(1.0)) &&
+      (sigma_yy == JetComplex(1.0)) && (sigma_xy == JetComplex(0.0));
+  }
+
+  // Set all values to their defaults.
+  void SetDefault() {
+    epsilon = 1;        // i.e. vacuum
+    sigma_xx = 1;       // i.e. isotropic Laplacian
+    sigma_yy = 1;
+    sigma_xy = 0;
+    is_isotropic = true;
+  }
+};
+
+// Polygon and triangle material properties.
+struct Material : public MaterialParameters {
   uint32 color;          // 0xrrggbb color (for drawing only, not simulation)
-  JetComplex epsilon;    // For EM simulation: multiplies k^2
   std::string callback;  // MD5 hash of callback function.
   // If 'callback' is not empty then it is the MD5 hash of the callback
   // function that makes parameters from (x,y) coordinates. It is also the key
@@ -59,20 +108,10 @@ struct Material {        // Polygon and triangle material properties
 
   Material() {
     color = 0xe0e0ff;
-    epsilon = 1;        // i.e. vacuum
   }
   bool operator==(const Material &a) const {
-    return color == a.color && epsilon == a.epsilon && callback == a.callback;
-  }
-
-  // Mechanism to set parameters from a Lua argument list.
-  static int MaxParameters() { return 2; }
-  void SetParameters(const vector<JetNum> &list) {
-    if (list.size() == 1) {
-      epsilon = list[0];
-    } else if (list.size() >= 2) {
-      epsilon = JetComplex(list[0], list[1]);
-    }
+    return MaterialParameters::operator==(a) &&
+           color == a.color && callback == a.callback;
   }
 
   // Pop a function from the lua stack, store its hash in 'callback' and write
@@ -85,10 +124,11 @@ struct Material {        // Polygon and triangle material properties
 
   // Helper for running the callback function one time. After the callback and
   // x,y vectors are pushed on to the stack, call this to run the callback.
-  // Return 1 or 2 vector results (the second one can be 0). Returns true on
-  // success or false if there is a problem (in which case LuaError() will have
-  // been called). The callback function arguments are removed from the stack.
-  static bool RunCallback(Lua *lua, LuaVector *result[2]) MUST_USE_RESULT;
+  // Returns true on success or false if there is a problem (in which case
+  // LuaError() will have been called). The callback function arguments are
+  // removed from the stack.
+  static bool RunCallback(Lua *lua, vector<MaterialParameters> *result)
+      MUST_USE_RESULT;
 };
 
 struct Triangle {

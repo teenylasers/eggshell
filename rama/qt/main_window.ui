@@ -53,7 +53,7 @@
          <x>0</x>
          <y>0</y>
          <width>290</width>
-         <height>661</height>
+         <height>676</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,1">
@@ -214,6 +214,8 @@
     <addaction name="actionStartOptimization"/>
     <addaction name="separator"/>
     <addaction name="actionStopSweepOrOptimization"/>
+    <addaction name="separator"/>
+    <addaction name="actionRunTest"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -1226,6 +1228,14 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+0</string>
+   </property>
+  </action>
+  <action name="actionRunTest">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Run test() after each solve</string>
    </property>
   </action>
  </widget>

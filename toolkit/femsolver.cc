@@ -1,8 +1,6 @@
 
 // Testing for FEMSolver.
 
-#define __FEM_SOLVER_TEST__  // Enable some test code in femsolver.h
-
 #include "femsolver.h"
 #include <stdio.h>
 #include "testing.h"
@@ -230,9 +228,6 @@ TEST_FUNCTION(ComputeSolutionDerivative) {
     ExampleFEMProblem::Number value = solver.triplets[i].value();
     double deriv = RandDouble() * 2 - 1;
     dAdp(solver.triplets[i].row(), solver.triplets[i].col()) += deriv;
-    if (solver.triplets[i].col() != solver.triplets[i].row()) {
-      dAdp(solver.triplets[i].col(), solver.triplets[i].row()) += deriv;
-    }
     value.derivative = deriv;
     new_triplets.push_back(ExampleFEMProblem::Triplet(
           solver.triplets[i].row(), solver.triplets[i].col(), value));
@@ -280,8 +275,8 @@ TEST_FUNCTION(EigenSystem) {
 
   // Make sure A*x = lambda*B*x for all x,lambda.
   Eigen::SparseMatrix<double> A, B;
-  solver.GetSystemMatrix(solver.triplets, &A, true);
-  solver.GetSystemMatrix(solver.Ctriplets, &B, true);
+  solver.GetSystemMatrix(solver.triplets, &A);
+  solver.GetSystemMatrix(solver.Ctriplets, &B);
   for (int i = 0; i < 5; i++) {
     const Eigen::VectorXd vec = solver.GetRawEigenvector(i);
     Eigen::VectorXd error = A*vec - solver.GetEigenvalue(i)*B*vec;

@@ -60,6 +60,10 @@ int Sweep::GetNumSteps() {
   return num_steps_;
 }
 
+bool Sweep::GetTestOutput() {
+  return ui->test_output->isChecked();
+}
+
 bool Sweep::Check() {
   bool ok;
   start_value_ = ui->start_value->text().toDouble(&ok);
