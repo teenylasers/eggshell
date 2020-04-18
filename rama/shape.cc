@@ -1712,7 +1712,9 @@ int Shape::Index(lua_State *L) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaFilletVertex>));
     } else if (strcmp(s, "ChamferVertex") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaChamferVertex>));
-    } else if (strcmp(s, "Paint") == 0) {
+    } else if (strcmp(s, "Paint") == 0) {  // Paint() from user_script_util.lua
+      lua_getglobal(L, "Paint");           // calls _RawPaint defined here.
+    } else if (strcmp(s, "RawPaint") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaPaint>));
     } else if (strcmp(s, "empty") == 0) {
       lua_pushboolean(L, IsEmpty());
@@ -2070,6 +2072,10 @@ int Shape::LuaChamferVertex(lua_State *L) {
 }
 
 int Shape::LuaPaint(lua_State *L) {
+  // Trim off nils at the end before we start counting arguments.
+  while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
+    lua_pop(L, 1);
+  }
   if (lua_gettop(L) < 4) {
     LuaError(L, "Expecting shape1:Paint(shape2, color, param, ...)");
   }

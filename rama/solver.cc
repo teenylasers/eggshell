@@ -69,8 +69,9 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
   typedef Eigen::Matrix<MNumber, Eigen::Dynamic, 1> MNumberVector;
   typedef Eigen::SparseLU<Eigen::SparseMatrix<MNumber>,
                           Eigen::COLAMDOrdering<int> > Factorizer;
-  bool GradientStepAtDielectricBoundary() const {
-    return s->config_.type == ScriptConfig::EXY;
+  bool AddDielectricForcingTerm() const {
+    return false;  // We use sigma steps to achieve the same thing
+    // Or: return s->config_.type == ScriptConfig::EXY;
   }
   MNumber MNumberFromNumber(Number n) const { return ToComplex(n); }
   Number GNumberToNumber(GNumber n) const { return Number(n); }
@@ -234,7 +235,7 @@ struct WaveguideModeFEMProblem : FEM::FEMProblem {
   typedef Eigen::Matrix<MNumber, Eigen::Dynamic, 1> MNumberVector;
   typedef Eigen::SimplicialLLT<Eigen::SparseMatrix<MNumber>, Eigen::Lower,
                                Eigen::AMDOrdering<int> > Factorizer;
-  bool GradientStepAtDielectricBoundary() const { return false; }
+  bool AddDielectricForcingTerm() const { return false; }
   MNumber MNumberFromNumber(Number n) const { return ToDouble(n); }
   Number GNumberToNumber(GNumber n) const { return n; }
   MNumberVector *CastMNumberToNumberVector(NumberVector *v) { return 0; }

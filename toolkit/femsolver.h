@@ -129,10 +129,9 @@ struct ExampleFEMProblem : public FEMProblem {
   //     typedef Eigen::SparseLU<Eigen::SparseMatrix<MNumber>,
   //                             Eigen::COLAMDOrdering<int> > Factorizer;
 
-  // Return true if we should add terms for discontinuous gradients at
-  // dielectric boundaries. This is currently specialized to epsilon
-  // discontinuities in Exy cavities.
-  bool GradientStepAtDielectricBoundary() const { return false; }
+  // Return true if we should add the dielectric forcing term, that is one way
+  // to get discontinuous gradients at dielectric boundaries in Exy cavities.
+  bool AddDielectricForcingTerm() const { return false; }
 
   // Conversions.
   MNumber MNumberFromNumber(Number n) const { return MNumber(n.value); }
@@ -505,6 +504,12 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
         area2 = T::Absolute(d1[0]*d2[1] - d1[1]*d2[0]);
       }
 
+      // Collect the g() values.
+      Number g[3];
+      for (int j = 0; j < 3; j++) {
+        g[j] = T::PointG(i, j);
+      }
+
       // See if the triangle is anisotropic and collect the sigma values.
       bool anisotropic = T::AnisotropicSigma(i, &sigma_xx, &sigma_yy,
                                              &sigma_xy);
@@ -535,8 +540,7 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
         }
 
         // Off-diagonal contribution to the C matrix.
-        Number g0 = T::PointG(i, j0), g1 = T::PointG(i, j1),
-               g2 = T::PointG(i, j2);
+        Number g0 = g[j0], g1 = g[j1], g2 = g[j2];
         Number Cij_value = -((g0 + g1) * 2.0 + g2) *
                             T::GNumberToNumber(area2 / 120.0);
 
@@ -638,10 +642,11 @@ template<class T> class FEMSolver : public FEMSolverBase, public T {
           }
         }
 
-        // If required, add terms for discontinuous gradients at dielectric
-        // boundaries. This triangle must have all 3 vertices represented in
-        // the solution.
-        if (T::GradientStepAtDielectricBoundary() &&
+        // If requested add the dielectric forcing term. This is one way to get
+        // discontinuous gradients at dielectric boundaries. This triangle must
+        // have all 3 vertices represented in the solution. This does not yet
+        // account for nonisotropic materials.
+        if (T::AddDielectricForcingTerm() &&
             sj0 >= 0 && sj1 >= 0 && sj2 >= 0) {
           // This triangle must have a neighbor on edge j0, on the other side
           // of the dielectric boundary, otherwise there can't be a

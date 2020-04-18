@@ -229,6 +229,8 @@ the following fields:
   @* @c{depth} (optional)
   @| The depth (in the above units) of @c{Exy} cavities. This is not used for
      the other cavities as their solutions are independent of depth.
+     The depth can be set to @c{Infinity} to model free space, with
+     solutions that are independent of Z.
 
   @* @c{optimize} (optional)
   @| When optimization is performed the optimizer calls this function. It is
@@ -831,8 +833,8 @@ conditions. The space between the walls is vacuum by default (or you can regard
 this as air). Other materials with different dielectric constants or
 Schrödinger potentials can be inserted into the cavity. These dielectrics are
 represented as ``painted'' regions within shapes. The ``paint'' that is used
-has a actual visible color (so that the area can be identified on screen) and a
-relative epsilon (@m{\epsilon}) or potential value.
+has an actual visible color (so that the area can be identified on screen) and
+a relative epsilon (@m{\epsilon}) or potential value.
 
 The following functions can be used to define dielectrics in shape @c{s}:
 

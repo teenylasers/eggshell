@@ -1,5 +1,7 @@
 -- Lua utility functions that are available to user scripts.
 
+Infinity = 1.7976931348623157e+308  -- Close enough, this is the maximum double
+
 function Parameter(T)
   -- Check that all keys in T have valid type.
   local keys = {label='string', min='number', max='number', default='number',
@@ -69,6 +71,52 @@ function ParameterMarker(T)
   local y = Parameter{label=yname, min=T.min[2], max=T.max[2], default=def[2]}
   _CreateMarker(xname, yname)
   return x, y
+end
+
+-- This is the function called by s:Paint(). It does some parameter
+-- transformations then calls s:RawPaint().
+function Paint(s, q, color, epsilon, sxx, syy, sxy)
+  -- In Exy cavities we scale sigma by 1/epsilon and set epsilon to 1, to
+  -- achieve a discontinuous gradient across dielectric boundaries.
+  if not config or type(config.type) ~= 'string' then
+    error('config table should be set before Paint() is called')
+  end
+  if config.type == 'Exy' then
+    if not rawget(_G,'allow_painting_in_finite_depth_Exy') and config.depth and config.depth < Infinity then
+      error('Painting in finite depth Exy cavities does not yet generate physically sensible results.\n'..
+            'Set allow_painting_in_finite_depth_Exy=true to suppress this error,\n'..
+            'or set depth=Infinity.\n')
+    end
+    if type(epsilon) == 'function' then
+      -- epsilon and sigma values are returned by a callback function. We
+      -- create an intermediate function here that modifies those returned
+      -- values.
+      s:RawPaint(q, color, function(x, y)
+        local e, sxx, syy, sxy = epsilon(x, y)
+        sxx = sxx or (x*0+1)
+        syy = syy or (x*0+1)
+        sxy = sxy or (x*0)
+        sxx = sxx / e
+        syy = syy / e
+        sxy = sxy / e
+        e = (x*0+1)
+        return e, sxx, syy, sxy
+      end)
+    else
+      -- epsilon and sigma values are (potentially complex) numbers.
+      sxx = sxx or 1
+      syy = syy or 1
+      sxy = sxy or 0
+      sxx = sxx / epsilon
+      syy = syy / epsilon
+      sxy = sxy / epsilon
+      epsilon = 1
+      s:RawPaint(q, color, epsilon, sxx, syy, sxy)
+    end
+  else
+    -- Not an Exy cavity, pass on original arguments.
+    s:RawPaint(q, color, epsilon, sxx, syy, sxy)
+  end
 end
 
 -- Create a table that returns a zero for every index. This is sometimes useful

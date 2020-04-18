@@ -100,11 +100,11 @@ struct Material : public MaterialParameters {
   uint32 color;          // 0xrrggbb color (for drawing only, not simulation)
   std::string callback;  // MD5 hash of callback function.
   // If 'callback' is not empty then it is the MD5 hash of the callback
-  // function that makes parameters from (x,y) coordinates. It is also the key
-  // for looking up this function in the registry. It is assumed by operator==
-  // that if two functions have the same hash then they will compute the same
-  // values (if given the same parameters). Given that a 16 byte hash is used,
-  // this is extremely likely to be true.
+  // function that makes material parameters from (x,y) coordinates. It is also
+  // the key for looking up this function in the registry. It is assumed by
+  // operator== that if two functions have the same hash then they will compute
+  // the same material parameters (if given the same x,y). Given that a 16 byte
+  // hash is used, this is extremely likely to be true.
 
   Material() {
     color = 0xe0e0ff;
