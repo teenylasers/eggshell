@@ -379,11 +379,12 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
     }
   }
 
-  // Copy shape materials
+  // Copy shape materials and port callbacks.
   materials_.resize(s.NumPieces());
   for (int i = 0; i < s.NumPieces(); i++) {
     materials_[i] = s.GetMaterial(i);
   }
+  port_callbacks_ = s.PortCallbacks();
 
   // Free heap allocated data. Note that holelist and regionlist are copied
   // from tin to tout so make sure not to free them twice.
@@ -397,6 +398,7 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
 
   if (lua) {
     DeterminePointMaterial(lua, &mat_params_);
+    DetermineBoundaryParameters(lua, &boundary_params_);
   }
 }
 
@@ -650,7 +652,7 @@ void Mesh::DeterminePointMaterial(Lua *lua,
     }
     if (count > 0) {
       // Push the callback function to the lua stack.
-      materials_[i].GetCallbackFromRegistry(lua->L());
+      GetCallbackFromRegistry(lua->L(), materials_[i].callback);
       // Push vectors of x,y coordinates for marked points to the lua stack.
       LuaVector *x = LuaUserClassCreateObj<LuaVector>(lua->L());
       LuaVector *y = LuaUserClassCreateObj<LuaVector>(lua->L());
@@ -667,7 +669,7 @@ void Mesh::DeterminePointMaterial(Lua *lua,
       // Call the callback function. RunCallback() will pop the callback
       // function and arguments.
       vector<MaterialParameters> result;
-      if (!materials_[i].RunCallback(lua, &result)) {
+      if (!materials_[i].RunCallback(lua, false, &result)) {
         // A lua error message will have been displayed at this point.
         mat_params->clear();
         return;
@@ -683,6 +685,87 @@ void Mesh::DeterminePointMaterial(Lua *lua,
       CHECK(index == count);
     }
   }
+}
+
+void Mesh::DetermineBoundaryParameters(Lua *lua,
+                                std::map<RobinArg, RobinRet> *boundary_params) {
+  Trace trace(__func__);
+  boundary_params->clear();
+  int original_top = lua_gettop(lua->L());
+
+  // Scan the boundary and create lists of arguments that will be passed to
+  // Robin(), by indexed by port number.
+  std::map<int, vector<RobinArg>> args;
+  std::map<int, vector<double>> dist;   // Argument to callbacks
+  std::map<int, vector<JetPoint>> xy;   // Argument to callbacks
+  for (BoundaryIterator it(this); !it.done(); ++it) {
+    int p = it.kind().PortNumber();
+    if (p) {
+      // First point of the boundary edge.
+      args[p].push_back(RobinArg(it.tindex(), it.tside(), it.tside()));
+      dist[p].push_back(it.dist1());
+      xy[p].push_back(points_[it.pindex1()].p);
+
+      // Second point of the boundary edge.
+      args[p].push_back(RobinArg(it.tindex(), it.tside(), (it.tside() + 1) % 3));
+      dist[p].push_back(it.dist2());
+      xy[p].push_back(points_[it.pindex2()].p);
+    }
+  }
+
+  // For all port numbers with callback functions, generate boundary
+  // parameters.
+  for (auto it : args) {
+    int port_number = it.first;
+    if (port_callbacks_.count(port_number) == 0) {
+      continue;
+    }
+    vector<RobinArg> &arg = it.second;
+    GetCallbackFromRegistry(lua->L(), port_callbacks_[port_number]);  // fn
+
+    // Create the Lua vectors that will be passed to the callback function.
+    LuaVector *d = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d
+    LuaVector *x = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d x
+    LuaVector *y = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d x y
+    d->resize(arg.size());
+    x->resize(arg.size());
+    y->resize(arg.size());
+    for (int i = 0; i < arg.size(); i++) {
+      (*d)[i] = dist[port_number][i];
+      (*x)[i] = xy[port_number][i][0];
+      (*y)[i] = xy[port_number][i][1];
+    }
+
+    // Call the function, check the return values.
+    int n = lua_gettop(lua->L()) - 3;     // First return argument slot
+    int code = lua->PCall(3, LUA_MULTRET);            // ret1 ret2
+    if (code != LUA_OK) {
+      return;
+    }
+    int nret = lua_gettop(lua->L()) - n + 1;
+    if (nret != 2) {
+      Error("Port callback should return 2 boundary parameters");
+      return;
+    }
+    vector<vector<JetComplex>> vec(nret);
+    for (int i = 0; i < nret; i++) {
+      if (!ToJetComplexVector(lua->L(), n + i, &vec[i])) {
+        Error("Invalid vectors (or complex vectors) returned by port "
+              "callback");
+        return;
+      }
+      if (vec[i].size() != arg.size()) {
+        Error("Port callback should return vectors (or complex "
+              "vectors) of the same size as the d,x,y arguments");
+        return;
+      }
+    }
+    for (int i = 0; i < arg.size(); i++) {
+      (*boundary_params)[arg[i]] = RobinRet(vec[0][i], vec[1][i]);
+    }
+    lua_pop(lua->L(), 2);                             // empty stack
+  }
+  CHECK(lua_gettop(lua->L()) == original_top);
 }
 
 //***************************************************************************

@@ -75,7 +75,7 @@ end
 
 -- This is the function called by s:Paint(). It does some parameter
 -- transformations then calls s:RawPaint().
-function Paint(s, q, color, epsilon, sxx, syy, sxy)
+function __Paint__(s, q, color, epsilon, sxx, syy, sxy)
   -- In Exy cavities we scale sigma by 1/epsilon and set epsilon to 1, to
   -- achieve a discontinuous gradient across dielectric boundaries.
   if not config or type(config.type) ~= 'string' then
@@ -196,66 +196,62 @@ end
 
 __complex_metatable__ = {}
 
--- Given than a and b are complex tables, check that they are compatible.
--- It is assumed that the real and imaginary parts are already compatible.
-local function CheckComplexCompatibility(a, b)
-  local avec = vec.IsVector(a[1])
-  local bvec = vec.IsVector(b[1])
-  assert( (type(a[1]) == 'number' or avec) or
-          (type(b[1]) == 'number' or bvec), 'Complex type incompatibility')
-  if avec and bvec then
-    assert(#a[1] == #a[2], 'Complex vector sizve incompatibility')
+-- Cast 'a' and 'b' to tables containing complex numbers or vectors. Return the
+-- two complex tables, and check that the return values are compatible. Also
+-- return the function table to use when combining 'a' and 'b', which is 'vec'
+-- if either is a vector, 'math' otherwise.
+local function CastComplexArguments(a, b)
+  -- Cast 'a' and 'b' to complex.
+  if getmetatable(a) ~= __complex_metatable__ then
+    assert(type(a) == 'number' or vec.IsVector(a), 'Complex type incompatibility')
+    a = Complex(a, a*0)         -- The a*0 makes a compatible imaginary part
   end
-  return a, b
-end
-
--- Check that a and b are tables containing complex numbers. If they are just
--- scalars then cast them to complex tables. Return the two complex tables, and
--- check that the return values are compatible.
-local function CheckComplexArguments(a, b)
-  if getmetatable(a) == __complex_metatable__ then          -- 'a' is complex
-    if getmetatable(b) == __complex_metatable__ then
-      return CheckComplexCompatibility(a, b)
-    else
-      assert(type(b) == 'number' or vec.IsVector(b), 'Invalid complex number operation')
-      return CheckComplexCompatibility(a, Complex(b))
-    end
-  else                                                  -- 'a' is not complex
-    assert(getmetatable(b) == __complex_metatable__)
-    return CheckComplexCompatibility(Complex(a), b)
+  if b and getmetatable(b) ~= __complex_metatable__ then
+    assert(type(b) == 'number' or vec.IsVector(b), 'Complex type incompatibility')
+    b = Complex(b, b*0)         -- The b*0 makes a compatible imaginary part
+  end
+  -- If we have two complex vectors then check that the sizes are compatible.
+  if vec.IsVector(a[1]) and b and vec.IsVector(b[1]) then
+    assert(#a[1] == #a[2], 'Complex vector size incompatibility')
+  end
+  -- See which function table to use.
+  if vec.IsVector(a[1]) or (b and vec.IsVector(b[1])) then
+    return a, b, vec
+  else
+    return a, b, math
   end
 end
 
 __complex_metatable__.__add = function(a, b)  -- the addition (+) operation
-  a,b = CheckComplexArguments(a, b)
-  return setmetatable({a[1]+b[1], a[2]+b[2], fn=a.fn}, __complex_metatable__)
+  local a,b,fn = CastComplexArguments(a, b)
+  return setmetatable({a[1]+b[1], a[2]+b[2], fn=fn}, __complex_metatable__)
 end
 __complex_metatable__.__sub = function(a, b)  -- the subtraction (-) operation
-  a,b = CheckComplexArguments(a, b)
-  return setmetatable({a[1]-b[1], a[2]-b[2], fn=a.fn}, __complex_metatable__)
+  local a,b,fn = CastComplexArguments(a, b)
+  return setmetatable({a[1]-b[1], a[2]-b[2], fn=fn}, __complex_metatable__)
 end
 __complex_metatable__.__mul = function(a, b)  -- the multiplication (*) operation
-  a,b = CheckComplexArguments(a, b)
-  return setmetatable({a[1]*b[1] - a[2]*b[2], a[2]*b[1] + a[1]*b[2], fn=a.fn}, __complex_metatable__)
+  local a,b,fn = CastComplexArguments(a, b)
+  return setmetatable({a[1]*b[1] - a[2]*b[2], a[2]*b[1] + a[1]*b[2], fn=fn}, __complex_metatable__)
 end
 __complex_metatable__.__div = function(a, b)  -- the division (/) operation
-  a,b = CheckComplexArguments(a, b)
+  local a,b,fn = CastComplexArguments(a, b)
   local bm = b[1]*b[1] + b[2]*b[2]
-  return setmetatable({(a[1]*b[1] + a[2]*b[2])/bm, (a[2]*b[1] - a[1]*b[2])/bm, fn=a.fn}, __complex_metatable__)
+  return setmetatable({(a[1]*b[1] + a[2]*b[2])/bm, (a[2]*b[1] - a[1]*b[2])/bm, fn=fn}, __complex_metatable__)
 end
 __complex_metatable__.__pow = function(a, b)  -- the exponentiation (^) operation
-  a,b = CheckComplexArguments(a, b)
+  local a,b,fn = CastComplexArguments(a, b)
   local am = a[1]*a[1] + a[2]*a[2]
   -- If am == 0 this will fail as the complex power of zero is indeterminate.
   -- However we do not test for this case as 'am' could be a vector.
-  local aa = a.fn.atan(a[2], a[1])
-  local angle = aa*b[1] + b[2]/2*a.fn.log(am)
-  local mag = am^(b[1]/2)*a.fn.exp(-aa*b[2])
-  return setmetatable({mag*a.fn.cos(angle), mag*a.fn.sin(angle), fn=a.fn}, __complex_metatable__)
+  local aa = fn.atan(a[2], a[1])
+  local angle = aa*b[1] + b[2]/2*fn.log(am)
+  local mag = am^(b[1]/2)*fn.exp(-aa*b[2])
+  return setmetatable({mag*fn.cos(angle), mag*fn.sin(angle), fn=fn}, __complex_metatable__)
 end
 __complex_metatable__.__unm = function(a)  -- the negation (unary -) operation
-  a = CheckComplexArguments(a, a)
-  return setmetatable({-a[1],-a[2], fn=a.fn}, __complex_metatable__)
+  local a,dummy,fn = CastComplexArguments(a)
+  return setmetatable({-a[1],-a[2], fn=fn}, __complex_metatable__)
 end
 __complex_metatable__.__index = function(T, key)  -- The indexing operation T[key]
   if key == 're' then
@@ -291,3 +287,12 @@ function Complex(re, im)
   end
   return setmetatable({re, im, fn=fn_table}, __complex_metatable__)
 end
+
+-- Complex math functions.
+complex = {
+  exp = function(a)
+    local a,dummy,fn = CastComplexArguments(a)
+    local e = fn.exp(a.re)
+    return setmetatable({e*fn.cos(a.im), e*fn.sin(a.im), fn=fn}, __complex_metatable__)
+  end,
+}

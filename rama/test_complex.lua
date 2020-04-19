@@ -1,11 +1,46 @@
 
--- Check that a complex number is valid
-function IsComplex(a)
+-- Check that a complex number is valid.
+local function IsComplex(a)
   assert(getmetatable(a) == __complex_metatable__)
-  assert(type(rawget(a, 1)) == 'number' or vec.IsVector(rawget(a, 1)))
-  assert(type(rawget(a, 2)) == 'number' or vec.IsVector(rawget(a, 2)))
-  assert(rawget(a, 'fn') == math or rawget(a, 'fn') == vec)
+  if rawget(a, 'fn') == math then
+    assert(type(rawget(a, 1)) == 'number')
+    assert(type(rawget(a, 2)) == 'number')
+  elseif rawget(a, 'fn') == vec then
+    assert(vec.IsVector(rawget(a, 1)))
+    assert(vec.IsVector(rawget(a, 2)))
+    assert(#rawget(a, 1) == #rawget(a, 2))
+  else
+    error('Bad fn field')
+  end
   return a
+end
+
+-- Check that a complex number has the given real and imaginary parts.
+local function CheckComplex(result, re, im)
+  assert(IsComplex(result))
+  assert(math.abs(result.re - re) < 1e-8)
+  assert(math.abs(result.im - im) < 1e-8)
+end
+
+-- Check that a size-2 vector has the given values
+local function CheckVec(result, v1, v2)
+  assert(vec.IsVector(result))
+  assert(#result == 2)
+  assert(math.abs(result[1] - v1) < 1e-8)
+  assert(math.abs(result[2] - v2) < 1e-8)
+end
+
+-- Check that a size-2 complex vector has the given values
+local function CheckComplexVector(result, v1re, v1im, v2re, v2im)
+  assert(IsComplex(result))
+  assert(vec.IsVector(result.re))
+  assert(vec.IsVector(result.im))
+  assert(#result.re == 2)
+  assert(#result.im == 2)
+  assert(math.abs(result.re[1] - v1re) < 1e-8)
+  assert(math.abs(result.im[1] - v1im) < 1e-8)
+  assert(math.abs(result.re[2] - v2re) < 1e-8)
+  assert(math.abs(result.im[2] - v2im) < 1e-8)
 end
 
 function TestComplex()
@@ -39,12 +74,6 @@ function TestComplex()
   assert(c.im == 4)
 
   -- Complex number vector tests.
-  local function CheckVec(result, v1, v2)
-    assert(vec.IsVector(result))
-    assert(#result == 2)
-    assert(math.abs(result[1] - v1) < 1e-8)
-    assert(math.abs(result[2] - v2) < 1e-8)
-  end
   a_re = Vector():Resize(2)
   a_im = Vector():Resize(2)
   a_re[1] = 3;
@@ -102,6 +131,27 @@ function TestComplex()
   -- This doesn't work as you might expect because the overloaded operator
   -- function that is used is from the vector and not from the complex table.
   --   c = d + a
+
+  -- Check complex math functions.
+  CheckComplex(complex.exp(math.pi * Complex(0,1)), -1, 0)
+  CheckComplex(complex.exp(math.pi / 2 * Complex(0,1)), 0, 1)
+  CheckComplex(complex.exp(Complex(0.1,-math.pi / 4)), math.exp(0.1)/math.sqrt(2), -math.exp(0.1)/math.sqrt(2))
+  d = Vector():Resize(2)
+  d[1] = 1
+  d[2] = 2
+  CheckComplexVector(complex.exp(d), math.exp(1),0, math.exp(2),0)
+  d = Complex(Vector():Resize(2), Vector():Resize(2))
+  d.re[1] = 0
+  d.re[2] = 2
+  d.im[1] = math.pi
+  d.im[2] = math.pi/2
+  CheckComplexVector(complex.exp(d), -1,0, 0,math.exp(2))
+
+  -- Regression test.
+  d = Vector():Resize(2)
+  d[1] = 0.2
+  d[2] = 0.8
+  IsComplex(Complex(0,1) * d * 0.1)
 
   print 'Success'
 end

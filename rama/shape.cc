@@ -456,80 +456,6 @@ void MyZFillCallback(IntPoint &e1bot, IntPoint &e1top,
   pt.Z = new_et;
 }
 
-// Set 'value' to the real or complex lua value at position 'index' on the
-// stack. Return true on success or false if the stack value can not be
-// interpreted as a complex value. Leave the stack unchanged on exit.
-static bool ToJetComplex(lua_State *L, int index, JetComplex *value) {
-  int top = lua_gettop(L);
-  if (lua_type(L, index) == LUA_TNUMBER) {
-    *value = JetComplex(lua_tonumber(L, index));
-    return true;
-  }
-  if (lua_getmetatable(L, index)) {             // Stack: T
-    lua_getglobal(L, "__complex_metatable__");  // Stack: T T
-    if (lua_rawequal(L, -1, -2)) {
-      // This looks like a complex table, make sure the real and imaginary
-      // components are scalars.
-      lua_pop(L, 2);                            // Stack:
-      lua_rawgeti(L, index, 1);                 // Stack: re
-      if (lua_type(L, -1) == LUA_TNUMBER) {
-        JetNum real_part = lua_tonumber(L, -1);
-        lua_pop(L, 1);                          // Stack:
-        lua_rawgeti(L, index, 2);               // Stack: im
-        if (lua_type(L, -1) == LUA_TNUMBER) {
-          JetNum imag_part = lua_tonumber(L, -1);
-          *value = JetComplex(real_part, imag_part);
-          lua_settop(L, top);
-          return true;
-        }
-      }
-    }
-  }
-  lua_settop(L, top);
-  return false;
-}
-
-// Set 'value' to the real or complex lua vector at position 'index' on the
-// stack. Return true on success or false if the stack value can not be
-// interpreted as a complex vector. Leave the stack unchanged on exit.
-static bool ToJetComplexVector(lua_State *L, int index,
-                               vector<JetComplex> *value) {
-  int top = lua_gettop(L);
-  LuaVector *result_real = LuaCastTo<LuaVector>(L, index);
-  if (result_real) {
-    value->resize(result_real->size());
-    for (int i = 0; i < result_real->size(); i++) {
-      (*value)[i] = (*result_real)[i];
-    }
-    return true;
-  }
-  if (lua_getmetatable(L, index)) {             // Stack: T
-    lua_getglobal(L, "__complex_metatable__");  // Stack: T T
-    if (lua_rawequal(L, -1, -2)) {
-      // This looks like a complex table, make sure the real and imaginary
-      // components are vectors of the same size.
-      lua_pop(L, 2);                            // Stack:
-      lua_rawgeti(L, index, 1);                 // Stack: re
-      result_real = LuaCastTo<LuaVector>(L, -1);
-      if (result_real) {
-        lua_pop(L, 1);                          // Stack:
-        lua_rawgeti(L, index, 2);               // Stack: im
-        LuaVector *result_imag = LuaCastTo<LuaVector>(L, -1);
-        if (result_imag && result_imag->size() == result_real->size()) {
-          value->resize(result_real->size());
-          for (int i = 0; i < result_real->size(); i++) {
-            (*value)[i] = JetComplex((*result_real)[i], (*result_imag)[i]);
-          }
-          lua_settop(L, top);
-          return true;
-        }
-      }
-    }
-  }
-  lua_settop(L, top);
-  return false;
-}
-
 //***************************************************************************
 // Lua global functions.
 
@@ -601,23 +527,8 @@ bool EdgeInfo::SetUnused(EdgeKind new_kind, float new_dist) {
 //***************************************************************************
 // Material.
 
-void Material::SetCallbackToRegistry(lua_State *L) {
-  CHECK(lua_type(L, -1) == LUA_TFUNCTION);
-  CHECK(callback.empty());                      // Should only do this once
-  LuaGetObject(L)->Hash(&callback, true);       // Does not pop function
-  lua_pushlstring (L, callback.data(), callback.size());
-  lua_rotate(L, -2, 1);                         // Swap top 2 elements
-  lua_rawset(L, LUA_REGISTRYINDEX);
-}
-
-void Material::GetCallbackFromRegistry(lua_State *L) {
-  CHECK(callback.size() == 16);                 // Make sure it's an MD5 hash
-  lua_pushlstring (L, callback.data(), callback.size());
-  lua_rawget(L, LUA_REGISTRYINDEX);
-  CHECK(lua_type(L, -1) == LUA_TFUNCTION);
-}
-
-bool Material::RunCallback(Lua *lua, vector<MaterialParameters> *result) {
+bool Material::RunCallback(Lua *lua, bool within_lua,
+                           vector<MaterialParameters> *result) {
   // Check that we have the callback function and two vector arguments on the
   // stack.
   int n = lua_gettop(lua->L()) - 2;     // First return argument slot
@@ -634,22 +545,30 @@ bool Material::RunCallback(Lua *lua, vector<MaterialParameters> *result) {
   int nret = lua_gettop(lua->L()) - n + 1;
   if (nret != 1 && nret != MAX_PARAMS) {
     if (nret == 2) {
-      LuaError(lua->L(), "Two material parameters were returned so you might "
-          "be using a deprecated complex number API. Use Complex() instead.");
+      Error("Two material parameters were returned so you might "
+            "be using a deprecated complex number API. Use Complex() instead.");
     }
-    LuaError(lua->L(),"Callback should return 1 or %d material parameters",
-             MAX_PARAMS);
+    Error("Callback should return 1 or %d material parameters", MAX_PARAMS);
+    if (within_lua) {
+      LuaError(lua->L(), "Bad material callback");
+    }
     return false;
   }
   vector<vector<JetComplex>> vec(nret);
   for (int i = 0; i < nret; i++) {
     if (!ToJetComplexVector(lua->L(), n + i, &vec[i])) {
-      LuaError(lua->L(), "Invalid vectors (or complex vectors) returned");
+      Error("Invalid vectors (or complex vectors) returned");
+      if (within_lua) {
+        LuaError(lua->L(), "Bad material callback");
+      }
       return false;
     }
     if (vec[i].size() != x->size()) {
-      LuaError(lua->L(), "Callback should return vectors (or complex vectors) "
-          "of the same size as the x,y arguments");
+      Error("Callback should return vectors (or complex vectors) "
+            "of the same size as the x,y arguments");
+      if (within_lua) {
+        LuaError(lua->L(), "Bad material callback");
+      }
       return false;
     }
   }
@@ -708,6 +627,7 @@ void Shape::SetLuaGlobals(lua_State *L) {
 
 void Shape::Clear() {
   polys_.clear();
+  port_callbacks_.clear();
 }
 
 void Shape::Dump() const {
@@ -1712,8 +1632,8 @@ int Shape::Index(lua_State *L) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaFilletVertex>));
     } else if (strcmp(s, "ChamferVertex") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaChamferVertex>));
-    } else if (strcmp(s, "Paint") == 0) {  // Paint() from user_script_util.lua
-      lua_getglobal(L, "Paint");           // calls _RawPaint defined here.
+    } else if (strcmp(s, "Paint") == 0) {  // __Paint__ in user_script_util.lua
+      lua_getglobal(L, "__Paint__");       // calls RawPaint defined here.
     } else if (strcmp(s, "RawPaint") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaPaint>));
     } else if (strcmp(s, "empty") == 0) {
@@ -1985,11 +1905,21 @@ int Shape::LuaSelectAll(lua_State *L) {
 enum { MAGIC_ABC_PORT = -15485863 };
 
 int Shape::LuaPort(lua_State *L) {
+  // Trim off nils at the end before we start counting arguments.
+  while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
+    lua_pop(L, 1);
+  }
   // This is called with the arguments:
   //   1: {p=#, e=#} table (piece and edge), or an array of such tables
   //   2: port number
+  //   3: optional callback function
   // to mark the edge from vertex e to vertex e+1 as a port.
-  Expecting(L, 3, "Port");
+  if (lua_gettop(L) < 3 || lua_gettop(L) > 4) {
+    LuaError(L, "Shape:Port() expecting 2 or 3 arguments");
+  }
+  if (lua_gettop(L) == 4 && lua_type(L, 4) != LUA_TFUNCTION) {
+    LuaError(L, "Shape:Port() third argument must be a function");
+  }
   EdgeKind edge_kind;
   int port_number = ToDouble(luaL_checknumber(L, 3));
   if (port_number >= 1 && port_number <= EdgeKind::MaxPort() &&
@@ -2000,6 +1930,10 @@ int Shape::LuaPort(lua_State *L) {
   } else {
     LuaError(L, "Invalid port number (should be an integer in the range 1..%d)",
              EdgeKind::MaxPort());
+  }
+  if (lua_gettop(L) == 4) {
+    // Save the port callback, if any.
+    port_callbacks_[port_number] = PutCallbackInRegistry(L);
   }
   vector<int> piece(1), edge(1);
   if (!GetPieceEdge(L, 2, &piece[0], &edge[0])) {
@@ -2093,7 +2027,8 @@ int Shape::LuaPaint(lua_State *L) {
     // Store the function to the registry and add the registry key to the
     // material.
     lua_pushvalue(L, -1);
-    mat.SetCallbackToRegistry(L);
+    CHECK(mat.callback.empty());        // Should only do this once
+    mat.callback = PutCallbackInRegistry(L);
 
     // Run the callback function once to verify it can work. This gives an
     // early indication for some (though not all) runtime errors.
@@ -2102,7 +2037,7 @@ int Shape::LuaPaint(lua_State *L) {
     x->resize(10);
     y->resize(10);
     vector<MaterialParameters> result;
-    if (!Material::RunCallback(LuaGetObject(L), &result)) {
+    if (!Material::RunCallback(LuaGetObject(L), true, &result)) {
       LuaError(L, "Callback function can not be run");
     }
   } else {

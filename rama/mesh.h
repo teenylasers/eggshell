@@ -48,14 +48,23 @@ class Mesh {
   // Return the triangle index that intersects (x,y), or return -1 if none.
   int FindTriangle(double x, double y);
 
+  // Encapsulate arguments (i,j,k) and return values (alpha, beta) of the
+  // solver's Robin() function. Return values are for Robin edge j of triangle
+  // i, at point k.
+  typedef std::tuple<int, int, int> RobinArg;
+  typedef std::tuple<JetComplex, JetComplex> RobinRet;
+
  protected:
   bool valid_mesh_;
   vector<RPoint> points_;
   vector<Triangle> triangles_;
   vector<Material> materials_;          // Copies of shape piece materials
+  std::map<int, std::string> port_callbacks_;  // Copied from shape
   friend class BoundaryIterator;
   // Optional, material parameters at each point (size = 0 or points_.size()).
   vector<MaterialParameters> mat_params_;
+  // Optional boundary parameters. This maps Robin() arguments to alpha, beta.
+  std::map<RobinArg, RobinRet> boundary_params_;
   // Spatial index that is built when FindTriangle() is called.
   int cell_size_;                       // Spatial index cell size is 2^this
   typedef std::map<uint64, std::vector<int> > SpatialIndex;
@@ -65,6 +74,11 @@ class Mesh {
   // parameters, call them and populate the epsilon and (optionally) sigma
   // values in mat_params. vectors. Otherwise clear mat_params.
   void DeterminePointMaterial(Lua *lua, vector<MaterialParameters> *mat_params);
+
+  // If any ports have callback functions to determine their boundary
+  // parameters, call them and populate boundary_params_.
+  void DetermineBoundaryParameters(Lua *lua,
+                                 std::map<RobinArg, RobinRet> *boundary_params);
 
   // For testing:
   friend void __RunTest_SpatialIndex();

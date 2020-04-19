@@ -543,6 +543,9 @@ a vector).
   @| The angle of @c{a} in radians.
   @* @c{a.re}, @c{a.im}
   @| The real and imaginary parts of @c{a}.
+  @* @c{complex.exp(a)}
+  @| Math functions on complex numbers or vectors, similar to the regular
+     functions in the Lua math library.
 }
 
 @subsection{Programming style}
@@ -824,6 +827,16 @@ functions:
   @| Given a selection table @c{sel_table} specifying one or more shape edges
      in @c{s}, mark all those edges as belonging to port @c{n}, where
      @c{n}@m{\ge 1}.
+  @* @c{s:Port(sel_table,n,@_@~@~function(d,x,y)@_@~@~@~@~return @m{\alpha},@m{\beta}@_@~@~end)}
+  @| Similar to the @c{Port()} function above, but also use a function that is
+     given a vector @c{d} of edge distances, corresponding vectors @c{x} and
+     @c{y} of point coordinates, and computes corresponding vectors of boundary
+     @m{\alpha} and @m{\beta} values. The return vectors can be complex. Each
+     edge has distance @c{d} going from 0 to 1 as we traverse the polygon
+     counter clockwise. This feature allows arbitrary boundary constraints and
+     boundary excitations. For convenience, the @m{\alpha} and @m{\beta} values
+     are multiplied by the wavenumber @m{k} before being used in the
+     simulation.
 }
 
 @subsection{@label{dielectrics} Dielectrics}
@@ -833,8 +846,8 @@ conditions. The space between the walls is vacuum by default (or you can regard
 this as air). Other materials with different dielectric constants or
 Schrödinger potentials can be inserted into the cavity. These dielectrics are
 represented as ``painted'' regions within shapes. The ``paint'' that is used
-has an actual visible color (so that the area can be identified on screen) and
-a relative epsilon (@m{\epsilon}) or potential value.
+has an actual visible color (so that the area can be identified on screen),
+a relative epsilon (@m{\epsilon}) or potential value, and other parameters.
 
 The following functions can be used to define dielectrics in shape @c{s}:
 

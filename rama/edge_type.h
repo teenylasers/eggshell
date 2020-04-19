@@ -5,19 +5,15 @@
 // The different kinds of edges.
 class EdgeKind {
  public:
-  // Default edge kind is DEFAULT, which can have a solver-specific meaning
-  // (e.g. a metal wall for an electromagnetic cavity).
+  // The default edge kind is DEFAULT which has a solver-specific meaning (e.g.
+  // Dirichlet for Ez cavities, Robin for Exy cavities).
   EdgeKind() : value_(DEFAULT) {}
 
   // Set and test various kinds of edges. Aside from these specific kinds there
   // are also port numbers.
   void SetDefault() { value_ = DEFAULT; }
-  void SetDirichlet() { value_ = DIRICHLET; }   // Dirichlet boundary
-  void SetNeumann() { value_ = NEUMANN; }       // Neumann boundary
   void SetABC() { value_ = ABC; }               // Absorbing boundary condition
   bool IsDefault() const { return value_ == DEFAULT; }
-  bool IsDirichlet() const { return value_ == DIRICHLET; }
-  bool IsNeumann() const { return value_ == NEUMANN; }
   bool IsABC() const { return value_ == ABC; }
   int IntegerForDebugging() const { return int(value_); }
 
@@ -36,7 +32,7 @@ class EdgeKind {
 
  private:
   enum {
-    DEFAULT, DIRICHLET, NEUMANN, ABC,
+    DEFAULT, ABC,
     PORT1,                // First port number, other ports increment from here
   };
 

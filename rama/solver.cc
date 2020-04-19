@@ -128,6 +128,15 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
       k = -k;
     }
 
+    // If the boundary parameters for this point have been precomputed by a
+    // callback function then just return those.
+    auto it = s->boundary_params_.find(Mesh::RobinArg(i, j, point_number));
+    if (it != s->boundary_params_.end()) {
+      *alpha = std::get<0>(it->second) * k;
+      *beta = std::get<1>(it->second) * k;
+      return;
+    }
+
     // Identify the edge type and port (if any) for edge j.
     int p0 = s->triangles_[i].index[j];
     int p1 = s->triangles_[i].index[(j + 1) % 3];
@@ -436,19 +445,30 @@ bool Solver::SameAs(const Shape &s, const ScriptConfig &config, Lua *lua) {
   if (s != shape_ || config != config_) {
     return false;
   }
-  // The shape and config are the same. The material values and implementation
-  // of the material callback functions are the same. However we don't know if
-  // the material parameters field computed by the material callback functions
-  // are the same, because those functions can use parameter values that we
-  // can't see here. Therefore build a new material parameters field and
-  // compare it with the existing one.
-  if (mat_params_.empty()) {
-    return true;
+  // At this point the shape and config are the same. The material values and
+  // implementation of the material callback functions are the same. The port
+  // callback functions are the same. However we don't know if the material
+  // parameters field computed by the material callback functions are the same,
+  // because those functions can use parameter values that we can't see here.
+  // Similarly for the port callbacks. Therefore build a new material
+  // parameters field and a new boundary parameters map, and compare them with
+  // the existing ones.
+  if (!mat_params_.empty()) {
+    vector<MaterialParameters> d;
+    DeterminePointMaterial(lua, &d);
+    CHECK(mat_params_.size() == d.size());
+    if (mat_params_ != d) {
+      return false;
+    }
   }
-  vector<MaterialParameters> d;
-  DeterminePointMaterial(lua, &d);
-  CHECK(mat_params_.size() == d.size());
-  return mat_params_ == d;
+  if (!boundary_params_.empty()) {
+    std::map<RobinArg, RobinRet> b;
+    DetermineBoundaryParameters(lua, &b);
+    if (boundary_params_ != b) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool Solver::UpdateDerivatives(const Shape &s) {

@@ -114,21 +114,15 @@ struct Material : public MaterialParameters {
            color == a.color && callback == a.callback;
   }
 
-  // Pop a function from the lua stack, store its hash in 'callback' and write
-  // it to the registry, using the hash as the registry key.
-  void SetCallbackToRegistry(lua_State *L);
-
-  // Push a function to the lua stack from the registry, using the hash in
-  // 'callback' as the registry key.
-  void GetCallbackFromRegistry(lua_State *L);
-
   // Helper for running the callback function one time. After the callback and
   // x,y vectors are pushed on to the stack, call this to run the callback.
-  // Returns true on success or false if there is a problem (in which case
-  // LuaError() will have been called). The callback function arguments are
-  // removed from the stack.
-  static bool RunCallback(Lua *lua, vector<MaterialParameters> *result)
-      MUST_USE_RESULT;
+  // Returns true on success or false if there is a problem (in which case an
+  // error message will have been generated). The callback function arguments
+  // are removed from the stack. If 'within_lua' is true this is called from
+  // within a Lua C function, so LuaError() will be used to generate errors.
+  // Otherwise only Error() will be used.
+  static bool RunCallback(Lua *lua, bool within_lua,
+                          vector<MaterialParameters> *result) MUST_USE_RESULT;
 };
 
 struct Triangle {
@@ -144,8 +138,10 @@ class Shape : public LuaUserClass {
 
   // Test for exact [in]equality of two shapes, i.e. not just the same outline
   // but the same order of vertices and same edge kinds.
-  bool operator==(const Shape &s) const { return polys_ == s.polys_; }
-  bool operator!=(const Shape &s) const { return polys_ != s.polys_; }
+  bool operator==(const Shape &s) const {
+    return polys_ == s.polys_ && port_callbacks_ == s.port_callbacks_;
+  }
+  bool operator!=(const Shape &s) const { return !operator==(s); }
 
   // Return 0 if the shape geometry is well formed, otherwise return an error
   // message string. If enforce_positive_area is true then only positive area
@@ -156,7 +152,10 @@ class Shape : public LuaUserClass {
   static void SetLuaGlobals(lua_State *L);
 
   // Swap two shapes (a fast way to exchange data).
-  void Swap(Shape *s) { polys_.swap(s->polys_); }
+  void Swap(Shape *s) {
+    polys_.swap(s->polys_);
+    port_callbacks_.swap(s->port_callbacks_);
+  }
 
   // Set the empty shape.
   void Clear();
@@ -300,6 +299,11 @@ class Shape : public LuaUserClass {
   void SaveBoundaryAsDXF(const char *filename);
   void SaveBoundaryAsXY(const char *filename);
 
+  // Access port callbacks.
+  const std::map<int, std::string> & PortCallbacks() const {
+    return port_callbacks_;
+  }
+
   //.........................................................................
   // Lua interface. All lua functions that don't return some other value will
   // return the userdata object, so that calls can be chained together like
@@ -354,6 +358,7 @@ class Shape : public LuaUserClass {
     }
   };
   vector<Polygon> polys_;
+  std::map<int, std::string> port_callbacks_;  // port num -> callback fn hash
 
   int UpdateBounds(JetNum *min_x, JetNum *min_y, JetNum *max_x, JetNum *max_y)
       const;

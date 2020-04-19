@@ -109,8 +109,8 @@ class Solver : public Mesh {
  public:
   // The constructor creates the mesh for the shape and computes some auxiliary
   // data but does not yet compute the full solution. That's done on demand by
-  // other functions. If 'lua' is provided the dielectric callback functions
-  // can be called.
+  // other functions. If 'lua' is provided the dielectric and port callback
+  // functions can be called.
   Solver(const Shape &s, const ScriptConfig &config, Lua *lua,
          int frequencies_index);
   ~Solver();
@@ -124,8 +124,9 @@ class Solver : public Mesh {
 
   // Return true if this solver is compatible with (i.e. will compute the same
   // solution as) another shape and config. This does not consider if any
-  // derivatives are the same. This considers if dielectric callback functions
-  // are the same and if the values returned by those functions are the same.
+  // derivatives are the same. This considers if dielectric and port callback
+  // functions are the same and if the values returned by those functions are
+  // the same.
   bool SameAs(const Shape &s, const ScriptConfig &config, Lua *lua);
 
   // Update the derivatives from the new derivatives of points in 's'. This
