@@ -255,8 +255,12 @@ void MainWindow::on_actionZoomOut_triggered() {
   ui->model->Zoom(sqrt(2));
 }
 
-void MainWindow::on_actionViewLinesAndPorts_triggered() {
-  ui->model->ToggleShowBoundary();
+void MainWindow::on_actionViewLines_triggered() {
+  ui->model->ToggleShowBoundaryLines();
+}
+
+void MainWindow::on_actionViewPorts_triggered() {
+  ui->model->ToggleShowBoundaryPorts();
 }
 
 void MainWindow::on_actionViewVertices_triggered() {
@@ -490,7 +494,7 @@ void MainWindow::on_sparam_plot_type_currentIndexChanged(int index) {
 }
 
 void MainWindow::on_show_sparams_stateChanged(int arg1) {
-  ui->model->ToggleShowSParams();
+  ui->model->ToggleShowSParamsGraph();
 }
 
 void MainWindow::on_time_dial_valueChanged(int value) {
@@ -504,4 +508,8 @@ void MainWindow::on_actionSet_animation_time_to_0_triggered() {
 
 void MainWindow::on_actionRunTest_triggered() {
   ui->model->ToggleRunTestAfterSolve();
+}
+
+void MainWindow::on_actionShowSParameters_triggered() {
+  ui->model->ToggleShowSParameters();
 }

@@ -46,14 +46,20 @@ struct RPoint {
   }
 };
 
+// Needed for MaterialParameters comparison below.
+inline bool operator < (const JetComplex &a, const JetComplex &b) {
+  return a.real() < b.real() || (a.real() == b.real() && a.imag() < b.imag());
+}
+
 // Parameters that will have a value at each point in a material.
 struct MaterialParameters {
-  enum { MAX_PARAMS = 4 };
+  enum { MAX_PARAMS = 5 };
   JetComplex epsilon;           // Multiplies k^2
   JetComplex sigma_xx;          // Sigma values for anisotropic Laplacians
-  JetComplex sigma_yy;          // The isotropic Laplacian has xx=yy=1, xy=0
+  JetComplex sigma_yy;          // The isotropic Laplacian has xx=1, yy=1, xy=0
   JetComplex sigma_xy;
-  bool is_isotropic;
+  JetComplex excitation;        // Or f(), the "right hand side"
+  bool is_isotropic;            // True if sigma values are xx=1, yy=1, xy=0
 
   MaterialParameters() {
     SetDefault();
@@ -69,17 +75,34 @@ struct MaterialParameters {
 
   bool operator==(const MaterialParameters &a) const {
     return epsilon == a.epsilon && sigma_xx == a.sigma_xx &&
-           sigma_yy == a.sigma_yy && sigma_xy == a.sigma_xy;
+           sigma_yy == a.sigma_yy && sigma_xy == a.sigma_xy &&
+           excitation == a.excitation;
+  }
+
+  // Less-than operator used to order materials in map<> and similar containers.
+  bool operator<(const MaterialParameters &a) const {
+    if (epsilon < a.epsilon) return true;
+    if (a.epsilon < epsilon) return false;
+    if (sigma_xx < a.sigma_xx) return true;
+    if (a.sigma_xx < sigma_xx) return false;
+    if (sigma_yy < a.sigma_yy) return true;
+    if (a.sigma_yy < sigma_yy) return false;
+    if (sigma_xy < a.sigma_xy) return true;
+    if (a.sigma_xy < sigma_xy) return false;
+    return excitation < a.excitation;
   }
 
   // Mechanism to set parameters from a Lua function's argument list.
   void SetParameters(const vector<JetComplex> &list) {
-    CHECK(list.size() == 1 || list.size() == MAX_PARAMS);
+    CHECK(list.size() == 1 || list.size() == 4 || list.size() == MAX_PARAMS);
     epsilon = list[0];
-    if (list.size() >= MAX_PARAMS) {
+    if (list.size() >= 4) {
       sigma_xx = list[1];
       sigma_yy = list[2];
       sigma_xy = list[3];
+    }
+    if (list.size() >= 5) {
+      excitation = list[4];
     }
     is_isotropic = (sigma_xx == JetComplex(1.0)) &&
       (sigma_yy == JetComplex(1.0)) && (sigma_xy == JetComplex(0.0));
@@ -91,6 +114,7 @@ struct MaterialParameters {
     sigma_xx = 1;       // i.e. isotropic Laplacian
     sigma_yy = 1;
     sigma_xy = 0;
+    excitation = 0;
     is_isotropic = true;
   }
 };
@@ -98,20 +122,28 @@ struct MaterialParameters {
 // Polygon and triangle material properties.
 struct Material : public MaterialParameters {
   uint32 color;          // 0xrrggbb color (for drawing only, not simulation)
-  std::string callback;  // MD5 hash of callback function.
-  // If 'callback' is not empty then it is the MD5 hash of the callback
-  // function that makes material parameters from (x,y) coordinates. It is also
-  // the key for looking up this function in the registry. It is assumed by
-  // operator== that if two functions have the same hash then they will compute
-  // the same material parameters (if given the same x,y). Given that a 16 byte
-  // hash is used, this is extremely likely to be true.
+  int64_t callback;      // Unique ID of callback function.
+  // If 'callback' is nonzero then it is the unique ID of the callback function
+  // that makes material parameters from (x,y) coordinates. It is assumed by
+  // operator== that if two functions have the same ID then they will compute
+  // the same material parameters (if given the same x,y).
 
   Material() {
     color = 0xe0e0ff;
+    callback = 0;
   }
   bool operator==(const Material &a) const {
     return MaterialParameters::operator==(a) &&
            color == a.color && callback == a.callback;
+  }
+
+  // Less-than operator used to order materials in map<> and similar containers.
+  bool operator<(const Material &a) const {
+    if (color < a.color) return true;
+    if (color > a.color) return false;
+    if (callback < a.callback) return true;
+    if (callback > a.callback) return false;
+    return MaterialParameters::operator<(a);
   }
 
   // Helper for running the callback function one time. After the callback and
@@ -166,7 +198,7 @@ class Shape : public LuaUserClass {
   // Draw shape to OpenGL.
   void DrawInterior() const;
   void DrawBoundary(const Eigen::Matrix4d &camera_transform,
-                    bool show_lines_and_ports, bool show_vertices,
+                    bool show_lines, bool show_ports, bool show_vertices,
                     double boundary_derivatives_scale = 0) const;
 
   // Return true if this shape is completely empty.
@@ -271,6 +303,15 @@ class Shape : public LuaUserClass {
   // fraction of the largest side length.
   void Clean(JetNum threshold = 0);
 
+  // Find shape polygons with zero-width necks and split those into multiple
+  // pieces at the necks. This is needed because the clipper library is happy
+  // to regard polygons with zero width necks as a single polygon, but the
+  // triangle library regards the parts separated by the neck as distinct and
+  // gets confused because APointInside() returns a point only inside one of
+  // them. Zero-area slivers (where two edges are coincident) are discarded and
+  // not created as separate pieces.
+  void SplitPolygonsAtNecks();
+
   // Return the piece and edge that is closest to x,y. The edge index is
   // actually a vertex number N such that the edge is from vertex N to vertex
   // N+1. It is a runtime error if the shape is empty.
@@ -300,7 +341,7 @@ class Shape : public LuaUserClass {
   void SaveBoundaryAsXY(const char *filename);
 
   // Access port callbacks.
-  const std::map<int, std::string> & PortCallbacks() const {
+  const std::map<int, int64_t> & PortCallbacks() const {
     return port_callbacks_;
   }
 
@@ -338,9 +379,10 @@ class Shape : public LuaUserClass {
  private:
   // The shape is a vector of pieces. Each piece is a vector of points that is
   // a closed polygon, along with some auxiliary information. Each polygon's
-  // winding direction determines whether it is an outer boundary or an inner
-  // hole. Each outer boundary is disjoint, though they may share common edges
-  // or points, and they may have different material properties.
+  // winding direction determines whether it is an outer boundary (counter
+  // clockwise, positive area) or an inner hole (clockwise, negative area).
+  // Each outer boundary is disjoint, though they may share common edges or
+  // points, and they may have different material properties.
   struct Polygon {
     vector<RPoint> p;           // Points on polygon boundary
     Material material;          // Material of this polygon interior
@@ -358,7 +400,7 @@ class Shape : public LuaUserClass {
     }
   };
   vector<Polygon> polys_;
-  std::map<int, std::string> port_callbacks_;  // port num -> callback fn hash
+  std::map<int, int64_t> port_callbacks_;  // port num -> callback fn ID
 
   int UpdateBounds(JetNum *min_x, JetNum *min_y, JetNum *max_x, JetNum *max_y)
       const;

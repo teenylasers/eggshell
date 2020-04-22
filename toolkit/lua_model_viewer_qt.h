@@ -133,6 +133,7 @@ public:
   int LuaCreateMarker(lua_State *L);      // _CreateMarker()
   int LuaParameterDivider(lua_State *L);  // ParameterDivider()
   int LuaDrawText(lua_State *L);          // DrawText()
+  int LuaDistanceScale(lua_State *L);     // _DistanceScale
 
   // Accessors.
   ColorMap::Function GetColormap() const { return colormap_; }
@@ -153,6 +154,12 @@ public:
   // Show and raise the given window. If sticky is true then ignore
   // further SelectPane calls for 100ms.
   void SelectPane(QWidget *win, bool sticky = false);
+
+  // Return true if there are Lua errors.
+  bool ThereAreLuaErrors();
+
+  // If there were Lua errors, select the script messages pane and return true.
+  bool SelectScriptMessagesIfErrors();
 
   // Select which kind of plot we want to display (the plot types are subclass
   // dependent).

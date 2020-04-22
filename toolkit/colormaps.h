@@ -10,7 +10,7 @@ namespace ColorMap {
   // with all components in the range 0..1.
   typedef void (*Function)(float x, float rgb[3]);
 
-  // Some specific colormaps (the names match matlab color maps).
+  // Some specific colormaps (some names match matlab color maps).
   void Jet(float x, float rgb[3]);
   void Hot(float x, float rgb[3]);
   void Gray(float x, float rgb[3]);
@@ -18,6 +18,7 @@ namespace ColorMap {
   void Bone(float x, float rgb[3]);
   void Copper(float x, float rgb[3]);
   void Wheel(float x, float rgb[3]);
+  void Wave(float x, float rgb[3]);
 
   // Utility function that computes a 24 bit palette from a colormap function.
   inline void ComputePalette(Function colormap, uint8_t palette[256][3]) {

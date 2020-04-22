@@ -107,6 +107,11 @@ class MyLua : public Lua {
     return model_->LuaDrawText(L());
   }
 
+  // Implement lua _DistanceScale().
+  int LuaDistanceScale() {
+    return model_->LuaDistanceScale(L());
+  }
+
   // Create jets with derivatives (for debugging).
   int LuaJet() {
     if (lua_gettop(L()) != 2) {
@@ -361,7 +366,7 @@ LuaModelViewer::LuaModelViewer(QWidget *parent, int gl_type)
   num_ticked_count_ = 0;
   derivative_index_ = 0;
   rebuild_parameters_ = false;
-  colormap_ = ColorMap::Jet;
+  colormap_ = ColorMap::Wave;
   brightness_ = 500;
   antialiasing_ = true;
   show_markers_ = true;
@@ -466,18 +471,20 @@ void LuaModelViewer::ToggleShowMarkers() {
 
 void LuaModelViewer::SetDisplayColorScheme(int color_scheme) {
   if (color_scheme == 0) {
-    colormap_ = ColorMap::Jet;
+    colormap_ = ColorMap::Wave;
   } else if (color_scheme == 1) {
-    colormap_ = ColorMap::Hot;
+    colormap_ = ColorMap::Jet;
   } else if (color_scheme == 2) {
-    colormap_ = ColorMap::Gray;
+    colormap_ = ColorMap::Hot;
   } else if (color_scheme == 3) {
-    colormap_ = ColorMap::HSV;
+    colormap_ = ColorMap::Gray;
   } else if (color_scheme == 4) {
-    colormap_ = ColorMap::Bone;
+    colormap_ = ColorMap::HSV;
   } else if (color_scheme == 5) {
-    colormap_ = ColorMap::Copper;
+    colormap_ = ColorMap::Bone;
   } else if (color_scheme == 6) {
+    colormap_ = ColorMap::Copper;
+  } else if (color_scheme == 7) {
     colormap_ = ColorMap::Wheel;
   } else {
     Panic("Internal: bad color_scheme = %d", color_scheme);
@@ -737,6 +744,9 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
   lua_pushcfunction(lua_->L(),
                     (LuaGlobalStub<MyLua, &MyLua::LuaJetDerivative>));
   lua_setglobal(lua_->L(), "_JetDerivative");
+  lua_pushcfunction(lua_->L(), (LuaGlobalStub<MyLua,
+                    &MyLua::LuaDistanceScale>));
+  lua_setglobal(lua_->L(), "_DistanceScale");
 
   // Populate the global 'FLAGS' table with the -key=value command line
   // arguments.
@@ -857,8 +867,9 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
 
   // Select the script messages pane if there were errors, otherwise select the
   // pane that shows the computational domain.
-  SelectPane(lua_->ThereWereErrors() ? script_messages_pane_ : model_pane_,
-             lua_->ThereWereErrors());
+  if (!SelectScriptMessagesIfErrors()) {
+    SelectPane(model_pane_);
+  }
 
   // If there were any script errors we assume that the model and config_ are
   // not valid.
@@ -1021,6 +1032,11 @@ int LuaModelViewer::LuaDrawText(lua_State *L) {
   return 0;
 }
 
+int LuaModelViewer::LuaDistanceScale(lua_State *L) {
+  lua_pushnumber(L, DistanceScale(lua_tostring(L, 1)));
+  return 1;
+}
+
 Lua *LuaModelViewer::GetLua() {
   return lua_;
 }
@@ -1069,6 +1085,18 @@ void LuaModelViewer::SelectPane(QWidget *win, bool sticky) {
 
   win->show();
   win->raise();
+}
+
+bool LuaModelViewer::ThereAreLuaErrors() {
+  return lua_->ThereWereErrors();
+}
+
+bool LuaModelViewer::SelectScriptMessagesIfErrors() {
+  if (lua_->ThereWereErrors()) {
+    SelectPane(script_messages_pane_);
+    return true;
+  }
+  return false;
 }
 
 void LuaModelViewer::SelectPlot(int plot_type) {

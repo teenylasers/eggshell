@@ -64,4 +64,11 @@ void Wheel(float x, float rgb[3]) {
   Jet(fmodf(x * 8.0f, 1.0f), rgb);
 }
 
+void Wave(float x, float rgb[3]) {
+  rgb[0] = std::min(1.0f, std::max(0.0f, 0.3f - 0.6f*x) +
+           std::max(0.0f, (x - 0.5f)/0.3f));
+  rgb[1] = std::min(0.8f, x*4/3) + std::max(0.0f, x - 0.8f);
+  rgb[2] = std::min(1.0f, x + 0.8f) - fabsf(x - 0.2f)/0.9f;
+}
+
 }  // namespace ColorMap

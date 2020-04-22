@@ -93,13 +93,16 @@ class Lua {
   // Given a function on the top of the lua stack, dump it as a binary chunk to
   // the string 's'. If strip is true then the binary representation is created
   // without debug information about the function. This does not pop the
-  // function from the stack.
+  // function from the stack. Functions with the same implementation will
+  // return the same dump. However the upvalues for the function are not
+  // represented, so two functions with the same dump called with the same
+  // arguments might still return different results.
   void Dump(std::string *s, bool strip);
 
   // Given a function on the top of the lua stack, return the MD5 hash of its
   // Dump() in 'hash'. A binary string is returned that may contain embedded
   // zeros. The strip argument is given to Dump(). This does not pop the
-  // function from the stack.
+  // function from the stack. See the caveat for the Dump() function.
   void Hash(std::string *hash, bool strip);
 
   // Call these functions to display error messages or stack backtraces. These

@@ -32,10 +32,12 @@ class Cavity : public LuaModelViewer {
   // Handling for menu and control commands.
   void ToggleShowBoundaryVertices();
   void ToggleShowBoundaryDerivatives();
-  void ToggleShowBoundary();
+  void ToggleShowBoundaryLines();
+  void ToggleShowBoundaryPorts();
   void ToggleGrid();
   void ToggleWidebandPulse();
-  void ToggleShowSParams();
+  void ToggleShowSParamsGraph();
+  void ToggleShowSParameters();
   bool GetWidebandPulse() const { return show_wideband_pulse_; }
   void SetFrequencyIndex(int n);
   int GetNumFrequencies() const;
@@ -93,7 +95,7 @@ class Cavity : public LuaModelViewer {
   Solvers solver_;                // One solver per frequency, for cd_
   Solver::DrawMode solver_draw_mode_static_;      // DrawMode when not animated
   Solver::DrawMode solver_draw_mode_animating_;   // DrawMode when animating
-  bool show_boundary_lines_and_ports_;
+  bool show_boundary_lines_, show_boundary_ports_;
   bool show_boundary_vertices_, show_boundary_derivatives_;
   bool show_grid_;
   Mesh::MeshDrawType mesh_draw_type_;
@@ -105,7 +107,8 @@ class Cavity : public LuaModelViewer {
   int displayed_soln_;       // Solution frequency index to display
   int optimizer_soln_;       // Solution frequency index selected in optimizer
   int sparams_plot_type_;
-  bool show_sparams_;
+  bool show_sparameters_;
+  bool show_sparams_graph_;
   vector<vector<JetComplex>> sparam_results_;   // Cached results
 
   // Create solver_ from cd_ and config_ (unless it already exists). This

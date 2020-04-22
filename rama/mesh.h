@@ -59,7 +59,7 @@ class Mesh {
   vector<RPoint> points_;
   vector<Triangle> triangles_;
   vector<Material> materials_;          // Copies of shape piece materials
-  std::map<int, std::string> port_callbacks_;  // Copied from shape
+  std::map<int, int64_t> port_callbacks_;  // Copied from shape
   friend class BoundaryIterator;
   // Optional, material parameters at each point (size = 0 or points_.size()).
   vector<MaterialParameters> mat_params_;

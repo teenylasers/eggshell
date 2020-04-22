@@ -7,21 +7,43 @@
 //***************************************************************************
 // Lua utility.
 
-std::string PutCallbackInRegistry(lua_State *L) {
-  CHECK(lua_type(L, -1) == LUA_TFUNCTION);
-  std::string hash;
-  LuaGetObject(L)->Hash(&hash, true);           // Does not pop function
-  lua_pushlstring (L, hash.data(), hash.size());
-  lua_rotate(L, -2, 1);                         // Swap top 2 elements
-  lua_rawset(L, LUA_REGISTRYINDEX);
-  return hash;
+int64_t PutCallbackInRegistry(lua_State *L) {
+  int top = lua_gettop(L);
+  CHECK(lua_type(L, -1) == LUA_TFUNCTION);      // fn
+
+  // Create a new unique callback ID.
+  static int64_t unique_id = 0;
+  unique_id++;                                  // FYI, not thread safe
+
+  // To avoid key collisions in the registry we store every Rama-specific thing
+  // in the "rama" table. Create this if it doesn't exist.
+  lua_pushliteral(L, "rama");                   // fn "rama"
+  lua_rawget(L, LUA_REGISTRYINDEX);             // fn T
+  if (lua_type(L, -1) != LUA_TTABLE) {
+    lua_pop(L, 1);                              // fn
+    lua_newtable(L);                            // fn T
+    lua_pushliteral(L, "rama");                 // fn T "rama"
+    lua_pushvalue(L, -2);                       // fn T "rama" T
+    lua_rawset(L, LUA_REGISTRYINDEX);           // fn T
+  }
+  lua_pushinteger(L, unique_id);                // fn T id
+  lua_pushvalue(L, -3);                         // fn T id fn
+  lua_rawset(L, -3);                            // fn T
+  lua_pop(L, 2);
+  CHECK(lua_gettop(L) == top - 1);              // Should have popped argument
+  return unique_id;
 }
 
-void GetCallbackFromRegistry(lua_State *L, std::string hash) {
-  CHECK(hash.size() == 16);                     // Make sure it's an MD5 hash
-  lua_pushlstring (L, hash.data(), hash.size());
-  lua_rawget(L, LUA_REGISTRYINDEX);
+void GetCallbackFromRegistry(lua_State *L, int64_t unique_id) {
+  int top = lua_gettop(L);
+  lua_pushliteral(L, "rama");                   // "rama"
+  lua_rawget(L, LUA_REGISTRYINDEX);             // T
+  CHECK(lua_type(L, -1) == LUA_TTABLE);
+  lua_pushinteger(L, unique_id);                // T id
+  lua_rawget(L, -2);                            // T fn
+  lua_remove(L, top);                           // fn
   CHECK(lua_type(L, -1) == LUA_TFUNCTION);
+  CHECK(lua_gettop(L) == top + 1);              // One return value
 }
 
 bool ToJetComplex(lua_State *L, int index, JetComplex *value) {

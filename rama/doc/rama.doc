@@ -868,12 +868,19 @@ The following functions can be used to define dielectrics in shape @c{s}:
      Each of the @m{\epsilon,\sigma_{xx},\sigma_{yy},\sigma_{xy}} values can be
      a real number or @link{complex}{complex} number.
 
-  @* @c{s:Paint(q,col,function(x,y)@_@~@~...@_@~@~return @m{\epsilon},@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}}@_end)}
-  @| Similar to the @c{Paint()} function above except that the @m{\epsilon}
-     and @m{\sigma} values are specified with a function that takes
-     @c{x,y} coordinates and returns those values. The @m{\sigma} values are
-     optional.
-     Each return value can be a real or complex number.
+  @* @c{s:Paint(q,col,@m{\epsilon},@_@~@~@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}},@m{f})}
+  @| Similar to the @c{Paint()} function above except that the excitation value
+     @m{f} is also specified. It can be a real number or
+     @link{complex}{complex} number. If @m{f} is not given then the default is
+     zero. To scale @m{f} so that @c{q} emits amplitudes similar to ports,
+     use a scale for @m{f} similar to @c{util.KinM()/short_dimension_of_q_in_meters}.
+
+  @* @c{s:Paint(q,col,function(x,y)@_@~@~...@_@~@~return @m{\epsilon},@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}},@m{f}@_end)}
+  @| Similar to the @c{Paint()} function above except that the @m{\epsilon},
+     @m{\sigma}, and @m{f} values are specified with a function that takes
+     @c{x,y} coordinates and returns those values. The @m{\sigma} and @m{f}
+     values are optional (although if @m{f} is given then the @m{\sigma} values
+     must be given too). Each return value can be a real or complex number.
      For performance reasons @c{x,y} are vectors of coordinates and the
      returned values must be vectors of the same size. See the section on
      @link{vectors}{Vectors}.
@@ -1009,6 +1016,18 @@ Notes for now:
 @* Don't violate the @m{TE_{10}} mode assumption at ports, i.e. use an
    appropriate width and keep this width for a short distance.
 }
+
+@subsubsection{Coordinates}
+
+To help deal with geometrical tolerancing issues within Rama, shape coordinates
+have a limited resolution. There are effectively 32 bits to the left and right
+of the decimal point. This quantizes coordinates to @m{2.3\times10^{-10}} and
+gives us a maximum coordinate of @m{\pm 2.1\times10^9}. This is generally not a
+problem: for @c{config.unit} set to meters, the quantization size is on the
+order of the atomic spacing in a crystal lattice. This does mean however that
+you should chose @c{config.unit} appropriately for your problem. For example,
+don't create a circle the diameter of the Earth in microns, because that's
+@m{1.3\times 10^{13}}. Use miles or kilometers instead.
 
 @subsection{Rama model errors}
 

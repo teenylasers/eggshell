@@ -109,8 +109,19 @@ static void DeleteTriangulateIO(triangulateio *t) {
 //***************************************************************************
 // Mesh.
 
-Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
+Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
   Trace trace(__func__);
+
+  // Find shape polygons with zero-width necks and split those into multiple
+  // pieces at the necks. This is needed because the clipper library is happy
+  // to regard polygons with zero width necks as a single polygon, but the
+  // triangle library regards the parts separated by the neck as distinct and
+  // gets confused because APointInside() returns a point only inside one of
+  // them. We don't modify the shape argument, we make a local copy.
+  Shape s(s_arg);
+  s.SplitPolygonsAtNecks();
+
+  // Check for mesh validity.
   valid_mesh_ = false;          // Default assumption
   {
     const char *geometry_error = s.GeometryError();
@@ -142,9 +153,10 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
   // regions) is one of the main annoyances of the triangle library. If we have
   // split the model into unmergeable pieces with Paint() then polygon holes
   // may be enclosed by separate pieces but not actually be represented as
-  // negative area polygons. To properly identify the holes to the triangle
-  // library we need to run clipper to merge everything together and find any
-  // negative area polygons that result.
+  // negative area polygons. We can also have holes that are precisely filled
+  // by positive area polygons of different material. To properly identify the
+  // actual holes to the triangle library we need to run clipper to merge
+  // everything together and find any negative area polygons that result.
   vector<RPoint> hole_points;
   {
     Shape hole_finder;
@@ -170,7 +182,7 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
 
   // Make various point indexes. We remove all duplicate points and give the
   // remaining points 'UPI's (unique point indexes). We make also a mapping
-  // from UPIs to Piece(i)[j) indexes (this clunky mapping could be avoided
+  // from UPIs to Piece(i)[j] indexes (this clunky mapping could be avoided
   // if we had a flattened points array and a pieces array which was offsets
   // into it, but doing that would push some complexities elsewhere). Note that
   // duplicate points might happen if there are unmerged polygons with
@@ -624,7 +636,7 @@ void Mesh::DeterminePointMaterial(Lua *lua,
   mat_params->clear();
   bool have_callbacks = false;
   for (int i = 0; i < materials_.size(); i++) {
-    have_callbacks = have_callbacks || (!materials_[i].callback.empty());
+    have_callbacks = have_callbacks || (materials_[i].callback != 0);
   }
   if (!have_callbacks) {
     return;
@@ -633,7 +645,7 @@ void Mesh::DeterminePointMaterial(Lua *lua,
   mat_params->resize(points_.size());   // Sets material parameters to defaults
   for (int i = 0; i < materials_.size(); i++) {
     // Skip materials without property callback functions.
-    if (materials_[i].callback.empty()) {
+    if (materials_[i].callback == 0) {
       continue;
     }
     // Mark all points that are touched by this material.

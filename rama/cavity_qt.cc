@@ -27,7 +27,8 @@ Cavity::Cavity(QWidget *parent)
   time_dial_ = 0;
   solver_draw_mode_static_ = Solver::DRAW_REAL;
   solver_draw_mode_animating_ = Solver::DRAW_REAL;
-  show_boundary_lines_and_ports_ = true;
+  show_boundary_lines_ = true;
+  show_boundary_ports_ = true;
   show_boundary_vertices_ = show_boundary_derivatives_ = false;
   show_grid_ = false;
   mesh_draw_type_ = Mesh::MESH_HIDE;
@@ -39,7 +40,8 @@ Cavity::Cavity(QWidget *parent)
   displayed_soln_ = 0;
   optimizer_soln_ = 0;
   sparams_plot_type_ = 0;
-  show_sparams_ = false;
+  show_sparameters_ = true;
+  show_sparams_graph_ = false;
 }
 
 Cavity::~Cavity() {
@@ -246,7 +248,7 @@ void Cavity::DrawModel() {
     if (config_.TypeIsElectrodynamic()) {
       vector<JetComplex> power;
       double scale = devicePixelRatio();
-      if (solver->ComputePortOutgoingPower(&power)) {
+      if (show_sparameters_ && solver->ComputePortOutgoingPower(&power)) {
         for (int i = 0; i < power.size(); i++) {
           char s[100];
           snprintf(s, sizeof(s), "S%d = %.2f dB @ %.1f" DEGREE_SYMBOL,
@@ -292,7 +294,8 @@ void Cavity::DrawModel() {
   // Draw the computational domain.
   gl::SetUniform("color", 0, 0, 0);
   cd_.DrawBoundary(gl::Transform(),
-                   show_boundary_lines_and_ports_, show_boundary_vertices_,
+                   show_boundary_lines_, show_boundary_ports_,
+                   show_boundary_vertices_,
                    show_boundary_derivatives_ * kBoundaryDerivativesScale);
 
   // Draw the debug shapes.
@@ -428,7 +431,8 @@ void Cavity::PlotSParams(bool force_update) {
   //   1: Phase
   //   2: Group delay
 
-  if (!show_sparams_ || !config_.TypeIsElectrodynamic() || !solver_.Valid()) {
+  if (!show_sparams_graph_ || !config_.TypeIsElectrodynamic() ||
+      !solver_.Valid()) {
     return;
   }
 
@@ -569,8 +573,13 @@ void Cavity::ToggleShowBoundaryDerivatives() {
   update();
 }
 
-void Cavity::ToggleShowBoundary() {
-  show_boundary_lines_and_ports_ = !show_boundary_lines_and_ports_;
+void Cavity::ToggleShowBoundaryLines() {
+  show_boundary_lines_ = !show_boundary_lines_;
+  update();
+}
+
+void Cavity::ToggleShowBoundaryPorts() {
+  show_boundary_ports_ = !show_boundary_ports_;
   update();
 }
 
@@ -584,8 +593,13 @@ void Cavity::ToggleWidebandPulse() {
   update();
 }
 
-void Cavity::ToggleShowSParams() {
-  show_sparams_ = !show_sparams_;
+void Cavity::ToggleShowSParameters() {
+  show_sparameters_ = !show_sparameters_;
+  update();
+}
+
+void Cavity::ToggleShowSParamsGraph() {
+  show_sparams_graph_ = !show_sparams_graph_;
   PlotSParams(true);
 }
 
@@ -824,6 +838,10 @@ int Cavity::LuaPorts(lua_State *) {
 
 bool Cavity::CreateSolver() {
   if (!solver_.Valid()) {
+    if (ThereAreLuaErrors()) {
+      return false;
+    }
+
     // Don't do anything for an empty cd as meshing will fail.
     if (cd_.IsEmpty()) {
       return false;
@@ -836,6 +854,12 @@ bool Cavity::CreateSolver() {
     }
     // If solver creation fails then it will emit an Error() and clear solver_.
     if (!solver_.IsValid()) {
+      solver_.Clear();
+    }
+
+    // Check for errors to display. These errors might come from the callbacks
+    // if they were not caught in the initial run of the script.
+    if (SelectScriptMessagesIfErrors()) {
       solver_.Clear();
     }
   }

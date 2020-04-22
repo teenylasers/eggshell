@@ -175,7 +175,8 @@
      <property name="title">
       <string>Show boundary</string>
      </property>
-     <addaction name="actionViewLinesAndPorts"/>
+     <addaction name="actionViewLines"/>
+     <addaction name="actionViewPorts"/>
      <addaction name="actionViewVertices"/>
      <addaction name="actionViewVertexDerivatives"/>
     </widget>
@@ -194,6 +195,7 @@
     <addaction name="menuShow_boundary"/>
     <addaction name="actionShowGrid"/>
     <addaction name="actionShowMarkers"/>
+    <addaction name="actionShowSParameters"/>
     <addaction name="actionAntialiasing"/>
     <addaction name="separator"/>
     <addaction name="menuDebugging"/>
@@ -498,6 +500,11 @@
             </item>
             <item>
              <widget class="QComboBox" name="color_map">
+              <item>
+               <property name="text">
+                <string>Color Wave</string>
+               </property>
+              </item>
               <item>
                <property name="text">
                 <string>Color Jet</string>
@@ -1092,7 +1099,7 @@
     <string>PgUp</string>
    </property>
   </action>
-  <action name="actionViewLinesAndPorts">
+  <action name="actionViewLines">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -1100,10 +1107,10 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Lines and ports</string>
+    <string>Lines</string>
    </property>
    <property name="toolTip">
-    <string>View lines and ports</string>
+    <string>View lines</string>
    </property>
   </action>
   <action name="actionViewVertices">
@@ -1135,6 +1142,9 @@
   </action>
   <action name="actionShowMarkers">
    <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
     <bool>true</bool>
    </property>
    <property name="text">
@@ -1236,6 +1246,31 @@
    </property>
    <property name="text">
     <string>Run test() after each solve</string>
+   </property>
+  </action>
+  <action name="actionShowSParameters">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show S parameters</string>
+   </property>
+  </action>
+  <action name="actionViewPorts">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Ports</string>
+   </property>
+   <property name="toolTip">
+    <string>View ports</string>
    </property>
   </action>
  </widget>

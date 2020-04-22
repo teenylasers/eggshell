@@ -41,7 +41,8 @@ private slots:
   void on_actionZoomExtents_triggered();
   void on_actionZoomIn_triggered();
   void on_actionZoomOut_triggered();
-  void on_actionViewLinesAndPorts_triggered();
+  void on_actionViewLines_triggered();
+  void on_actionViewPorts_triggered();
   void on_actionViewVertices_triggered();
   void on_actionViewVertexDerivatives_triggered();
   void on_actionShowGrid_triggered();
@@ -80,6 +81,7 @@ private slots:
   void on_time_dial_valueChanged(int value);
   void on_actionSet_animation_time_to_0_triggered();
   void on_actionRunTest_triggered();
+  void on_actionShowSParameters_triggered();
 
 private:
   Ui::MainWindow *ui = 0;

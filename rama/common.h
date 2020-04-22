@@ -45,13 +45,13 @@ template <class T> inline T NormalizeAngle(T a) {
 //***************************************************************************
 // Lua utility.
 
-// Pop a function from the lua stack, return its hash and store the function in
-// the registry, using the hash as the registry key.
-std::string PutCallbackInRegistry(lua_State *L);
+// Pop a function from the lua stack, return a unique index for this function,
+// and store the function in the registry. The inque index is always > 0, so
+// that the index 0 can be regarded as a special value meaning "no callback".
+int64_t PutCallbackInRegistry(lua_State *L);
 
-// Push a function to the lua stack from the registry, using the hash as the
-// registry key.
-void GetCallbackFromRegistry(lua_State *L, std::string hash);
+// Push the function with the given unique ID to the lua stack.
+void GetCallbackFromRegistry(lua_State *L, int64_t unique_id);
 
 // Set 'value' to the real or complex lua value at position 'index' on the
 // stack. Return true on success or false if the stack value can not be

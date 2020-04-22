@@ -24,11 +24,8 @@ using ClipperLib::ctXor;
 using Eigen::Vector3f;
 
 // All clipper coordinates are 64 bit integers. Our double precision
-// coordinates are scaled to use about 32 of those bits. We used to use 55 bits
-// here, but that resulted in some kind of problem that caused invalid polygons
-// to be generated in some cases. 32 bits is not a problem: for a polygon with
-// a 1m x 1m boundary the quantization size (1/2^32) is 233 pm, on the order of
-// the atomic spacing in a crystal lattice.
+// coordinates are scaled to use 32 of those bits to the left and right of the
+// decimal point. See comments in Shape::ClipperBounds.
 const double kCoordScale = 4294967296;  // =2^32
 
 // Geometry tolerances
@@ -381,7 +378,7 @@ void AnyPointInPoly(const vector<RPoint> &poly,
     }
   }
 
-  // Return q if we found it or the abv midpoint otherwise.
+  // Return the midpoint of qv if we found q, or the abv centroid otherwise.
   if (found_q) {
     *point = (min_q + poly[iv].p) * 0.5;
   } else {
@@ -543,12 +540,12 @@ bool Material::RunCallback(Lua *lua, bool within_lua,
     return false;
   }
   int nret = lua_gettop(lua->L()) - n + 1;
-  if (nret != 1 && nret != MAX_PARAMS) {
+  if (nret != 1 && nret != 4 && nret != 5) {
     if (nret == 2) {
       Error("Two material parameters were returned so you might "
             "be using a deprecated complex number API. Use Complex() instead.");
     }
-    Error("Callback should return 1 or %d material parameters", MAX_PARAMS);
+    Error("Callback should return 1, 4 or 5 material parameters");
     if (within_lua) {
       LuaError(lua->L(), "Bad material callback");
     }
@@ -579,6 +576,9 @@ bool Material::RunCallback(Lua *lua, bool within_lua,
     if (vec.size() >= 4) {
       (*result)[i].SetSigmas(vec[1][i], vec[2][i], vec[3][i]);
     }
+    if (vec.size() >= 5) {
+      (*result)[i].excitation = vec[4][i];
+    }
   }
   lua_settop(lua->L(), n - 1);
   return true;
@@ -606,6 +606,8 @@ const char *Shape::GeometryError(bool enforce_positive_area) const {
     holecount += (area < 0);
   }
   if (enforce_positive_area && holecount >= NumPieces()) {
+    //@@@ It doesn't seem possible to trigger this problem, and I can't even
+    //@@@ remember what this check is for. Discard? Ditch the argument too.
     return "Shape has more holes than outer boundaries. "
            "Have you used the correct vertex winding order for outer "
            "boundaries and holes?";
@@ -632,7 +634,8 @@ void Shape::Clear() {
 
 void Shape::Dump() const {
   for (int i = 0; i < polys_.size(); i++) {
-    printf("Poly %d:\n", i);
+    printf("Poly %d (color=0x%x, area=%.4g):\n", i, polys_[i].material.color,
+           ToDouble(Area(i)));
     for (int j = 0; j < polys_[i].p.size(); j++) {
       printf("\t(pt=%g,%g, kind=%d,%d, dist=%.2g,%.2g)\n",
              ToDouble(polys_[i].p[j].p[0]), ToDouble(polys_[i].p[j].p[1]),
@@ -683,10 +686,10 @@ void Shape::DrawInterior() const {
 }
 
 void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
-                         bool show_lines_and_ports, bool show_vertices,
+                         bool show_lines, bool show_ports, bool show_vertices,
                          double boundary_derivatives_scale) const {
   // First pass: regular polygon outline, regardless of edge kinds.
-  if (show_lines_and_ports) {
+  if (show_lines) {
     gl::SetUniform("color", 0, 0, 0);
     vector<Vector3f> points;
     for (int i = 0; i < polys_.size(); i++) {
@@ -706,7 +709,7 @@ void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
   }
 
   // Second pass: highlight port edges and draw port numbers.
-  if (show_lines_and_ports) {
+  if (show_ports) {
     gl::PushShader push_shader(gl::SmoothShader());
     vector<Vector3f> points, colors;
     for (int i = 0; i < polys_.size(); i++) {
@@ -879,7 +882,7 @@ void Shape::ExtremeSideLengths(JetNum *ret_length_max,
 }
 
 void Shape::SetRectangle(JetNum x1, JetNum y1, JetNum x2, JetNum y2) {
-  polys_.clear();
+  Clear();
   polys_.resize(1);
   // Sort coordinates so that we always have a positive area:
   polys_[0].p.push_back(RPoint(std::min(x1,x2), std::min(y1,y2)));
@@ -889,7 +892,7 @@ void Shape::SetRectangle(JetNum x1, JetNum y1, JetNum x2, JetNum y2) {
 }
 
 void Shape::SetCircle(JetNum x, JetNum y, JetNum radius, int npoints) {
-  polys_.clear();
+  Clear();
   polys_.resize(1);
   for (int i = 0; i < npoints; i++) {
     double angle = double(i) / double(npoints) * 2.0 * M_PI;
@@ -914,6 +917,20 @@ void Shape::SetXOR(const Shape &c1, const Shape &c2) {
 }
 
 void Shape::Paint(const Shape &s, const Material &mat) {
+  // We can't simply run the clipper to subtract 's' from all pieces of 'this',
+  // since that would unrecoverably merge pieces with different materials
+  // (since clipper doesn't understand anything about polygon materials).
+  // Instead we group the pieces by material and then deal with these 'material
+  // shapes' separately, taking care to preserve the material of each piece. It
+  // is assumed that the individual shapes for each material are disjoint. Note
+  // that interior holes will have the same materials as the outer boundaries
+  // that they are holes for, or in other words, holes are specific to material
+  // shapes and are not holes for the entire shape.
+  std::map<Material, vector<int>> matmap;  // Material -> indexes into polys_
+  for (int i = 0; i < polys_.size(); i++) {
+    matmap[polys_[i].material].push_back(i);
+  }
+
   // Compute the coordinate conversion that we're going to use for all
   // clipping. It's important to be consistent so that this shape and the area
   // to paint will end up sharing coincident vertices that will be
@@ -923,38 +940,39 @@ void Shape::Paint(const Shape &s, const Material &mat) {
     return;
   }
 
-  // Subtract 's' separately from each non-hole polygon piece, taking care to
-  // preserve the polygon material (color etc) of each piece. We can't simply
-  // run the clipper to subtract 's' from all pieces of 'this', since that
-  // would unrecoverably merge pieces with different materials.
-  Shape holes, not_holes, result;
-  for (int i = 0; i < polys_.size(); i++) {
-    if (PolyArea(polys_[i].p) > 0) {
-      not_holes.polys_.push_back(polys_[i]);
-    } else {
-      holes.polys_.push_back(polys_[i]);
+  // We deal with each material shape separately.
+  Shape result;
+  for (auto matshape : matmap) {
+    // Subtract 's' separately from each non-hole polygon piece.
+    Shape holes, not_holes;  // For this material shape
+    for (int i = 0; i < matshape.second.size(); i++) {
+      if (PolyArea(polys_[matshape.second[i]].p) > 0) {
+        not_holes.polys_.push_back(polys_[matshape.second[i]]);
+      } else {
+        holes.polys_.push_back(polys_[matshape.second[i]]);
+      }
     }
-  }
-  for (int i = 0; i < not_holes.polys_.size(); i++) {
-    // Each piece we subtract from is one of the not-holes combined with all of
-    // the holes. This works because the pftPositive fill type allows the
-    // polygon to have external holes that are invisible.
-    Shape a, b;
-    a.polys_.push_back(not_holes.polys_[i]);
-    a.polys_.insert(a.polys_.end(), holes.polys_.begin(), holes.polys_.end());
-    b.RunClipper(&a, &s, ctDifference, offset_x, offset_y, scale);
-    for (int j = 0; j < b.polys_.size(); j++) {
-      b.polys_[j].material = not_holes.polys_[i].material;
+    for (int i = 0; i < not_holes.polys_.size(); i++) {
+      // Each shape we subtract from is one of the not-holes combined with all
+      // of the holes. This works because the pftPositive fill type allows the
+      // polygon to have external holes that are invisible.
+      Shape a, b;
+      a.polys_.push_back(not_holes.polys_[i]);
+      a.polys_.insert(a.polys_.end(), holes.polys_.begin(), holes.polys_.end());
+      b.RunClipper(&a, &s, ctDifference, offset_x, offset_y, scale);
+      for (int j = 0; j < b.polys_.size(); j++) {
+        b.polys_[j].material = matshape.first;
+      }
+      result.polys_.insert(result.polys_.end(),
+                           b.polys_.begin(), b.polys_.end());
     }
-    result.polys_.insert(result.polys_.end(), b.polys_.begin(), b.polys_.end());
   }
 
-  // Compute the area to paint and add it to the result as a separate
-  // (non-merged) polygon piece.
+  // The area to paint is 's' intersected with the entire current polygon.
   Shape area_to_paint;
   area_to_paint.RunClipper(this, &s, ctIntersection, offset_x, offset_y, scale);
   if (area_to_paint.IsEmpty()) {
-    return;
+    return;  // Throw away all the work above if nothing to paint.
   }
   for (int i = 0; i < area_to_paint.polys_.size(); i++) {
     area_to_paint.polys_[i].material = mat;
@@ -965,6 +983,7 @@ void Shape::Paint(const Shape &s, const Material &mat) {
 }
 
 void Shape::SetMerge(const Shape &s) {
+  // This merges everything regardless of material:
   RunClipper(&s, NULL, ctUnion);
 }
 
@@ -1238,6 +1257,73 @@ void Shape::Clean(JetNum threshold) {
   }
 }
 
+void Shape::SplitPolygonsAtNecks() {
+  // Make a stack of piece indices to process. We keep processing pieces until
+  // there's nothing left on the stack.
+  vector<int> stack(polys_.size());
+  for (int i = 0; i < polys_.size(); i++) {
+    stack[i] = i;
+  }
+
+  while (!stack.empty()) {
+    // Process piece 'i'.
+    int i = stack.back();
+    stack.pop_back();
+
+    // This piece will have necks if there are shared points. Multiple shared
+    // points could require that the piece be split into an arbitrary number of
+    // pieces. Creating all the splits requires a lot of book keeping. Instead
+    // we solve the much simpler problem of identifying just *one* split, and
+    // then adding the two resulting pieces to the stack for further analysis.
+    // Since the common case is just one split, this algorithm does not
+    // sacrifice much speed. So, first make an index of all the points,
+    // stopping when we have found a duplicate.
+    std::map<std::pair<JetNum, JetNum>, int> point_map;  // x,y --> one index
+    int dup1 = -1, dup2 = -1;   // Indexes of two duplicated points
+    {
+      auto &p = polys_[i].p;
+      for (int j = 0; j < p.size(); j++) {
+        auto key = std::make_pair(p[j].p[0], p[j].p[1]);
+        if (point_map.count(key) > 0) {
+          dup1 = point_map[key];
+          dup2 = j;
+          break;
+        }
+        point_map[key] = j;
+      }
+    }
+    if (dup1 == -1) {
+      continue;                 // No necks in this piece
+    }
+
+    // Make two polygons from dup1 -> dup2 and dup2 -> dup1. But zero-area
+    // slivers (where two edges are coincident) are discarded and not created
+    // as separate pieces.
+    polys_.resize(polys_.size() + 1);
+    auto &p = polys_[i].p;
+    polys_.back().material = polys_[i].material;
+    for (int j = dup1; j != dup2; j = (j + 1) % p.size()) {
+      polys_.back().p.push_back(p[j]);
+    }
+    if (polys_.back().p.size() <= 2) {
+      polys_.pop_back();        // Discard sliver
+    }
+    vector<RPoint> newp;
+    for (int j = dup2; j != dup1; j = (j + 1) % p.size()) {
+      newp.push_back(p[j]);
+    }
+    if (newp.size() > 2) {
+      polys_[i].p.swap(newp);
+    } else {
+      polys_.erase(polys_.begin() + i, polys_.begin() + i+1);  // Discard sliver
+    }
+
+    // Further process both split polygons.
+    stack.push_back(i);
+    stack.push_back(polys_.size() - 1);
+  }
+}
+
 void Shape::FindClosestEdge(JetNum x, JetNum y, int *piece, int *edge) {
   // Find the line segment with the shortest distance to x,y. Break ties
   // using the excursion of x,y beyond the endcap of the line.
@@ -1497,7 +1583,7 @@ void Shape::ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
 
 void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
                       const Paths &paths) {
-  polys_.clear();
+  Clear();
   polys_.resize(paths.size());
   for (int i = 0; i < paths.size(); i++) {
     polys_[i].p.resize(paths[i].size());
@@ -1526,23 +1612,45 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type) {
 
 bool Shape::ClipperBounds(const Shape *c1, const Shape *c2, JetNum *offset_x,
                           JetNum *offset_y, JetNum *scale) const {
-  // Compute bounds of c1, c2 or both.
-  CHECK(c1 || c2);
-  JetNum min_x = __DBL_MAX__, min_y = __DBL_MAX__;
-  JetNum max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
-  if ((c1 ? c1->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) +
-      (c2 ? c2->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) == 0) {
-    // No coordinates in either c1 or c2. The min/max wont be valid and the
-    // result will have to be empty anyway.
-    return false;
-  }
-
-  // Compute the scale factor from doubles to clipper integer coordinates.
-  *offset_x = (max_x + min_x) / 2.0;
-  *offset_y = (max_y + min_y) / 2.0;
-  JetNum max_bound = std::max(max_x - min_x, max_y - min_y);
-  *scale = kCoordScale / max_bound;
+  // Compute the coordinate scaling to used when running Clipper on shapes 'c1'
+  // and 'c2'. We used to scale and offset things so that we used exactly 32 of
+  // the bits in the integer coordinates passed to clipper. This has the
+  // advantage of working despite the user's own weird scaling (e.g. if there's
+  // a circle the diameter of the Earth, in microns, that's ~1.3e+13). However
+  // it means that the same shape may get different scalings when combined with
+  // different pieces, which can lead to slivers being generated in Clipper as
+  // different integer coordinates are used to represent the same points. So
+  // now we use a constant scaling that gives us 32 bits to the left and right
+  // of the decimal point. This quantizes coordinates to 2.3e-10 and gives us a
+  // maximum of 2.1e9. This is generally not a problem: for config.unit set to
+  // 'meters', the quantization size is on the order of the atomic spacing in a
+  // crystal lattice.
+  *offset_x = 0;
+  *offset_y = 0;
+  *scale = kCoordScale;
   return true;
+
+  /*
+   * The old way of doing things:
+   *
+   *  // Compute bounds of c1, c2 or both.
+   *  CHECK(c1 || c2);
+   *  JetNum min_x = __DBL_MAX__, min_y = __DBL_MAX__;
+   *  JetNum max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
+   *  if ((c1 ? c1->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) +
+   *      (c2 ? c2->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) == 0) {
+   *    // No coordinates in either c1 or c2. The min/max wont be valid and the
+   *    // result will have to be empty anyway.
+   *    return false;
+   *  }
+   *
+   *  // Compute the scale factor from doubles to clipper integer coordinates.
+   *  *offset_x = (max_x + min_x) / 2.0;
+   *  *offset_y = (max_y + min_y) / 2.0;
+   *  JetNum max_bound = std::max(max_x - min_x, max_y - min_y);
+   *  *scale = kCoordScale / max_bound;
+   *  return true;
+   */
 }
 
 void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
@@ -2027,7 +2135,7 @@ int Shape::LuaPaint(lua_State *L) {
     // Store the function to the registry and add the registry key to the
     // material.
     lua_pushvalue(L, -1);
-    CHECK(mat.callback.empty());        // Should only do this once
+    CHECK(mat.callback == 0);        // Should only do this once
     mat.callback = PutCallbackInRegistry(L);
 
     // Run the callback function once to verify it can work. This gives an
@@ -2042,13 +2150,12 @@ int Shape::LuaPaint(lua_State *L) {
     }
   } else {
     int num_params = lua_gettop(L) - 3;
-    if (num_params != 1 && num_params != Material::MAX_PARAMS) {
+    if (num_params != 1 && num_params != 4 && num_params != 5) {
       if (num_params == 2) {
         LuaError(L, "Two material parameters were given so you might be using "
             "a deprecated complex number API. Use Complex() instead.");
       } else {
-        LuaError(L, "Expecting 1 or %d material parameters",
-                 Material::MAX_PARAMS);
+        LuaError(L, "Expecting 1, 4 or 5 material parameters");
       }
     }
     vector<JetComplex> list;
@@ -2298,5 +2405,80 @@ TEST_FUNCTION(TriangleIntersectsBox) {
     // Check that TriangleIntersectsBox() gives the same result.
     bool intersects = TriangleIntersectsBox(pp, xmin, xmax, ymin, ymax);
     CHECK(intersects == !trirect.IsEmpty());
+  }
+}
+
+TEST_FUNCTION(SplitPolygonsAtNecks) {
+  {
+    // Two squares in a row.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(2, 1);
+    s.AddPoint(2, 2);
+    s.AddPoint(1, 2);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(0, 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 2);
+    CHECK(s.Area(0) == 1);
+    CHECK(s.Area(1) == 1);
+  }
+  {
+    // Three squares in a row.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(2, 1);
+    s.AddPoint(2, 2);     // Duplicated point
+    s.AddPoint(3, 2);
+    s.AddPoint(3, 3);
+    s.AddPoint(2, 3);
+    s.AddPoint(2, 2);     // Duplicated point
+    s.AddPoint(1, 2);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(0, 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 3);
+    CHECK(s.Area(0) == 1);
+    CHECK(s.Area(1) == 1);
+    CHECK(s.Area(2) == 1);
+  }
+  {
+    // Three squares in a star.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(2, 1);
+    s.AddPoint(2, 2);
+    s.AddPoint(1, 2);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(1.5, 0);
+    s.AddPoint(2, 0.5);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(0, 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 3);
+    CHECK(s.Area(0) == 1);
+    CHECK(s.Area(1) == 1);
+    CHECK(s.Area(2) == 0.375);
+  }
+  {
+    // Square with sliver.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);
+    s.AddPoint(2, 1);
+    s.AddPoint(1, 1);
+    s.AddPoint(0, 1);
+    CHECK(s.Area(0) == 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 1);
+    CHECK(s.Piece(0).size() == 4);
+    CHECK(s.Area(0) == 1);
   }
 }
