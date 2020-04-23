@@ -87,7 +87,7 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
     // For EM cavities, k^2 = omega^2*mu_0*epsilon_0*epsilon_r = k0^2*epsilon_r.
     JetComplex epsilon;
     const Material &material = s->materials_[s->triangles_[i].material];
-    if (!s->mat_params_.empty() && material.callback) {
+    if (!s->mat_params_.empty() && material.callback.Valid()) {
       // This material has a dielectric field.
       epsilon = s->mat_params_[s->triangles_[i].index[j]].epsilon;
     } else {
@@ -102,7 +102,7 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
 
   Number PointF(int i, int j) const {
     const Material &material = s->materials_[s->triangles_[i].material];
-    if (!s->mat_params_.empty() && material.callback) {
+    if (!s->mat_params_.empty() && material.callback.Valid()) {
       // This material has a dielectric field.
       return s->mat_params_[s->triangles_[i].index[j]].excitation;
     } else {
@@ -194,7 +194,7 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
   bool AnisotropicSigma(int i, NumberVector *sigma_xx, NumberVector *sigma_yy,
                         NumberVector *sigma_xy) {
     const Material &material = s->materials_[s->triangles_[i].material];
-    if (!s->mat_params_.empty() && material.callback) {
+    if (!s->mat_params_.empty() && material.callback.Valid()) {
       // This material has a material parameters field.
       bool is_isotropic = true;
       for (int j = 0; j < 3; j++) {
@@ -451,13 +451,14 @@ bool Solver::SameAs(const Shape &s, const ScriptConfig &config, Lua *lua) {
     return false;
   }
   // At this point the shape and config are the same. The material values and
-  // material callback functions are the same. The port callback functions are
-  // the same. However we don't know if the material parameters field computed
-  // by the material callback functions are the same, because those functions
-  // can use parameter values (and maybe upvalues) that we can't see here.
-  // Similarly for the port callbacks. Therefore build a new material
-  // parameters field and a new boundary parameters map, and compare them with
-  // the existing ones.
+  // material callback functions *might* be the same. The port callback
+  // functions *might* be the same. However we don't know if the material
+  // parameters field computed by the material callback functions are the same,
+  // because those functions can use parameter values (and maybe upvalues) that
+  // we can't see here. Similarly for the port callbacks. Therefore build a new
+  // material parameters field and a new boundary parameters map, and compare
+  // them with the existing ones. If the functions compute the same values,
+  // then everything is actually the same.
   if (!mat_params_.empty()) {
     vector<MaterialParameters> d;
     DeterminePointMaterial(lua, &d);

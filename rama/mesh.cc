@@ -636,7 +636,7 @@ void Mesh::DeterminePointMaterial(Lua *lua,
   mat_params->clear();
   bool have_callbacks = false;
   for (int i = 0; i < materials_.size(); i++) {
-    have_callbacks = have_callbacks || (materials_[i].callback != 0);
+    have_callbacks = have_callbacks || materials_[i].callback.Valid();
   }
   if (!have_callbacks) {
     return;
@@ -644,8 +644,8 @@ void Mesh::DeterminePointMaterial(Lua *lua,
   mat_params->resize(0);
   mat_params->resize(points_.size());   // Sets material parameters to defaults
   for (int i = 0; i < materials_.size(); i++) {
-    // Skip materials without property callback functions.
-    if (materials_[i].callback == 0) {
+    // Skip materials without parameter callback functions.
+    if (!materials_[i].callback.Valid()) {
       continue;
     }
     // Mark all points that are touched by this material.
@@ -664,7 +664,7 @@ void Mesh::DeterminePointMaterial(Lua *lua,
     }
     if (count > 0) {
       // Push the callback function to the lua stack.
-      GetCallbackFromRegistry(lua->L(), materials_[i].callback);
+      materials_[i].callback.Push(lua->L());
       // Push vectors of x,y coordinates for marked points to the lua stack.
       LuaVector *x = LuaUserClassCreateObj<LuaVector>(lua->L());
       LuaVector *y = LuaUserClassCreateObj<LuaVector>(lua->L());
@@ -733,7 +733,7 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
       continue;
     }
     vector<RobinArg> &arg = it.second;
-    GetCallbackFromRegistry(lua->L(), port_callbacks_[port_number]);  // fn
+    port_callbacks_[port_number].Push(lua->L());                // fn
 
     // Create the Lua vectors that will be passed to the callback function.
     LuaVector *d = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d

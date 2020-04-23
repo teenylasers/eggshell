@@ -90,21 +90,6 @@ class Lua {
   // Like lua_pcall but using the built-in message handler for errors.
   int PCall(int nargs, int nresults);
 
-  // Given a function on the top of the lua stack, dump it as a binary chunk to
-  // the string 's'. If strip is true then the binary representation is created
-  // without debug information about the function. This does not pop the
-  // function from the stack. Functions with the same implementation will
-  // return the same dump. However the upvalues for the function are not
-  // represented, so two functions with the same dump called with the same
-  // arguments might still return different results.
-  void Dump(std::string *s, bool strip);
-
-  // Given a function on the top of the lua stack, return the MD5 hash of its
-  // Dump() in 'hash'. A binary string is returned that may contain embedded
-  // zeros. The strip argument is given to Dump(). This does not pop the
-  // function from the stack. See the caveat for the Dump() function.
-  void Hash(std::string *hash, bool strip);
-
   // Call these functions to display error messages or stack backtraces. These
   // differ from the Handle*() variants only in that they set the
   // ThereWereErrors() flag.
@@ -229,5 +214,20 @@ template<class T> T *LuaCastTo(lua_State *L, int index) {
   }
   return 0;
 }
+
+// Given a function on the top of the lua stack, dump it as a binary chunk to
+// the string 's'. If strip is true then the binary representation is created
+// without debug information about the function. This does not pop the function
+// from the stack. Functions with the same implementation will return the same
+// dump. However the upvalues for the function are not represented, so two
+// functions with the same dump called with the same arguments might still
+// return different results.
+void LuaDump(lua_State *L, std::string *s, bool strip);
+
+// Given a function on the top of the lua stack, return the MD5 hash of its
+// LuaDump() in 'hash'. A binary string is returned that may contain embedded
+// zeros. The strip argument is given to LuaDump(). This does not pop the function
+// from the stack. See the caveat for the LuaDump() function.
+void LuaHash(lua_State *L, std::string *hash, bool strip);
 
 #endif

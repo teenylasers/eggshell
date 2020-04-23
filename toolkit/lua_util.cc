@@ -353,16 +353,16 @@ static int StringWriter(lua_State *L, const void *p, size_t sz, void *ud) {
   return 0;
 }
 
-void Lua::Dump(std::string *s, bool strip) {
-  CHECK(lua_gettop(L_) >= 1);
-  CHECK(lua_type(L_, -1) == LUA_TFUNCTION);
+void LuaDump(lua_State *L, std::string *s, bool strip) {
+  CHECK(lua_gettop(L) >= 1);
+  CHECK(lua_type(L, -1) == LUA_TFUNCTION);
   s->clear();
-  lua_dump(L_, StringWriter, s, strip);
+  lua_dump(L, StringWriter, s, strip);
 }
 
-void Lua::Hash(std::string *hash, bool strip) {
+void LuaHash(lua_State *L, std::string *hash, bool strip) {
   std::string dump;
-  Dump(&dump, strip);
+  LuaDump(L, &dump, strip);
   md5_state_t ms;
   md5_init(&ms);
   md5_append(&ms, (const md5_byte_t*) dump.data(), dump.size());

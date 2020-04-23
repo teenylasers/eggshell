@@ -2041,7 +2041,7 @@ int Shape::LuaPort(lua_State *L) {
   }
   if (lua_gettop(L) == 4) {
     // Save the port callback, if any.
-    port_callbacks_[port_number] = PutCallbackInRegistry(L);
+    port_callbacks_[port_number] = LuaCallback(L);
   }
   vector<int> piece(1), edge(1);
   if (!GetPieceEdge(L, 2, &piece[0], &edge[0])) {
@@ -2135,8 +2135,8 @@ int Shape::LuaPaint(lua_State *L) {
     // Store the function to the registry and add the registry key to the
     // material.
     lua_pushvalue(L, -1);
-    CHECK(mat.callback == 0);        // Should only do this once
-    mat.callback = PutCallbackInRegistry(L);
+    CHECK(!mat.callback.Valid());       // Should only do this once
+    mat.callback = LuaCallback(L);
 
     // Run the callback function once to verify it can work. This gives an
     // early indication for some (though not all) runtime errors.

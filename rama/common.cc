@@ -7,13 +7,13 @@
 //***************************************************************************
 // Lua utility.
 
-int64_t PutCallbackInRegistry(lua_State *L) {
+LuaCallback::LuaCallback(lua_State *L) {
+  // Pop a function from the lua stack and store it in the "rama" table in the
+  // registry. The index is always > 0, so that the index 0 can be regarded as
+  // a special value meaning "no callback".
   int top = lua_gettop(L);
   CHECK(lua_type(L, -1) == LUA_TFUNCTION);      // fn
-
-  // Create a new unique callback ID.
-  static int64_t unique_id = 0;
-  unique_id++;                                  // FYI, not thread safe
+  LuaHash(L, &hash_, true);
 
   // To avoid key collisions in the registry we store every Rama-specific thing
   // in the "rama" table. Create this if it doesn't exist.
@@ -26,21 +26,21 @@ int64_t PutCallbackInRegistry(lua_State *L) {
     lua_pushvalue(L, -2);                       // fn T "rama" T
     lua_rawset(L, LUA_REGISTRYINDEX);           // fn T
   }
-  lua_pushinteger(L, unique_id);                // fn T id
-  lua_pushvalue(L, -3);                         // fn T id fn
-  lua_rawset(L, -3);                            // fn T
+  index_ = lua_rawlen(L, -1) + 1;               // fn T
+  lua_pushvalue(L, -3);                         // fn T fn
+  lua_rawseti(L, -2, index_);                   // fn T
   lua_pop(L, 2);
   CHECK(lua_gettop(L) == top - 1);              // Should have popped argument
-  return unique_id;
 }
 
-void GetCallbackFromRegistry(lua_State *L, int64_t unique_id) {
+void LuaCallback::Push(lua_State *L) const {
+  // Push the function with the given index to the lua stack.
+  CHECK(Valid());
   int top = lua_gettop(L);
   lua_pushliteral(L, "rama");                   // "rama"
   lua_rawget(L, LUA_REGISTRYINDEX);             // T
   CHECK(lua_type(L, -1) == LUA_TTABLE);
-  lua_pushinteger(L, unique_id);                // T id
-  lua_rawget(L, -2);                            // T fn
+  lua_rawgeti(L, -1, index_);                   // T fn
   lua_remove(L, top);                           // fn
   CHECK(lua_type(L, -1) == LUA_TFUNCTION);
   CHECK(lua_gettop(L) == top + 1);              // One return value

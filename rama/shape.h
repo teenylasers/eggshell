@@ -37,9 +37,7 @@ struct RPoint {
   bool operator==(const RPoint &q) const {
     return p == q.p && e == q.e;
   }
-  bool operator!=(const RPoint &q) const {
-    return p != q.p || e != q.e;
-  }
+
   // Less-than operator used to order points in map<> and similar containers.
   bool operator<(const RPoint &q) const {
     return p[0] < q.p[0] || (p[0] == q.p[0] && p[1] < q.p[1]);
@@ -122,16 +120,16 @@ struct MaterialParameters {
 // Polygon and triangle material properties.
 struct Material : public MaterialParameters {
   uint32 color;          // 0xrrggbb color (for drawing only, not simulation)
-  int64_t callback;      // Unique ID of callback function.
-  // If 'callback' is nonzero then it is the unique ID of the callback function
-  // that makes material parameters from (x,y) coordinates. It is assumed by
-  // operator== that if two functions have the same ID then they will compute
-  // the same material parameters (if given the same x,y).
+  LuaCallback callback;  // Callback function.
+  // If 'callback' is Valid() then it is the callback function that makes
+  // material parameters from (x,y) coordinates.
 
   Material() {
     color = 0xe0e0ff;
-    callback = 0;
   }
+
+  // Comparison. NOTE that callback comparison is probabilistic, see the
+  // LuaCallback class.
   bool operator==(const Material &a) const {
     return MaterialParameters::operator==(a) &&
            color == a.color && callback == a.callback;
@@ -169,7 +167,9 @@ class Shape : public LuaUserClass {
   // Default copy constructor and assignment operator are ok.
 
   // Test for exact [in]equality of two shapes, i.e. not just the same outline
-  // but the same order of vertices and same edge kinds.
+  // but the same order of vertices, the same edge kinds, and the same
+  // materials etc. NOTE that callback comparison is probabilistic, see the
+  // LuaCallback class.
   bool operator==(const Shape &s) const {
     return polys_ == s.polys_ && port_callbacks_ == s.port_callbacks_;
   }
@@ -341,7 +341,7 @@ class Shape : public LuaUserClass {
   void SaveBoundaryAsXY(const char *filename);
 
   // Access port callbacks.
-  const std::map<int, int64_t> & PortCallbacks() const {
+  const std::map<int, LuaCallback> & PortCallbacks() const {
     return port_callbacks_;
   }
 
@@ -400,7 +400,7 @@ class Shape : public LuaUserClass {
     }
   };
   vector<Polygon> polys_;
-  std::map<int, int64_t> port_callbacks_;  // port num -> callback fn ID
+  std::map<int, LuaCallback> port_callbacks_;  // port num -> callback func
 
   int UpdateBounds(JetNum *min_x, JetNum *min_y, JetNum *max_x, JetNum *max_y)
       const;

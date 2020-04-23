@@ -45,13 +45,44 @@ template <class T> inline T NormalizeAngle(T a) {
 //***************************************************************************
 // Lua utility.
 
-// Pop a function from the lua stack, return a unique index for this function,
-// and store the function in the registry. The inque index is always > 0, so
-// that the index 0 can be regarded as a special value meaning "no callback".
-int64_t PutCallbackInRegistry(lua_State *L);
+// LuaCallback is a reference to a Lua callback function, stored in e.g.
+// material callbacks. The important properties of references are (1)
+// probabilistic comparison and (2) references can be used to look up the
+// same function in a different lua_State that has been initialized with the
+// same script.
 
-// Push the function with the given unique ID to the lua stack.
-void GetCallbackFromRegistry(lua_State *L, int64_t unique_id);
+class LuaCallback {
+ public:
+  // Create an empty callback, so Valid() returns false.
+  LuaCallback() {}
+
+  // Construct a new callback by popping a function from the Lua stack and
+  // saving it in the registry.
+  explicit LuaCallback(lua_State *L);
+
+  // Return true if this is an actual callback function.
+  bool Valid() const { return index_ != 0; }
+
+  // Probabilistic comparison. If two LuaCallback objects don't equal each
+  // other, they probably reference different functions. If they do equal each
+  // other, they *might* reference the same functions (but hard to say, since
+  // function upvalues are not considered, so the functions might return
+  // different results for the same arguments).
+  bool operator==(const LuaCallback &f) const {
+    return hash_ == f.hash_ && index_ == f.index_;
+  }
+
+  // For ordering callbacks:
+  bool operator<(const LuaCallback &f) const { return hash_ < f.hash_; }
+  bool operator>(const LuaCallback &f) const { return hash_ > f.hash_; }
+
+  // Push this function to the Lua stack. Valid() must be true.
+  void Push(lua_State *L) const;
+
+ private:
+  std::string hash_;            // Hash of function dump
+  int64_t index_ = 0;           // Index into Registry "rama" table
+};
 
 // Set 'value' to the real or complex lua value at position 'index' on the
 // stack. Return true on success or false if the stack value can not be
