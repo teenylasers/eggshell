@@ -943,24 +943,27 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
     return true;
   }
 
-  // Precompute azimuths for far field result.
+  // Precompute equally spaced azimuths for far field result.
   azimuth->resize(kFarFieldPoints);
   for (int i = 0; i < kFarFieldPoints ; i++) {
     (*azimuth)[i] = (2.0 * M_PI * double(i)) / kFarFieldPoints - M_PI;
   }
 
-  // For all ABC boundary triangles find field values and field gradients, then
-  // update the far field. There is approximation error because the field and
-  // gradient are sampled at discrete points on a piecewise linear boundary.
-  // The error shows up as imperfect back-lobe cancellation for plane waves.
-  // The positions of the isotropic and dipole radiators have a big influence
-  // on this. The best results seem to be obtained when both kinds of radiators
-  // are positioned at the centroid of boundary triangles, with field values
-  // and gradients computed from the solution values at the triangle vertices.
+  // For all boundary triangles find field values and field gradients, then
+  // update the far field. See near_to_far_field.nb for the rationale. There is
+  // approximation error because the field and gradient are sampled at discrete
+  // points on a piecewise linear boundary. The error shows up as imperfect
+  // back-lobe cancellation for plane waves. The positions of the isotropic and
+  // dipole radiators have a big influence on this. The best results seem to be
+  // obtained when both kinds of radiators are positioned at the centroid of
+  // boundary triangles, with field values and gradients computed from the
+  // solution values at the triangle vertices.
   vector<JetComplex> ff(kFarFieldPoints);       // Far field values over angle
   int abc_count = 0;
-  for (BoundaryIterator it(this); !it.done(); ++it) {
-    if (!it.kind().IsABC()) {
+  bool use_ff_material = (config_.antenna_pattern == config_.AT_FF_MATERIAL);
+  uint32_t color_mask = use_ff_material ? Material::FAR_FIELD : 0;
+  for (BoundaryIterator it(this, color_mask); !it.done(); ++it) {
+    if (!use_ff_material && !it.kind().IsABC()) {
       continue;
     }
     abc_count++;
@@ -984,7 +987,7 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
       TriangleGradient(p1, p2, p3, z1, z2, z3, &gradX, &gradY);
     }
 
-    // Find the the normal to the ABC boundary edge (outward-pointing).
+    // Find the the normal to the boundary edge (outward-pointing).
     JetPoint normal(p1[1] - p2[1], p2[0] - p1[0]);
     normal.normalize();
     // Ensure the normal is outward-pointing by making sure that the dot

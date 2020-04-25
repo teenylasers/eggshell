@@ -27,7 +27,7 @@ LuaCallback::LuaCallback(lua_State *L) {
     lua_rawset(L, LUA_REGISTRYINDEX);           // fn T
   }
   index_ = lua_rawlen(L, -1) + 1;               // fn T
-  lua_pushvalue(L, -3);                         // fn T fn
+  lua_pushvalue(L, -2);                         // fn T fn
   lua_rawseti(L, -2, index_);                   // fn T
   lua_pop(L, 2);
   CHECK(lua_gettop(L) == top - 1);              // Should have popped argument
@@ -41,7 +41,7 @@ void LuaCallback::Push(lua_State *L) const {
   lua_rawget(L, LUA_REGISTRYINDEX);             // T
   CHECK(lua_type(L, -1) == LUA_TTABLE);
   lua_rawgeti(L, -1, index_);                   // T fn
-  lua_remove(L, top);                           // fn
+  lua_remove(L, top + 1);                       // fn
   CHECK(lua_type(L, -1) == LUA_TFUNCTION);
   CHECK(lua_gettop(L) == top + 1);              // One return value
 }
@@ -112,6 +112,26 @@ bool ToJetComplexVector(lua_State *L, int index,
   }
   lua_settop(L, top);
   return false;
+}
+
+void LuaErrorIfNaNs(lua_State *L) {
+  int n = lua_gettop(L);
+  for (int i = 1; i <= n; i++) {
+    JetComplex value;
+    std::vector<JetComplex> vvalue;
+    if (ToJetComplex(L, i, &value)) {
+      if (IsNaNValue(value.real()) || IsNaNValue(value.imag())) {
+        LuaError(L, "A NaN (not-a-number) was passed to a function.");
+      }
+    } else if (ToJetComplexVector(L, i, &vvalue)) {
+      for (int j = 0; j < vvalue.size(); j++) {
+        if (IsNaNValue(vvalue[j].real()) || IsNaNValue(vvalue[j].imag())) {
+          LuaError(L, "A NaN (not-a-number) was passed to a function "
+                      "in a vector.");
+        }
+      }
+    }
+  }
 }
 
 //***************************************************************************

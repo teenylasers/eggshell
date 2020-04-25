@@ -72,9 +72,12 @@ class LuaCallback {
     return hash_ == f.hash_ && index_ == f.index_;
   }
 
-  // For ordering callbacks:
-  bool operator<(const LuaCallback &f) const { return hash_ < f.hash_; }
-  bool operator>(const LuaCallback &f) const { return hash_ > f.hash_; }
+  // For ordering callbacks in maps:
+  bool operator<(const LuaCallback &f) const {
+    if (index_ < f.index_) return true;
+    if (index_ > f.index_) return false;
+    return hash_ < f.hash_;
+  }
 
   // Push this function to the Lua stack. Valid() must be true.
   void Push(lua_State *L) const;
@@ -94,6 +97,13 @@ bool ToJetComplex(lua_State *L, int index, JetComplex *value);
 // interpreted as a complex vector. Leave the stack unchanged on exit.
 bool ToJetComplexVector(lua_State *L, int index,
                         std::vector<JetComplex> *value);
+
+// Check that any numbers in a Lua function argument list are not NaNs. These
+// likely indicate a problem building the model, and will make a mess of our
+// algorithms if stored in shapes or materials because they violate the
+// assumption that if A is copied to B then A==B. Basic Lua numbers are
+// checked, alse Vector and Complex arguments are checked.
+void LuaErrorIfNaNs(lua_State *L);
 
 //***************************************************************************
 // Common fonts.

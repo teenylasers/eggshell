@@ -42,6 +42,9 @@ struct ScriptConfig {
   // Values for wideband_window.
   enum Window { RECTANGLE, HAMMING };
 
+  // Values for antenna_pattern.
+  enum AntennaPattern { AT_ABC, AT_FF_MATERIAL };
+
   Type type;                    // Cavity type: EZ, EXY etc.
   bool schrodinger;             // EZ cavities for Schrodinger simulation
   double unit;                  // One script-distance-unit is this many meters
@@ -51,6 +54,7 @@ struct ScriptConfig {
   vector<double> frequencies;   // All frequencies to simulate
   double depth;                 // In units of 'unit'
   double boresight;             // Boresight angle for plotting antenna patterns
+  AntennaPattern antenna_pattern;  // How antenna pattern computed
   int max_modes;                // TE or TM: Number of modes to compute
   Window wideband_window;       // A WINDOW_nnn constant
 
@@ -62,6 +66,7 @@ struct ScriptConfig {
     mesh_refines = -1;
     depth = -1;
     boresight = 0;
+    antenna_pattern = AT_ABC;
     max_modes = 1;
     wideband_window = RECTANGLE;
   }
@@ -76,6 +81,7 @@ struct ScriptConfig {
         && frequencies      == c.frequencies
         && depth            == c.depth
         && boresight        == c.boresight
+        && antenna_pattern  == c.antenna_pattern
         && max_modes        == c.max_modes
         && wideband_window  == c.wideband_window;
   }

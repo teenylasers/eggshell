@@ -296,6 +296,19 @@ the following fields:
   The @c{test} feature can be used to generate reports, and it is also used as
   part of the internal Rama unit test system.
 
+  @* @c{antenna_pattern} (optional)
+  @| For antenna simulations, the way in which the far field antenna pattern
+     will be computed. Options are
+     @list{
+     @* @c{"at_ABC"}, which means that the far field will be computed at the
+        exterior of the computational domain, where ever there is an ABC
+        boundary. This is the default.
+     @* @c{"at_far_field_material"}, which means that the far field will be
+        computed at the boundary between regular materials and those that have
+        the @c{util.FAR_FIELD} color bit. PML materials are created with this
+        bit.
+     }
+
   @* @c{boresight} (optional)
   @| For antenna simulations, the angle that is nominally the highest gain part
      of the beam. This angle becomes the zero-azimuth on the antenna pattern
@@ -708,6 +721,9 @@ If @c{A} and @c{B} are two shapes then a third shape can be created by:
   @| The xor of @c{A} and @c{B} (i.e. points in @c{A} or @c{B} but not both).
      This is rarely used.
 }
+
+It is an error if @c{A} and @c{B} both contain port callback functions for the
+same port numbers.
 
 @subsection{Shape object geometry functions}
 

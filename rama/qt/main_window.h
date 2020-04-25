@@ -82,6 +82,7 @@ private slots:
   void on_actionSet_animation_time_to_0_triggered();
   void on_actionRunTest_triggered();
   void on_actionShowSParameters_triggered();
+  void on_actionSwitchToModelAfterEachSolve_triggered();
 
 private:
   Ui::MainWindow *ui = 0;

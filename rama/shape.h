@@ -119,6 +119,12 @@ struct MaterialParameters {
 
 // Polygon and triangle material properties.
 struct Material : public MaterialParameters {
+  // Flags that can be ORed with color to indicate some special properties of
+  // the material.
+  enum {
+    FAR_FIELD = 0x1000000,  // Compute far field at border of this region
+  };
+
   uint32 color;          // 0xrrggbb color (for drawing only, not simulation)
   LuaCallback callback;  // Callback function.
   // If 'callback' is Valid() then it is the callback function that makes
@@ -140,7 +146,7 @@ struct Material : public MaterialParameters {
     if (color < a.color) return true;
     if (color > a.color) return false;
     if (callback < a.callback) return true;
-    if (callback > a.callback) return false;
+    if (a.callback < callback) return false;
     return MaterialParameters::operator<(a);
   }
 

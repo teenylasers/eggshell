@@ -513,3 +513,7 @@ void MainWindow::on_actionRunTest_triggered() {
 void MainWindow::on_actionShowSParameters_triggered() {
   ui->model->ToggleShowSParameters();
 }
+
+void MainWindow::on_actionSwitchToModelAfterEachSolve_triggered() {
+  ui->model->ToggleSwitchToModelAfterEachSolve();
+}

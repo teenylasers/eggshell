@@ -84,42 +84,61 @@ class Mesh {
   friend void __RunTest_SpatialIndex();
 };
 
-// Iterate over all boundary edges of all triangles in a mesh.
+// An iterator for mesh edges. If the color mask is zero, iterate over all
+// boundary edges of all triangles in the mesh. If the color mask is nonzero,
+// iterate over all edges that are boundaries between triangles without those
+// color bits and triangles with those color bits. The latter is useful for
+// traversing the boundary at which the far field should be computed, i.e.
+// where the color mask is Material::FAR_FIELD.
 
 class BoundaryIterator {
  public:
-   explicit BoundaryIterator(Mesh *mesh) {
-     mesh_ = mesh;
-     tindex_ = -1;
-     tside_ = 2;
-     operator++();
-   }
-   void operator++() {
-     do {
-       tside_++;
-       if (tside_ >= 3) {
-         tside_ = 0;
-         tindex_++;
-       }
-     } while (!done() && mesh_->triangles_[tindex_].neighbor[tside_] != -1);
-     if (!done()) {
-       pindex1_ = mesh_->triangles_[tindex_].index[tside_];
-       pindex2_ = mesh_->triangles_[tindex_].index[(tside_ + 1) % 3];
-       pindex3_ = mesh_->triangles_[tindex_].index[(tside_ + 2) % 3];
-       kind_ = mesh_->points_[pindex1_].e.SharedKind(
-               mesh_->points_[pindex2_].e, &dist1_, &dist2_);
-     }
-   }
-   bool done() const { return tindex_ >= mesh_->triangles_.size(); }
-   int tindex() const { return tindex_; }       // Triangle index
-   int tside() const { return tside_; }         // Triangle side (0..2)
-   int pindex1() const { return pindex1_; }     // Point 1 index, boundary edge
-   int pindex2() const { return pindex2_; }     // Point 2 index, boundary edge
-   int pindex3() const { return pindex3_; }     // 3rd index of triangle
-   float dist1() const { return dist1_; }       // Point 1 dist
-   float dist2() const { return dist2_; }       // Point 2 dist
-   EdgeKind kind() const { return kind_; }      // Edge kind
+  explicit BoundaryIterator(Mesh *mesh, uint32_t color_mask = 0) {
+    mesh_ = mesh;
+    tindex_ = -1;
+    tside_ = 2;
+    color_mask_ = color_mask;
+    operator++();
+  }
+  void operator++() {
+    for (;;) {
+      tside_++;
+      if (tside_ >= 3) {
+        tside_ = 0;
+        tindex_++;
+      }
+      if (done()) break;
+      auto &t = mesh_->triangles_[tindex_];   // Triangle we're currently on
+      if (color_mask_ == 0) {
+        if (t.neighbor[tside_] == -1) break;  // Select edges with no neighbors
+      } else {
+        if ((mesh_->materials_[t.material].color & color_mask_) == 0) {
+          int neighbor = t.neighbor[tside_];  // Select edges with color-masked
+          if (neighbor != -1 &&               //   neighbors
+              (mesh_->materials_[mesh_->triangles_[neighbor].material].color &
+               color_mask_)) break;
+        }
+      }
+    }
+    if (!done()) {
+      pindex1_ = mesh_->triangles_[tindex_].index[tside_];
+      pindex2_ = mesh_->triangles_[tindex_].index[(tside_ + 1) % 3];
+      pindex3_ = mesh_->triangles_[tindex_].index[(tside_ + 2) % 3];
+      kind_ = mesh_->points_[pindex1_].e.SharedKind(
+              mesh_->points_[pindex2_].e, &dist1_, &dist2_);
+    }
+  }
+  bool done() const { return tindex_ >= mesh_->triangles_.size(); }
+  int tindex() const { return tindex_; }       // Triangle index
+  int tside() const { return tside_; }         // Triangle side (0..2)
+  int pindex1() const { return pindex1_; }     // Point 1 index, boundary edge
+  int pindex2() const { return pindex2_; }     // Point 2 index, boundary edge
+  int pindex3() const { return pindex3_; }     // 3rd index of triangle
+  float dist1() const { return dist1_; }       // Point 1 dist
+  float dist2() const { return dist2_; }       // Point 2 dist
+  EdgeKind kind() const { return kind_; }      // Edge kind
  private:
+  uint32_t color_mask_;
   int tindex_, tside_, pindex1_, pindex2_, pindex3_;
   EdgeKind kind_;
   float dist1_, dist2_;

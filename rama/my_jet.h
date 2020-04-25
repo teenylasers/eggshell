@@ -1098,6 +1098,14 @@ inline std::complex<double> ToComplex(const JetComplex &c) {
   return std::complex<double>(ToDouble(c.real()), ToDouble(c.imag()));
 }
 
+// isnan(Jet) checks both the value and its derivatives for nans. That's often
+// not what you want because the derivatives can easily become nan while the
+// values are still sane, e.g. taking the atan2 of two zero values with zero
+// derivatives.
+bool IsNaNValue(const JetNum &f) {
+  return isnan(f.a);
+}
+
 // Calling these likely means a bug, so declare but don't define them to ensure
 // they cause a linker error.
 double ToDouble(double);

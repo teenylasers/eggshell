@@ -198,6 +198,8 @@
     <addaction name="actionShowSParameters"/>
     <addaction name="actionAntialiasing"/>
     <addaction name="separator"/>
+    <addaction name="actionSwitchToModelAfterEachSolve"/>
+    <addaction name="separator"/>
     <addaction name="menuDebugging"/>
    </widget>
    <widget class="QMenu" name="menuSolve">
@@ -1271,6 +1273,17 @@
    </property>
    <property name="toolTip">
     <string>View ports</string>
+   </property>
+  </action>
+  <action name="actionSwitchToModelAfterEachSolve">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Switch to model after each solve</string>
    </property>
   </action>
  </widget>

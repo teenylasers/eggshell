@@ -749,6 +749,7 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
     }
 
     // Call the function, check the return values.
+    // @@@ This duplicates code in Material::RunCallback, share the code?
     int n = lua_gettop(lua->L()) - 3;     // First return argument slot
     int code = lua->PCall(3, LUA_MULTRET);            // ret1 ret2
     if (code != LUA_OK) {
@@ -770,6 +771,13 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
         Error("Port callback should return vectors (or complex "
               "vectors) of the same size as the d,x,y arguments");
         return;
+      }
+      for (int j = 0; j < vec[i].size(); j++) {
+        if (IsNaNValue(vec[i][j].real()) || IsNaNValue(vec[i][j].imag())) {
+          Error("A NaN (not-a-number) was returned by a callback, "
+                "in position %d of return value %d", j+1, i+1);
+          return;
+        }
       }
     }
     for (int i = 0; i < arg.size(); i++) {

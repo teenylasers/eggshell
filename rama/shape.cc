@@ -568,6 +568,16 @@ bool Material::RunCallback(Lua *lua, bool within_lua,
       }
       return false;
     }
+    for (int j = 0; j < vec[i].size(); j++) {
+      if (IsNaNValue(vec[i][j].real()) || IsNaNValue(vec[i][j].imag())) {
+        Error("A NaN (not-a-number) was returned by a callback, "
+              "in position %d of return value %d", j+1, i+1);
+        if (within_lua) {
+          LuaError(lua->L(), "Bad material callback");
+        }
+        return false;
+      }
+    }
   }
   result->clear();
   result->resize(x->size());    // Sets material parameters to their defaults
@@ -943,29 +953,17 @@ void Shape::Paint(const Shape &s, const Material &mat) {
   // We deal with each material shape separately.
   Shape result;
   for (auto matshape : matmap) {
-    // Subtract 's' separately from each non-hole polygon piece.
-    Shape holes, not_holes;  // For this material shape
+    Shape a;                    // Shape for just this material
     for (int i = 0; i < matshape.second.size(); i++) {
-      if (PolyArea(polys_[matshape.second[i]].p) > 0) {
-        not_holes.polys_.push_back(polys_[matshape.second[i]]);
-      } else {
-        holes.polys_.push_back(polys_[matshape.second[i]]);
-      }
+      a.polys_.push_back(polys_[matshape.second[i]]);
     }
-    for (int i = 0; i < not_holes.polys_.size(); i++) {
-      // Each shape we subtract from is one of the not-holes combined with all
-      // of the holes. This works because the pftPositive fill type allows the
-      // polygon to have external holes that are invisible.
-      Shape a, b;
-      a.polys_.push_back(not_holes.polys_[i]);
-      a.polys_.insert(a.polys_.end(), holes.polys_.begin(), holes.polys_.end());
-      b.RunClipper(&a, &s, ctDifference, offset_x, offset_y, scale);
-      for (int j = 0; j < b.polys_.size(); j++) {
-        b.polys_[j].material = matshape.first;
-      }
-      result.polys_.insert(result.polys_.end(),
-                           b.polys_.begin(), b.polys_.end());
+    Shape b;                    // Material shape minus painted shape s
+    b.RunClipper(&a, &s, ctDifference, offset_x, offset_y, scale);
+    for (int j = 0; j < b.polys_.size(); j++) {
+      b.polys_[j].material = matshape.first;
     }
+    result.polys_.insert(result.polys_.end(),
+                         b.polys_.begin(), b.polys_.end());
   }
 
   // The area to paint is 's' intersected with the entire current polygon.
@@ -1602,6 +1600,8 @@ void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
 }
 
 void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type) {
+  // @@@ Now that ClipperBounds returns constants we can probably ditch this
+  //     function and just move the other RunClipper's body here.
   JetNum offset_x, offset_y, scale;
   if (!ClipperBounds(c1, c2, &offset_x, &offset_y, &scale)) {
     Clear();
@@ -1683,6 +1683,21 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
 
   // Convert the result back into JetPoint coordinates.
   FromPaths(scale, offset_x, offset_y, result);
+
+  // Combine the port callbacks from both shapes. Generate an error if there
+  // are conflicts.
+  port_callbacks_.clear();
+  if (c1) {
+    port_callbacks_ = c1->port_callbacks_;
+  }
+  if (c2) {
+    for (auto it : c2->port_callbacks_) {
+      if (port_callbacks_.count(it.first) > 0) {
+        Error("Merged shapes contain port callbacks for the same port.");
+      }
+      port_callbacks_[it.first] = it.second;
+    }
+  }
 }
 
 const Shape &Shape::LuaCheckShape(lua_State *L, int argument_index) const {
@@ -1864,6 +1879,7 @@ int Shape::LuaClone(lua_State *L) {
 }
 
 int Shape::LuaAddPoint(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 3, "AddPoint");
   AddPoint(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
   lua_settop(L, 1);
@@ -1878,12 +1894,14 @@ int Shape::LuaMakePolyline(lua_State *L) {
 }
 
 int Shape::LuaClean(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 2, "Clean");
   Clean(luaL_checknumber(L, 2));
   return 1;
 }
 
 int Shape::LuaContains(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 3, "Contains");
   lua_pushboolean(L,
       Contains(luaL_checknumber(L, 2), luaL_checknumber(L, 3)) != 0);
@@ -1891,6 +1909,7 @@ int Shape::LuaContains(lua_State *L) {
 }
 
 int Shape::LuaOffset(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 3, "Offset");
   Offset(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
   lua_settop(L, 1);
@@ -1898,6 +1917,7 @@ int Shape::LuaOffset(lua_State *L) {
 }
 
 int Shape::LuaScale(lua_State *L) {
+  LuaErrorIfNaNs(L);
   if (lua_gettop(L) == 2) {
     Scale(luaL_checknumber(L, 2), luaL_checknumber(L, 2));
   } else if (lua_gettop(L) == 3) {
@@ -1910,6 +1930,7 @@ int Shape::LuaScale(lua_State *L) {
 }
 
 int Shape::LuaRotate(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 2, "Rotate");
   Rotate(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -1917,6 +1938,7 @@ int Shape::LuaRotate(lua_State *L) {
 }
 
 int Shape::LuaMirrorX(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 2, "MirrorX");
   MirrorX(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -1924,6 +1946,7 @@ int Shape::LuaMirrorX(lua_State *L) {
 }
 
 int Shape::LuaMirrorY(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 2, "MirrorY");
   MirrorY(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -1938,6 +1961,7 @@ int Shape::LuaReverse(lua_State *L) {
 }
 
 int Shape::LuaGrow(lua_State *L) {
+  LuaErrorIfNaNs(L);
   CornerStyle endcap_style = BUTT;
   if (lua_gettop(L) == 5) {
     endcap_style = CheckStyle(L, 5, true, "Grow");
@@ -1955,6 +1979,7 @@ int Shape::LuaGrow(lua_State *L) {
 }
 
 int Shape::LuaSelect(lua_State *L) {
+  LuaErrorIfNaNs(L);
   if (lua_gettop(L) != 3 && lua_gettop(L) != 5) {
     LuaError(L, "Shape:Select() expecting 2 or 4 arguments");
   }
@@ -2014,6 +2039,7 @@ enum { MAGIC_ABC_PORT = -15485863 };
 
 int Shape::LuaPort(lua_State *L) {
   // Trim off nils at the end before we start counting arguments.
+  LuaErrorIfNaNs(L);
   while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
     lua_pop(L, 1);
   }
@@ -2073,12 +2099,14 @@ int Shape::LuaPort(lua_State *L) {
 
 int Shape::LuaABC(lua_State *L) {
   // Like LuaPort(), but use the special port number that designates an ABC.
+  LuaErrorIfNaNs(L);
   Expecting(L, 2, "ABC");
   lua_pushnumber(L, MAGIC_ABC_PORT);
   return LuaPort(L);
 }
 
 int Shape::LuaAPointInside(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 1, "APointInside");
   double x, y;
   if (!APointInside(&x, &y)) {
@@ -2092,6 +2120,7 @@ int Shape::LuaAPointInside(lua_State *L) {
 }
 
 int Shape::LuaFilletVertex(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 5, "FilletVertex");
   if (IsEmpty()) {
     LuaError(L, "FilletVertex() requires a nonempty shape");
@@ -2103,6 +2132,7 @@ int Shape::LuaFilletVertex(lua_State *L) {
 }
 
 int Shape::LuaChamferVertex(lua_State *L) {
+  LuaErrorIfNaNs(L);
   Expecting(L, 5, "ChamferVertex");
   if (IsEmpty()) {
     LuaError(L, "ChamferVertex() requires a nonempty shape");
@@ -2115,6 +2145,7 @@ int Shape::LuaChamferVertex(lua_State *L) {
 
 int Shape::LuaPaint(lua_State *L) {
   // Trim off nils at the end before we start counting arguments.
+  LuaErrorIfNaNs(L);
   while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
     lua_pop(L, 1);
   }

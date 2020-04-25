@@ -975,6 +975,20 @@ void Cavity::SetConfigFromTable() {
   }
   lua_pop(L, 1);
 
+  // Handle antenna_pattern specially because it is an enumeration.
+  config_.antenna_pattern = config_.AT_ABC;     // Default
+  lua_getfield(L, -1, "antenna_pattern");       // Stack: antenna_pattern
+  if (lua_type(L, -1) != LUA_TNIL) {
+    if (strcmp(lua_tostring(L, -1), "at_ABC") == 0) {
+      config_.antenna_pattern = config_.AT_ABC;
+    } else if (strcmp(lua_tostring(L, -1), "at_far_field_material") == 0) {
+      config_.antenna_pattern = config_.AT_FF_MATERIAL;
+    } else {
+      GetLua()->Error("config.antenna_pattern is not valid");
+    }
+  }
+  lua_pop(L, 1);
+
   // Handle excited_port specially because it can be a number or a table.
   config_.port_excitation.clear();
   lua_getfield(L, -1, "excited_port");  // Stack: excited_port
@@ -1096,8 +1110,8 @@ void Cavity::PlotAntennaPattern() {
   if (!antenna_show_ || !solver_.Valid() ||
       !solver_.At(displayed_soln_)->ComputeAntennaPattern(&azimuth, &magnitude)) {
     // The antenna pattern can't be (or should not be) computed, e.g. because
-    // there is no valid solution, no ABC or the effective k doesn't support
-    // propagating waves.
+    // there is no valid solution, no useful boundary, or the effective k
+    // doesn't support propagating waves.
   } else {
     vector<double> x(azimuth.size()), y(azimuth.size());
     double maxy = -1e99;
