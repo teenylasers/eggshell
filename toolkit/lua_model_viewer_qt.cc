@@ -372,6 +372,7 @@ LuaModelViewer::LuaModelViewer(QWidget *parent, int gl_type)
   show_markers_ = true;
   run_test_after_solve_ = false;
   script_test_mode_ = false;
+  switch_to_model_after_each_solve_ = true;
 
   // Setup the camera for 2D operation. This can be changed in a subclass.
   SetPerspective(false);
@@ -467,6 +468,10 @@ void LuaModelViewer::ToggleAntialiasing() {
 void LuaModelViewer::ToggleShowMarkers() {
   show_markers_ = !show_markers_;
   update();
+}
+
+void LuaModelViewer::ToggleSwitchToModelAfterEachSolve() {
+  switch_to_model_after_each_solve_ = !switch_to_model_after_each_solve_;
 }
 
 void LuaModelViewer::SetDisplayColorScheme(int color_scheme) {
@@ -868,7 +873,9 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
   // Select the script messages pane if there were errors, otherwise select the
   // pane that shows the computational domain.
   if (!SelectScriptMessagesIfErrors()) {
-    SelectPane(model_pane_);
+    if (switch_to_model_after_each_solve_) {
+      SelectPane(model_pane_);
+    }
   }
 
   // If there were any script errors we assume that the model and config_ are

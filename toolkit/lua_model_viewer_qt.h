@@ -74,6 +74,7 @@ public:
   void ZoomOut();
   void ToggleAntialiasing();
   void ToggleShowMarkers();
+  void ToggleSwitchToModelAfterEachSolve();
   void SetDisplayColorScheme(int color_scheme);
   void SetBrightness(int brightness);
   void SetIfRunScriptResetsParameters(bool runscript_resets_param_map) {
@@ -235,6 +236,7 @@ public:
   bool script_test_mode_;
   int copy_of_argc_ = 0;                // Copy of argument given to main()
   char **copy_of_argv_ = 0;             // Copy of argument given to main()
+  bool switch_to_model_after_each_solve_;
 
   // Connections to external controls.
   QListWidget *script_messages_;
