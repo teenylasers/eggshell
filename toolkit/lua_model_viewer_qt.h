@@ -107,15 +107,21 @@ public:
   // Rerun the last script given to RunScript(). This does nothing if
   // RunScript() has not yet been called. Parameter controls are not rebuilt by
   // default, so this is faster than RunScript() in the case where only
-  // parameter values have changed. If optimize_output is nonzero return the
-  // output of the config.optimize function, emitting an error and setting
-  // optimize_output to the empty vector if no optimizer output could be
-  // obtained (e.g. because of script error). If run_test_after_solve_ is true
-  // then run the config.test function, which may emit an error, and set
-  // test_output to its return values. The return value is false if there were
-  // script errors (this value is also stored in valid_). If
-  // only_compute_derivatives is true then the script is being redundantly
-  // rerun with the same parameters but different derivatives.
+  // parameter values have changed. A new Lua state is created, and this state
+  // will persist until the next time [Re]runScript() is called, so that e.g.
+  // any callback functions created can be called.
+  //
+  // If optimize_output is nonzero return the output of the config.optimize
+  // function, emitting an error and setting optimize_output to the empty
+  // vector if no optimizer output could be obtained (e.g. because of script
+  // error). If run_test_after_solve_ is true then run the config.test
+  // function, which may emit an error, and set test_output to its return
+  // values.
+  //
+  // The return value is false if there were script errors (this value is also
+  // stored in valid_). If only_compute_derivatives is true then the script is
+  // being redundantly rerun with the same parameters but different
+  // derivatives.
   bool RerunScript(bool refresh_window = true,
                    std::vector<JetNum> *optimize_output = 0,
                    std::vector<JetNum> *test_output = 0,
