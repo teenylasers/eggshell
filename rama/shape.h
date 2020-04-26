@@ -313,9 +313,9 @@ class Shape : public LuaUserClass {
   // pieces at the necks. This is needed because the clipper library is happy
   // to regard polygons with zero width necks as a single polygon, but the
   // triangle library regards the parts separated by the neck as distinct and
-  // gets confused because APointInside() returns a point only inside one of
-  // them. Zero-area slivers (where two edges are coincident) are discarded and
-  // not created as separate pieces.
+  // gets confused because AnyPointInPoly() returns a point only inside one of
+  // them. Zero-area slivers (where two edges are coincident with the same
+  // endpoints) are discarded and not created as separate pieces.
   void SplitPolygonsAtNecks();
 
   // Return the piece and edge that is closest to x,y. The edge index is
@@ -327,11 +327,15 @@ class Shape : public LuaUserClass {
   // error if the shape is empty.
   void FindClosestVertex(JetNum x, JetNum y, int *piece, int *index);
 
-  // Return a point that is guaranteed to be inside the shape. This will
-  // succeed and return true for a nonempty single piece polygon of any
-  // orientation, or a single positive area polygon with any number of
-  // negative area holes. Other unhandled cases will fail and return false.
-  bool APointInside(double *x, double *y);
+  // Return a point that is guaranteed to be inside piece 'i' of the shape, but
+  // not inside any of the other pieces that are inside that piece. For example
+  // if the shape contains holes the returned point will not be inside any of
+  // those holes. Or, if piece 'i' is itself a hole, the returned point will
+  // not be inside any islands that are inside the hole. Return false if there
+  // are any geometry errors. If i == -1 and there is just one piece then use
+  // that, or use the single positive area piece, or return false if there is
+  // not just one.
+  bool APointInside(int i, double *x, double *y);
 
   // Add a fillet of the given radius to the vertex closest to x,y. The limit
   // is the maximum distance allowed between a polygon approximation of an arc

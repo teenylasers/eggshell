@@ -116,7 +116,7 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
   // pieces at the necks. This is needed because the clipper library is happy
   // to regard polygons with zero width necks as a single polygon, but the
   // triangle library regards the parts separated by the neck as distinct and
-  // gets confused because APointInside() returns a point only inside one of
+  // gets confused because AnyPointInPoly() returns a point only inside one of
   // them. We don't modify the shape argument, we make a local copy.
   Shape s(s_arg);
   s.SplitPolygonsAtNecks();
@@ -157,15 +157,15 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
   // by positive area polygons of different material. To properly identify the
   // actual holes to the triangle library we need to run clipper to merge
   // everything together and find any negative area polygons that result.
-  vector<RPoint> hole_points;
+  vector<RPoint> hole_points;   // One point inside each hole
   {
     Shape hole_finder;
     hole_finder.SetMerge(s);
     for (int i = 0; i < hole_finder.NumPieces(); i++) {
       if (hole_finder.Area(i) < 0) {
-        RPoint hole_point;
-        AnyPointInPoly(hole_finder.Piece(i), -1, &hole_point.p);
-        hole_points.push_back(hole_point);
+        double x, y;
+        CHECK(hole_finder.APointInside(i, &x, &y));
+        hole_points.push_back(RPoint(x, y));
       }
     }
   }

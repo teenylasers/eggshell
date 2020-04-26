@@ -1364,38 +1364,39 @@ void Shape::FindClosestVertex(JetNum x, JetNum y, int *piece, int *index) {
   CHECK(*piece >= 0 && *index >= 0);     // Make sure shape not empty
 }
 
-bool Shape::APointInside(double *x, double *y) {
+bool Shape::APointInside(int i, double *x, double *y) {
   if (GeometryError(false)) {
     return false;       // AnyPointInPoly() needs good geometry
   }
 
-  // Handle a nonempty single piece polygon of any orientation.
-  JetPoint point;
-  if (polys_.size() == 1 && polys_[0].p.size() >= 3) {
-    AnyPointInPoly(polys_[0].p, -1, &point);
-    *x = ToDouble(point[0]);
-    *y = ToDouble(point[1]);
-    return true;
+  // If i == -1 find the single positive area polygon, or if there is just one
+  // polygon then use that.
+  if (i == -1) {
+    if (polys_.size() == 1) {
+      i = 0;
+    } else {
+      for (int j = 0; j < polys_.size(); j++) {
+        if (Area(j) > 0) {
+          if (i >= 0) {
+            return false;       // Found more than one positive area piece
+          }
+          i = j;
+        }
+      }
+      if (i == -1) {
+        return false;           // Found no positive area pieces
+      }
+    }
   }
 
-  // Handle a single positive area polygon with any number of negative area
-  // holes.
-  int posindex = -1;
-  for (int i = 0; i < polys_.size(); i++) {
-    if (Area(i) > 0) {
-      if (posindex >= 0) {
-        return false;           // Found more than one positive area piece
-      }
-      posindex = i;
+  vector<RPoint> poly = polys_[i].p;
+  for (int j = 0; j < polys_.size(); j++) {
+    if (j != i) {
+      poly.insert(poly.end(), polys_[j].p.begin(), polys_[j].p.end());
     }
   }
-  vector<RPoint> poly = polys_[posindex].p;
-  for (int i = 0; i < polys_.size(); i++) {
-    if (i != posindex) {
-      poly.insert(poly.end(), polys_[i].p.begin(), polys_[i].p.end());
-    }
-  }
-  AnyPointInPoly(poly, polys_[posindex].p.size(), &point);
+  JetPoint point;
+  AnyPointInPoly(poly, polys_[i].p.size(), &point);
   *x = ToDouble(point[0]);
   *y = ToDouble(point[1]);
   return true;
@@ -2109,7 +2110,7 @@ int Shape::LuaAPointInside(lua_State *L) {
   LuaErrorIfNaNs(L);
   Expecting(L, 1, "APointInside");
   double x, y;
-  if (!APointInside(&x, &y)) {
+  if (!APointInside(-1, &x, &y)) {
     LuaError(L, "APointInside() requires a nonempty single piece polygon of "
                 "any orientation, or a single positive area polygon with any "
                 "number of negative area holes.");
@@ -2368,7 +2369,7 @@ TEST_FUNCTION(APointInside) {
 
       // Test APointInside.
       double px, py;
-      CHECK(s.APointInside(&px, &py));
+      CHECK(s.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
     }
 
@@ -2379,14 +2380,14 @@ TEST_FUNCTION(APointInside) {
 
       // Test APointInside.
       double px, py;
-      CHECK(s.APointInside(&px, &py));
+      CHECK(s.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
 
       // Test reverse orientation polys too.
       Shape s2;
       s2 = s;
       s2.Reverse();
-      CHECK(s2.APointInside(&px, &py));
+      CHECK(s2.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
     }
 
@@ -2395,12 +2396,12 @@ TEST_FUNCTION(APointInside) {
       Shape s;
       RandomShape1(&s, 3, true);
       double px, py;
-      CHECK(s.APointInside(&px, &py));
+      CHECK(s.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
       Shape s2;
       s2 = s;
       s2.Reverse();
-      CHECK(s2.APointInside(&px, &py));
+      CHECK(s2.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
     }
   }
