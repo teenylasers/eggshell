@@ -959,14 +959,15 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
   // boundary triangles, with field values and gradients computed from the
   // solution values at the triangle vertices.
   vector<JetComplex> ff(kFarFieldPoints);       // Far field values over angle
-  int abc_count = 0;
+  int radiator_count = 0;
   bool use_ff_material = (config_.antenna_pattern == config_.AT_FF_MATERIAL);
   uint32_t color_mask = use_ff_material ? Material::FAR_FIELD : 0;
   for (BoundaryIterator it(this, color_mask); !it.done(); ++it) {
-    if (!use_ff_material && !it.kind().IsABC()) {
+    if (!( use_ff_material || it.kind().IsABC() ||
+           (config_.antenna_pattern == config_.AT_BOUNDARY) )) {
       continue;
     }
-    abc_count++;
+    radiator_count++;
 
     // Triangle vertices scaled to meters.
     JetPoint p1 = points_[it.pindex1()].p * config_.unit;
@@ -997,19 +998,12 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
     }
     JetNum nangle = atan2(normal[1], normal[0]);
 
-    // Find the boundary-normal and boundary-perpendicular components of the
-    // gradient.
-    JetComplex gradN = gradX * normal[0] + gradY * normal[1];
-    JetComplex gradP = gradX * normal[1] - gradY * normal[0];
-
-    // Update far field values with an isotropic radiator from z and
-    // orthogonally oriented dipoles from gradN and gradP.
-    JetComplex scale(0, 1 / k);
+    // Update far field values.
     for (int i = 0; i < kFarFieldPoints; i++) {
       double phi = (*azimuth)[i] + config_.boresight * M_PI / 180.0;
-      ff[i] += (z + scale * (gradN * cos(phi - nangle) -
-                             gradP * sin(phi - nangle))) *
-        exp(JetComplex(0, k * (center[0] * cos(phi) + center[1] * sin(phi))));
+      ff[i] += (k*cos(phi - nangle)*z +
+                JetComplex(0,1) * (sin(nangle)*gradY + cos(nangle)*gradX)) *
+          exp(JetComplex(0, k * (center[0] * cos(phi) + center[1] * sin(phi))));
     }
   }
 
@@ -1017,7 +1011,7 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
   // number of times we added to each element of ff[] in the inner loop.
   magnitude->resize(kFarFieldPoints);
   for (int i = 0; i < kFarFieldPoints; i++) {
-    (*magnitude)[i] = abs(ff[i]) / double(abc_count);
+    (*magnitude)[i] = abs(ff[i]) / double(radiator_count);
   }
 
   // Cache the result (note that the return vectors might already be the cache

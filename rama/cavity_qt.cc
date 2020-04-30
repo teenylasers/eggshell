@@ -983,6 +983,8 @@ void Cavity::SetConfigFromTable() {
       config_.antenna_pattern = config_.AT_ABC;
     } else if (strcmp(lua_tostring(L, -1), "at_far_field_material") == 0) {
       config_.antenna_pattern = config_.AT_FF_MATERIAL;
+    } else if (strcmp(lua_tostring(L, -1), "at_boundary") == 0) {
+      config_.antenna_pattern = config_.AT_BOUNDARY;
     } else {
       GetLua()->Error("config.antenna_pattern is not valid");
     }

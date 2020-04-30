@@ -43,7 +43,7 @@ struct ScriptConfig {
   enum Window { RECTANGLE, HAMMING };
 
   // Values for antenna_pattern.
-  enum AntennaPattern { AT_ABC, AT_FF_MATERIAL };
+  enum AntennaPattern { AT_ABC, AT_FF_MATERIAL, AT_BOUNDARY };
 
   Type type;                    // Cavity type: EZ, EXY etc.
   bool schrodinger;             // EZ cavities for Schrodinger simulation

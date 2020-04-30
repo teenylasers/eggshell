@@ -307,6 +307,8 @@ the following fields:
         computed at the boundary between regular materials and those that have
         the @c{util.FAR_FIELD} color bit. PML materials are created with this
         bit.
+     @* @c{"at_boundary"}, which means that the far field will be computed at
+        the exterior of the computational domain, regardless of boundary type.
      }
 
   @* @c{boresight} (optional)
