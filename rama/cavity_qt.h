@@ -7,6 +7,7 @@
 #include "solver.h"
 
 class QDial;
+class MatFile;
 
 class Cavity : public LuaModelViewer {
  public:
@@ -80,6 +81,16 @@ class Cavity : public LuaModelViewer {
   void PlotSParams(bool force_update = false);
   void SelectSParamPlot(int sparams_plot_type);
 
+  // Compute and export the antenna pattern. The following vectors are saved:
+  //   azimuth - the azimuths at which the far field is evaluated (radians)
+  //   field - the complex values of the far field at each azimuth
+  //   xcorrection, ycorrection - used for phase center correction, as below.
+  // To plot the beam pattern magnitude in dB:
+  //   plot(azimuth,20*log10(abs(field)))
+  // To plot the beam phase, assuming a phase center at cx,cy (in config units):
+  //   plot(azimuth,angle(field.*(xcorrection.^cx.*ycorrection.^cy)))
+  void ExportAntennaPatternMatlab(const char *filename);
+
  private:
   // More connections to external controls.
   qtPlot *antenna_pattern_plot_, *sparam_plot_;
@@ -141,6 +152,10 @@ class Cavity : public LuaModelViewer {
   bool WillCreateSolverInDraw() const {
     return mesh_draw_type_ != Mesh::MESH_HIDE || show_field_;
   }
+
+  // Utility to write a vector of JetComplex to a matlab file.
+  void WriteJetComplexVector(MatFile &mat, const char *name,
+                             const vector<JetComplex> &v);
 };
 
 #endif

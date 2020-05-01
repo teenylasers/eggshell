@@ -185,10 +185,16 @@ class Solver : public Mesh {
   void GetFieldPoynting(JetNum x, JetNum y, JetPoint *poynting);
 
   // Compute the radiation pattern at the ABC. Return arrays of azimuth (in
-  // radians) and associated field magnitude. The azimuth angles will be
-  // monotonically increasing and in the range -pi..pi.
+  // radians) and associated complex field. Field phase is computed relative to
+  // a phase center at the origin. The azimuth angles will be monotonically
+  // increasing and in the range -pi..pi.
   bool ComputeAntennaPattern(vector<double> *azimuth,
-                             vector<JetNum> *magnitude) MUST_USE_RESULT;
+                             vector<JetComplex> *field) MUST_USE_RESULT;
+
+  // Adjust a previously computed antenna pattern for the given phase center.
+  void AdjustAntennaPhaseCenter(JetPoint phase_center,
+                                const vector<double> &azimuth,
+                                vector<JetComplex> *field);
 
   // Look up the radiation pattern for a particular azimuth 'theta' (in
   // radians). This will interpolate the results computed by
@@ -229,7 +235,7 @@ class Solver : public Mesh {
   ModeSolverType *mode_solver_;         // Eigenmode solver
   Eigen::VectorXcd *solver_solution_;   // Solution vector to display
   vector<double> antenna_azimuth_;      // Cached antenna pattern
-  vector<JetNum> antenna_magnitude_;    // Cached antenna pattern
+  vector<JetComplex> antenna_field_;    // Cached antenna pattern
 
   // **********
   // The following variables are computed on demand, and have value (or size) 0

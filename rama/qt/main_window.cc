@@ -517,3 +517,11 @@ void MainWindow::on_actionShowSParameters_triggered() {
 void MainWindow::on_actionSwitchToModelAfterEachSolve_triggered() {
   ui->model->ToggleSwitchToModelAfterEachSolve();
 }
+
+void MainWindow::on_actionExportAntennaPatternAsMatlabData_triggered() {
+  QString filename = QFileDialog::getSaveFileName(this,
+      "Select a matlab file to save", QString(), "Matlab files (*.mat)");
+  if (!filename.isEmpty()) {
+    ui->model->ExportAntennaPatternMatlab(filename.toUtf8().data());
+  }
+}

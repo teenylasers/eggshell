@@ -158,6 +158,7 @@
     <addaction name="actionExportBoundaryXY"/>
     <addaction name="actionExportFieldAsMatlab"/>
     <addaction name="actionExportPlotAsMatlab"/>
+    <addaction name="actionExportAntennaPatternAsMatlabData"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
@@ -1284,6 +1285,11 @@
    </property>
    <property name="text">
     <string>Switch to model after each solve</string>
+   </property>
+  </action>
+  <action name="actionExportAntennaPatternAsMatlabData">
+   <property name="text">
+    <string>Export antenna pattern as matlab data...</string>
    </property>
   </action>
  </widget>

@@ -1080,11 +1080,15 @@ void Cavity::OnAnimationTimeout() {
 
 JetNum Cavity::ComputeAntennaDirectivity(int solution_index) {
   vector<double> azimuth;
-  vector<JetNum> magnitude;
+  vector<JetComplex> field;
   CreateSolver();
   if (solver_.Valid() && solver_.At(solution_index)->
-                            ComputeAntennaPattern(&azimuth, &magnitude)) {
-    CHECK(azimuth.size() == magnitude.size());
+                            ComputeAntennaPattern(&azimuth, &field)) {
+    CHECK(azimuth.size() == field.size());
+    vector<JetNum> magnitude(field.size());
+    for (int i = 0; i < field.size(); i++) {
+      magnitude[i] = abs(field[i]);
+    }
     JetNum power_avg = 0, power_max = 0;
     for (int i = 0; i < magnitude.size(); i++) {
       int inext = (i + 1) % magnitude.size();
@@ -1104,13 +1108,13 @@ JetNum Cavity::ComputeAntennaDirectivity(int solution_index) {
 
 void Cavity::PlotAntennaPattern() {
   vector<double> azimuth;
-  vector<JetNum> magnitude;
+  vector<JetComplex> field;
   vector<Plot::Axis> axis_stack;
   axis_stack = antenna_pattern_plot_->plot().GetAxisStack();
   antenna_pattern_plot_->plot().Clear();
   CreateSolver();
   if (!antenna_show_ || !solver_.Valid() ||
-      !solver_.At(displayed_soln_)->ComputeAntennaPattern(&azimuth, &magnitude)) {
+      !solver_.At(displayed_soln_)->ComputeAntennaPattern(&azimuth, &field)) {
     // The antenna pattern can't be (or should not be) computed, e.g. because
     // there is no valid solution, no useful boundary, or the effective k
     // doesn't support propagating waves.
@@ -1119,7 +1123,7 @@ void Cavity::PlotAntennaPattern() {
     double maxy = -1e99;
     for (int i = 0; i < azimuth.size(); i++) {
       x[i] = azimuth[i] * 180.0 / M_PI;
-      y[i] = 20 * log10(ToDouble(magnitude[i]));
+      y[i] = 20 * log10(ToDouble(abs(field[i])));
       maxy = std::max(maxy, y[i]);
     }
     if (antenna_scale_max_) {
@@ -1148,4 +1152,48 @@ void Cavity::PlotAntennaPattern() {
   }
   // Draw now so we get updates e.g. during slider movement:
   antenna_pattern_plot_->repaint();
+}
+
+void Cavity::ExportAntennaPatternMatlab(const char *filename) {
+  vector<double> azimuth;
+  vector<JetComplex> field;
+  CreateSolver();
+  if (!solver_.Valid() ||
+      !solver_.At(displayed_soln_)->ComputeAntennaPattern(&azimuth, &field)) {
+    Error("Antenna pattern can't be computed");
+    return;
+  }
+  CHECK(azimuth.size() == field.size());
+
+  // Compute phase center correction factors.
+  vector<JetComplex> xcorrection(field.size()), ycorrection(field.size());
+  for (int i = 0; i < field.size(); i++) {
+    xcorrection[i] = 1;
+    ycorrection[i] = 1;
+  }
+  solver_.At(displayed_soln_)->AdjustAntennaPhaseCenter(
+      JetPoint(config_.unit, 0), azimuth, &xcorrection);
+  solver_.At(displayed_soln_)->AdjustAntennaPhaseCenter(
+      JetPoint(0, config_.unit), azimuth, &ycorrection);
+
+  // Export to matlab file.
+  MatFile mat(filename);
+  int dims[2] = {static_cast<int>(azimuth.size()), 1};
+  mat.WriteMatrix("azimuth", 2, dims, MatFile::mxDOUBLE_CLASS,
+                  azimuth.data(), 0);
+  WriteJetComplexVector(mat, "field", field);
+  WriteJetComplexVector(mat, "xcorrection", xcorrection);
+  WriteJetComplexVector(mat, "ycorrection", ycorrection);
+}
+
+void Cavity::WriteJetComplexVector(MatFile &mat, const char *name,
+                                   const vector<JetComplex> &v) {
+  vector<double> real(v.size()), imag(v.size());
+  for (int i = 0; i < v.size(); i++) {
+    real[i] = ToDouble(v[i].real());
+    imag[i] = ToDouble(v[i].imag());
+  }
+  int dims[2] = {static_cast<int>(v.size()), 1};
+  mat.WriteMatrix(name, 2, dims, MatFile::mxDOUBLE_CLASS,
+                  real.data(), imag.data());
 }

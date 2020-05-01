@@ -915,7 +915,7 @@ void Solver::GetFieldPoynting(JetNum x, JetNum y, JetPoint *poynting) {
 }
 
 bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
-                                   vector<JetNum> *magnitude) {
+                                   vector<JetComplex> *field) {
   Trace trace(__func__);
   if (!config_.TypeIsElectrodynamic() || !ComputeSpatialGradient()) {
     return false;
@@ -937,9 +937,9 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
   const double k = sqrt(k2);
 
   // Return a previously cached result.
-  if (!antenna_magnitude_.empty()) {
+  if (!antenna_field_.empty()) {
     *azimuth = antenna_azimuth_;
-    *magnitude = antenna_magnitude_;
+    *field = antenna_field_;
     return true;
   }
 
@@ -958,7 +958,8 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
   // obtained when both kinds of radiators are positioned at the centroid of
   // boundary triangles, with field values and gradients computed from the
   // solution values at the triangle vertices.
-  vector<JetComplex> ff(kFarFieldPoints);       // Far field values over angle
+  field->clear();
+  field->resize(kFarFieldPoints);       // Far field values over angle
   int radiator_count = 0;
   bool use_ff_material = (config_.antenna_pattern == config_.AT_FF_MATERIAL);
   uint32_t color_mask = use_ff_material ? Material::FAR_FIELD : 0;
@@ -1001,32 +1002,47 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
     // Update far field values.
     for (int i = 0; i < kFarFieldPoints; i++) {
       double phi = (*azimuth)[i] + config_.boresight * M_PI / 180.0;
-      ff[i] += (k*cos(phi - nangle)*z +
+      (*field)[i] += (k*cos(phi - nangle)*z +
                 JetComplex(0,1) * (sin(nangle)*gradY + cos(nangle)*gradX)) *
           exp(JetComplex(0, k * (center[0] * cos(phi) + center[1] * sin(phi))));
     }
   }
 
-  // Return far field magnitudes. Scale by the number of radiators, i.e. the
-  // number of times we added to each element of ff[] in the inner loop.
-  magnitude->resize(kFarFieldPoints);
+  // Scale field by the number of radiators, i.e. the number of times we added
+  // to each element of field[] in the inner loop.
   for (int i = 0; i < kFarFieldPoints; i++) {
-    (*magnitude)[i] = abs(ff[i]) / double(radiator_count);
+    (*field)[i] /= double(radiator_count);
   }
 
   // Cache the result (note that the return vectors might already be the cache
   // vectors).
   antenna_azimuth_ = *azimuth;
-  antenna_magnitude_ = *magnitude;
+  antenna_field_ = *field;
   return true;
 }
 
+void Solver::AdjustAntennaPhaseCenter(JetPoint phase_center,
+                                      const vector<double> &azimuth,
+                                      vector<JetComplex> *field) {
+  CHECK(field->size() == azimuth.size());
+  const double k2 = ComputeKSquared();
+  if (k2 <= 0) {
+    return;
+  }
+  const double k = sqrt(k2);
+  for (int i = 0; i < azimuth.size(); i++) {
+    double phi = azimuth[i] + config_.boresight * M_PI / 180.0;
+    (*field)[i] *= exp(JetComplex(0, -k *
+            (cos(phi) * phase_center[0] + sin(phi) * phase_center[1])));
+  }
+}
+
 bool Solver::LookupAntennaPattern(JetNum theta, JetNum *magnitude) {
-  if (!ComputeAntennaPattern(&antenna_azimuth_, &antenna_magnitude_)) {
+  if (!ComputeAntennaPattern(&antenna_azimuth_, &antenna_field_)) {
     return false;
   }
   CHECK(antenna_azimuth_.size() == kFarFieldPoints);
-  CHECK(antenna_magnitude_.size() == kFarFieldPoints);
+  CHECK(antenna_field_.size() == kFarFieldPoints);
   // Search the azimuth array for theta. Account for the wrap-around gap
   // between the last and first azimuth.
   theta = NormalizeAngle(theta);
@@ -1039,8 +1055,8 @@ bool Solver::LookupAntennaPattern(JetNum theta, JetNum *magnitude) {
   CHECK(alpha >= 0 && alpha <= 1);
   // Linearly interpolate the power (magnitude^2), not the field magnitude.
   *magnitude = sqrt(
-                 sqr(antenna_magnitude_[i0]) +
-                 alpha * sqr(antenna_magnitude_[i] - antenna_magnitude_[i0])
+                 sqr(abs(antenna_field_[i0])) +
+                 alpha * sqr(abs(antenna_field_[i]) - abs(antenna_field_[i0]))
                );
   return true;
 }
