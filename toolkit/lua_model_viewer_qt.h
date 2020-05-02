@@ -82,7 +82,7 @@ public:
   }
   void Sweep(const std::string &parameter_name,
              double start_value, double end_value, int num_steps,
-             bool sweep_over_test_output);
+             bool sweep_over_test_output, const std::string &image_filename);
   void Optimize();
   void StopSweepOrOptimize();
   void ToggleEmitTraceReport();
@@ -289,10 +289,12 @@ public:
     CeresInteractiveOptimizer *optimizer;     // Nonzero if currently optimizing
     std::vector<std::string> opt_parameter_names;  // Parameter names optimizing
     bool optimizer_done_;                     // true if found optimal solution
+    std::string image_filename;               // nonempty to save model images
 
     InvisibleHand() {
       optimizer_type = LEVENBERG_MARQUARDT;
       optimizer = 0;
+      sweep_over_test_output = false;
       Start();
     }
 

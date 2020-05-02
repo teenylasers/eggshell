@@ -1001,7 +1001,7 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
 
     // Update far field values.
     for (int i = 0; i < kFarFieldPoints; i++) {
-      double phi = (*azimuth)[i] + config_.boresight * M_PI / 180.0;
+      double phi = -(*azimuth)[i] + config_.boresight * M_PI / 180.0;
       (*field)[i] += (k*cos(phi - nangle)*z +
                 JetComplex(0,1) * (sin(nangle)*gradY + cos(nangle)*gradX)) *
           exp(JetComplex(0, k * (center[0] * cos(phi) + center[1] * sin(phi))));

@@ -22,12 +22,13 @@ public:
   double GetEndValue();
   int GetNumSteps();
   bool GetTestOutput();
+  QString GetImageFileName();
 
 private slots:
   void on_cancel_button_clicked();
   void on_ok_button_clicked();
-
   void on_parameters_currentIndexChanged(const QString &arg1);
+  void on_browse_clicked();
 
 private:
   Ui::Sweep *ui;
@@ -36,6 +37,7 @@ private:
   bool integer_;
   double start_value_, end_value_, min_value_, max_value_;
   int num_steps_;
+  QString image_file_name_;
 
   bool Check();
 };

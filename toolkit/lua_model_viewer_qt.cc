@@ -504,7 +504,8 @@ void LuaModelViewer::SetBrightness(int brightness) {
 
 void LuaModelViewer::Sweep(const string &parameter_name,
                            double start_value, double end_value,
-                           int num_steps, bool sweep_over_test_output) {
+                           int num_steps, bool sweep_over_test_output,
+                           const string &image_filename) {
   if (!IsModelValid()) {
     Error("The model is not yet valid");
     return;
@@ -514,6 +515,7 @@ void LuaModelViewer::Sweep(const string &parameter_name,
   // recording the results after each solve.
   ih_.Start();
   ih_.sweep_over_test_output = sweep_over_test_output;
+  ih_.image_filename = image_filename;
   const Parameter &p = GetParameter(parameter_name);
   if (p.integer) {
     // Integer parameter.
@@ -1317,6 +1319,16 @@ bool LuaModelViewer::OnInvisibleHandSweep() {
 
   // Display the result.
   repaint();
+
+  // Optionally save the model window images to files.
+  if (!ih_.image_filename.empty()) {
+    QString filename =
+        QString::asprintf(ih_.image_filename.c_str(), ih_.sweep_index);
+    // @@@ grabFramebuffer() causes a redundant re-paint. The more efficient
+    // approach would be to copy out the contents of the frame buffer that was
+    // already rendered in the repaint() above.
+    grabFramebuffer().save(filename);
+  }
 
   // Advance to the next value in a sweep.
   ih_.sweep_index++;

@@ -184,7 +184,8 @@ void MainWindow::on_actionSweep_triggered() {
                      sweep.GetStartValue(),
                      sweep.GetEndValue(),
                      sweep.GetNumSteps(),
-                     sweep.GetTestOutput());
+                     sweep.GetTestOutput(),
+                     sweep.GetImageFileName().toUtf8().data());
   }
 }
 

@@ -3,6 +3,7 @@
 #include "../../toolkit/lua_model_viewer_qt.h"
 
 #include <QMessageBox>
+#include <QFileDialog>
 
 Sweep::Sweep(QWidget *parent) :
   QDialog(parent),
@@ -64,6 +65,10 @@ bool Sweep::GetTestOutput() {
   return ui->test_output->isChecked();
 }
 
+QString Sweep::GetImageFileName() {
+  return image_file_name_;
+}
+
 bool Sweep::Check() {
   bool ok;
   start_value_ = ui->start_value->text().toDouble(&ok);
@@ -99,6 +104,27 @@ bool Sweep::Check() {
       return false;
     }
   }
+  image_file_name_ = ui->image_filename->text();
+  if (!image_file_name_.isEmpty()) {
+    int index = image_file_name_.indexOf('#');
+    if (index == -1 || image_file_name_.indexOf('#', index + 1) >= 0) {
+      QMessageBox::warning(this, "Error",
+          "Image filename must contain one '#' to represent the image number");
+      return false;
+    }
+    if (image_file_name_.indexOf('%') >= 0) {
+      QMessageBox::warning(this, "Error",
+          "Image filename can not contain the character '%'");
+      return false;
+    }
+    if (!image_file_name_.endsWith(".png",Qt::CaseInsensitive)) {
+      QMessageBox::warning(this, "Error",
+          "Image filename must end with .png");
+      return false;
+    }
+    image_file_name_ = image_file_name_.left(index) + "%d" +
+                       image_file_name_.mid(index + 1);
+  }
   return true;
 }
 
@@ -114,4 +140,15 @@ void Sweep::on_ok_button_clicked() {
 
 void Sweep::on_parameters_currentIndexChanged(const QString &arg1) {
   SetParameter(arg1.toUtf8().data());
+}
+
+void Sweep::on_browse_clicked() {
+  QString filename = QFileDialog::getSaveFileName(this,
+      "Select an image file to save", QString(), "Image files (*.png)");
+  if (!filename.isEmpty()) {
+    if (filename.endsWith(".png")) {
+      filename = filename.mid(0, filename.length()-4) + "#" + ".png";
+    }
+    ui->image_filename->setText(filename);
+  }
 }
