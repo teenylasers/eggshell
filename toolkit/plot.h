@@ -173,7 +173,7 @@ class Plot2D {
   }
 
   // Add a label for the most recently added trace (this will go in the plot
-  // legend).
+  // legend). If there are no traces this will do nothing.
   void AddTraceLabel(const char *label);
 
   // Add an image. RGB data is in CreateImage() format. Currently there can be

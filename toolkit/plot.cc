@@ -493,7 +493,9 @@ void Plot2D::AddTrace(int n, const double *x, const double *y,
 }
 
 void Plot2D::AddTraceLabel(const char *label) {
-  traces_.back().label = label;
+  if (!traces_.empty()) {
+    traces_.back().label = label;
+  }
 }
 
 void Plot2D::AddImage(int width, int height, uint8_t *rgb_data) {
