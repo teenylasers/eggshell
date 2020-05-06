@@ -106,6 +106,48 @@ static void DeleteTriangulateIO(triangulateio *t) {
   delete[] t->normlist;
 }
 
+static void DumpTriangulateIO(const struct triangulateio &t, const char *msg)
+  __attribute__((unused));
+static void DumpTriangulateIO(const struct triangulateio &t, const char *msg) {
+  printf("%s struct triangulateio contains:\n", msg);
+  printf("\tPoints (numberofpoints=%d, numberofpointattributes=%d):\n",
+         t.numberofpoints, t.numberofpointattributes);
+  for (int i = 0; i < t.numberofpoints; i++) {
+    printf("\t\t%d: xy=%g,%g | marker=%d\n", i,
+           t.pointlist[2*i], t.pointlist[2*i+1], t.pointmarkerlist[i]);
+    // Ignored, we don't use: t.pointattributelist
+  }
+  printf("\tTriangles (numberoftriangles=%d, numberofcorners=%d, "
+         "numberoftriangleattributes=%d):\n",
+         t.numberoftriangles, t.numberofcorners, t.numberoftriangleattributes);
+  for (int i = 0; i < t.numberoftriangles; i++) {
+    CHECK(t.numberofcorners == 3);
+    printf("\t\t%d: %d %d %d | neighbors=%d %d %d | attr=", i,
+           t.trianglelist[i*3], t.trianglelist[i*3+1], t.trianglelist[i*3+2],
+           t.neighborlist[i*3], t.neighborlist[i*3+1], t.neighborlist[i*3+2]);
+    for (int j = 0; j < t.numberoftriangleattributes; j++) {
+      printf(" %g", t.triangleattributelist[i*t.numberoftriangleattributes+j]);
+    }
+    printf("\n");
+    // Ignored, we don't use: trianglearealist
+  }
+  printf("\tSegments (numberofsegments=%d):\n", t.numberofsegments);
+  for (int i = 0; i < t.numberofsegments; i++) {
+    printf("\t\t%d: %d %d | marker=%d\n", i,
+           t.segmentlist[i*2], t.segmentlist[i*2+1], t.segmentmarkerlist[i]);
+  }
+  printf("\tHoles (numberofholes=%d):\n", t.numberofholes);
+  for (int i = 0; i < t.numberofholes; i++) {
+    printf("\t\t%d: xy=%g,%g\n", i, t.holelist[i*2], t.holelist[i*2+1]);
+  }
+  printf("\tRegions (numberofregions=%d):\n", t.numberofregions);
+  for (int i = 0; i < t.numberofregions; i++) {
+    printf("\t\t%d: xy=%g,%g | attr=%g | area=%g\n", i, t.regionlist[i*4],
+           t.regionlist[i*4+1], t.regionlist[i*4+2], t.regionlist[i*4+3]);
+  }
+  // Ignored, we don't use: t.numberofedges, edgelist, edgemarkerlist, normlist
+};
+
 //***************************************************************************
 // Mesh.
 
@@ -180,31 +222,67 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
     }
   }
 
-  // Make various point indexes. We remove all duplicate points and give the
-  // remaining points 'UPI's (unique point indexes). We make also a mapping
-  // from UPIs to Piece(i)[j] indexes (this clunky mapping could be avoided
-  // if we had a flattened points array and a pieces array which was offsets
-  // into it, but doing that would push some complexities elsewhere). Note that
-  // duplicate points might happen if there are unmerged polygons with
-  // different material types.
-  int count = 0;                                // Count of all polys_ points
-  for (int i = 0; i < s.NumPieces(); i++) {
-    count += s.Piece(i).size();
-  }
+  // We remove all duplicate points and give all points 'UPI's (unique point
+  // indexes).
   typedef std::map<std::pair<JetNum, JetNum>, int> PointMap;
   PointMap point_map;                           // x,y -> UPI
-  vector<std::pair<int, int> > index_map;       // UPI -> polys[i].p[j]
+  int num_unique_points = 0;
   for (int i = 0; i < s.NumPieces(); i++) {
     for (int j = 0; j < s.Piece(i).size(); j++) {
       JetPoint p = s.Piece(i)[j].p;
       if (point_map.count(std::make_pair(p[0], p[1])) == 0) {
         // This is a new point.
-        point_map[std::make_pair(p[0], p[1])] = index_map.size();
-        index_map.push_back(std::make_pair(i, j));
+        point_map[std::make_pair(p[0], p[1])] = num_unique_points;
+        num_unique_points++;
       }
     }
   }
-  int num_unique_points = index_map.size();
+
+  // Make a reverse point index. In pass 0, for each Piece(i)[j] segment (i.e.
+  // from point j to j+1), figure out how many times that segment is used
+  // overall. Segments that are used just once are on the external boundary.
+  // For pass 1 and 2, make a mapping from UPIs to boundary Piece(i)[j]
+  // segments. Duplicate points that map to the same UPI happen if there are
+  // unmerged polygons with different material types, in which case a UPI could
+  // be mapped to multiple Piece(i)[j] segments, but we always select the one
+  // on the external boundary because the newly created mesh points will adopt
+  // the segment markers which are taken from this mapping, and we want those
+  // segment markers to indicate the correct boundary conditions.
+  std::map<std::pair<int, int>, int> seg_count;         // (UPI,UPI) --> count
+  vector<std::pair<int, int>> index_map(num_unique_points);  // UPI -> i,j
+  for (int i = 0; i < num_unique_points; i++) {
+    index_map[i] = std::make_pair(-1, -1);      // -1 means "unknown"
+  }
+  for (int pass = 0; pass < 3; pass++) {
+    for (int i = 0; i < s.NumPieces(); i++) {
+      for (int j = 0; j < s.Piece(i).size(); j++) {
+        JetPoint p1 = s.Piece(i)[j].p;
+        JetPoint p2 = s.Piece(i)[(j+1) % s.Piece(i).size()].p;
+        int upi1 = point_map[std::make_pair(p1[0], p1[1])];
+        int upi2 = point_map[std::make_pair(p2[0], p2[1])];
+        if (pass == 0) {
+          // Count segment use in pass 0.
+          seg_count[std::make_pair(upi1, upi2)]++;
+          seg_count[std::make_pair(upi2, upi1)]++;
+        } else if (pass == 1) {
+          int count = seg_count[std::make_pair(upi1, upi2)];
+          if (count == 1) {
+            // Give preference to boundary segments in pass 1.
+            CHECK(index_map[upi1].first == -1);
+            index_map[upi1] = std::make_pair(i, j);
+          }
+        } else {
+          // For unassigned interior points choose arbitrary segments in pass 2.
+          if (index_map[upi1].first == -1) {
+            index_map[upi1] = std::make_pair(i, j);
+          }
+        }
+      }
+    }
+  }
+  for (int i = 0; i < num_unique_points; i++) {
+    CHECK(index_map[i].first >= 0);     // Make sure all points assigned
+  }
 
   // Setup data structure for 'Triangle' library. Since we are dealing with one
   // or more closed polygons, the number of vertices is equal to the number of
@@ -217,6 +295,10 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
   // since 0 and 1 have a reserved meaning in the triangle library). Segments
   // are marked with -1-(the UPI of the first point in the edge). New vertices
   // in the triangulation will pick up the segment marker values.
+  int count = 0;                                // Count of all polys_ points
+  for (int i = 0; i < s.NumPieces(); i++) {
+    count += s.Piece(i).size();
+  }
   triangulateio tin, tout;
   memset(&tin, 0, sizeof(tin));
   memset(&tout, 0, sizeof(tout));
@@ -239,7 +321,9 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
     tin.pointmarkerlist[upi] = 2 + upi;
   }
   {
-    // Copy all segments. Filter out redundant segments.
+    // Copy all segments. Filter out redundant segments. The segment markers
+    // are set to (negative) unique index of the first point in the segment,
+    // minus one.
     typedef std::map<std::pair<int, int>, bool> SegmentMap;
     SegmentMap segment_map;
     int offset = 0;
@@ -706,7 +790,7 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
   int original_top = lua_gettop(lua->L());
 
   // Scan the boundary and create lists of arguments that will be passed to
-  // Robin(), by indexed by port number.
+  // Robin(), indexed by port number.
   std::map<int, vector<RobinArg>> args;
   std::map<int, vector<double>> dist;   // Argument to callbacks
   std::map<int, vector<JetPoint>> xy;   // Argument to callbacks
