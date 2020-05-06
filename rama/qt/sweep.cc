@@ -131,7 +131,7 @@ bool Sweep::Check() {
           "Image filename must end with .png");
       return false;
     }
-    image_file_name_ = image_file_name_.left(index) + "%d" +
+    image_file_name_ = image_file_name_.left(index) + "%06d" +
                        image_file_name_.mid(index + 1);
   }
   return true;
