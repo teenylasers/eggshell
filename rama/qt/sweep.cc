@@ -91,6 +91,15 @@ bool Sweep::Check() {
                          "Start value must be less than end value");
     return false;
   }
+  // If the start and end value are just slightly beyond the min and max it
+  // might be because of truncation errors converting text to double. Handle
+  // this gracefully.
+  if (start_value_ < min_value_ && start_value_ > min_value_ * (1 - 1e-9)) {
+    start_value_ = min_value_;
+  }
+  if (end_value_ > max_value_ && end_value_ < max_value_ * (1 + 1e-9)) {
+    end_value_ = max_value_;
+  }
   if (start_value_ < min_value_ || end_value_ > max_value_) {
     QMessageBox::warning(this, "Error",
         QString::asprintf("Start and end must be in the range %g to %g",
