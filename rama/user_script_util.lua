@@ -75,7 +75,8 @@ end
 
 -- This is the function called by s:Paint(). It does some parameter
 -- transformations then calls s:RawPaint().
-function __Paint__(s, q, color, epsilon, sxx, syy, sxy)
+function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
+  assert(not dummy, "Too many arguments given to Paint.")
   -- In Exy cavities we scale sigma by 1/epsilon and set epsilon to 1, to
   -- achieve a discontinuous gradient across dielectric boundaries.
   if not config or type(config.type) ~= 'string' then
@@ -92,7 +93,7 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy)
       -- create an intermediate function here that modifies those returned
       -- values.
       s:RawPaint(q, color, function(x, y)
-        local e, sxx, syy, sxy = epsilon(x, y)
+        local e, sxx, syy, sxy, excitation = epsilon(x, y)
         sxx = sxx or (x*0+1)
         syy = syy or (x*0+1)
         sxy = sxy or (x*0)
@@ -100,7 +101,7 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy)
         syy = syy / e
         sxy = sxy / e
         e = (x*0+1)
-        return e, sxx, syy, sxy
+        return e, sxx, syy, sxy, excitation
       end)
     else
       -- epsilon and sigma values are (potentially complex) numbers.
@@ -111,11 +112,11 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy)
       syy = syy / epsilon
       sxy = sxy / epsilon
       epsilon = 1
-      s:RawPaint(q, color, epsilon, sxx, syy, sxy)
+      s:RawPaint(q, color, epsilon, sxx, syy, sxy, excitation)
     end
   else
     -- Not an Exy cavity, pass on original arguments.
-    s:RawPaint(q, color, epsilon, sxx, syy, sxy)
+    s:RawPaint(q, color, epsilon, sxx, syy, sxy, excitation)
   end
 end
 
@@ -296,3 +297,164 @@ complex = {
     return setmetatable({e*fn.cos(a.im), e*fn.sin(a.im), fn=fn}, __complex_metatable__)
   end,
 }
+
+-----------------------------------------------------------------------------
+-- Utility functions and PML painting support.
+
+util = {}
+util.SpeedOfLight = 299792458           -- in m/s
+util.FAR_FIELD = 0x1000000              -- Special material color
+
+-- Return the distance scale in 'meters per unit'. This is the length of one
+-- 'config.unit' unit of distance in meters.
+util.DistanceScale = function()
+  assert(config and config.unit, 'config.unit must be defined')
+  return _DistanceScale(config.unit)
+end
+
+-- Return the free space wavelength in meters.
+util.LambdaInM = function()
+  assert(config and config.frequency, 'config.frequency must be defined')
+  return util.SpeedOfLight / config.frequency
+end
+
+-- Return the free space wavelength in 'config.unit' units.
+util.Lambda = function()
+  assert(config and config.unit, 'config.unit must be defined')
+  return util.LambdaInM() / _DistanceScale(config.unit)
+end
+
+-- Compute K^2, in (radians per meter)^2.
+util.KSquaredInM = function()
+  assert(config and config.unit and config.type, 'config.unit and config.type must be defined')
+  local lambda = util.LambdaInM()
+  local k2 = 0
+  if config.type == 'Exy' then
+    local unit = _DistanceScale(config.unit)
+    assert(config.depth, 'config.depth must be defined')
+    k2 = (2 * math.pi / lambda)^2 - (math.pi / (config.depth * unit))^2
+  elseif config.type == 'Ez' then
+    k2 = (2 * math.pi / lambda)^2
+  else
+    assert(false, 'Unsupported config.type')
+  end
+  return k2
+end
+
+-- Compute K, in radians per meter. If For Exy cavities if k^2 is negative then
+-- k is imaginary and travelling waves will not propagate at this frequency,
+-- and this function will fail.
+util.KinM = function()
+  return math.sqrt(util.KSquaredInM())
+end
+
+-- Compute K, in radians per config.unit.
+util.K = function()
+  return util.KinM() * _DistanceScale(config.unit)
+end
+
+-- Rotate sigma values by the given angle (in radians). The angle argument can
+-- also be a vector of angles, in which case vectors are returned.
+util.RotateSigmas = function(sxx, syy, sxy, angle)
+  local sa, ca
+  if vec.IsVector(angle) then
+    sa = vec.sin(angle)
+    ca = vec.cos(angle)
+  else
+    sa = math.sin(angle)
+    ca = math.cos(angle)
+  end
+  local SRxx = sxx*ca - sxy*sa
+  local SRxy = sxx*sa + sxy*ca
+  local SRyx = sxy*ca - syy*sa
+  local SRyy = sxy*sa + syy*ca
+  return SRxx*ca - SRyx*sa, SRxy*sa + SRyy*ca, SRxy*ca - SRyy*sa
+end
+
+-- Paint a PML region P into the shape S, with normal incidence at the given
+-- angle (in radians). The strength of the PML is given as how much attenuation
+-- we want (as a fraction of full strength) over what distance. The distance
+-- does not have to correspond to any dimension in P.
+util.PaintPML = function(S, P, angle, distance, attenuation, far_field_boundary)
+  -- Compute alpha so that attenuation == exp(-alpha*distance)
+  local unit = _DistanceScale(config.unit)
+  local alpha = -math.log(attenuation) / (distance * unit)
+
+  -- Compute the desired gradient ratio across the boundary.
+  -- @@@ The sqrt is a problem for non-propagating Exy as k2 < 0.
+  local k2 = util.KSquaredInM()
+  local gr = Complex(1, -alpha / math.sqrt(k2))
+
+  -- For angle 0 the sigma_xx/sigma_yy and sigma_xx/epsilon ratio is 1/gr^2.
+  -- But the gradient ratio is also 1/sigma_xx. We can scale all sigmas and
+  -- epsilon by an arbitrary amount without affecting the wave within the
+  -- boundary. To achieve these constraints we set:
+  local sxx = 1 / gr            -- 1/sxx is gradient ratio
+  local syy = gr                -- sxx/syy = 1/gr^2
+  local sxy = 0
+  local epsilon = gr            -- sxx/epsilon = 1/gr^2
+
+  -- Rotate sigmas and paint.
+  sxx, syy, sxy = util.RotateSigmas(sxx, syy, sxy, angle)
+  local color = 0x808080
+  if far_field_boundary then
+    color = color | util.FAR_FIELD
+  end
+  S:RawPaint(P, color, epsilon, sxx, syy, sxy)
+end
+
+-- Paint a rectangular PML to the given rectangle coordinates, of thickness T.
+util.PaintRectangularPML = function(S, x1, y1,x2, y2, T, attenuation, sides)
+  sides = sides or 'tblr'
+  local top    = string.find(sides, 't', 1, true)
+  local bottom = string.find(sides, 'b', 1, true)
+  local left   = string.find(sides, 'l', 1, true)
+  local right  = string.find(sides, 'r', 1, true)
+  local function N(a) if a then return 1 else return 0 end end -- Boolean to number
+  local a = attenuation or 0.01
+  if top and left then
+    util.PaintPML(S, Rectangle(x1-T,y2-T,x1+T,y2+T), 0.75*math.pi, T, a, true)
+  end
+  if top and right then
+    util.PaintPML(S, Rectangle(x2-T,y2-T,x2+T,y2+T), math.pi/4, T, a, true)
+  end
+  if bottom and left then
+    util.PaintPML(S, Rectangle(x1-T,y1-T,x1+T,y1+T), -0.75*math.pi, T, a, true)
+  end
+  if bottom and right then
+    util.PaintPML(S, Rectangle(x2-T,y1-T,x2+T,y1+T), -math.pi/4, T, a, true)
+  end
+  if top then
+    util.PaintPML(S, Rectangle(x1+N(left)*T,y2-T,x2-N(right)*T,y2+T), math.pi/2, T, a, true)
+  end
+  if left then
+    util.PaintPML(S, Rectangle(x1-T,y1+N(bottom)*T,x1+T,y2-N(top)*T), math.pi, T, a, true)
+  end
+  if right then
+    util.PaintPML(S, Rectangle(x2-T,y1+N(bottom)*T,x2+T,y2-N(top)*T), 0, T, a, true)
+  end
+  if bottom then
+    util.PaintPML(S, Rectangle(x1+N(left)*T,y1-T,x2-N(right)*T,y1+T), -math.pi/2, T, a, true)
+  end
+end
+
+-- Paint a circular PML to the given circle coordinates, of thickness T.
+util.PaintCircularPML = function(S, cx, cy, r, npoints, T, attenuation)
+  local paint = Rectangle(cx-r-2*T, cy-r-2*T, cx+r+2*T, cy+r+2*T)
+                - Circle(cx, cy, r-T, npoints)
+  -- See PaintPML for the detailed rationale:
+  local unit = _DistanceScale(config.unit)
+  local alpha = -math.log(attenuation) / (T * unit)
+  local k2 = util.KSquaredInM()
+  local gr = Complex(1, -alpha / math.sqrt(k2))
+  local sxx = 1 / gr            -- 1/sxx is gradient ratio
+  local syy = gr                -- sxx/syy = 1/gr^2
+  local sxy = Complex(0)
+  local epsilon = gr            -- sxx/epsilon = 1/gr^2
+  S:RawPaint(paint, 0x808080 | util.FAR_FIELD, function(x, y)
+    local angle = vec.atan(y-cy, x-cx)
+    local sxx2, syy2, sxy2 = util.RotateSigmas(sxx, syy, sxy, angle)
+    local e = epsilon + x*0
+    return epsilon + x*0, sxx2, syy2, sxy2
+  end)
+end

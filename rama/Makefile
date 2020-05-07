@@ -139,7 +139,7 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
       toolkit/lua_vector.o toolkit/trace.o \
       toolkit/shaders.o \
       common.o shape.o mesh.o solver.o \
-      clipper.o triangle.o user_script_util.o
+      clipper.o triangle.o user_script_util.o license_text.o
 
 ifeq ($(GUI), qt)
   OBJ += toolkit/thread.o cavity_qt.o qt/main.o qt/main_window.o qt/about.o \
@@ -366,8 +366,12 @@ text2bin.exe: ../text2bin.cc
 	$(TOOL_PREFIX)gcc$(TOOL_SUFFIX) -o $@ $<
 
 user_script_util.o: ../user_script_util.lua text2bin.exe
-	./text2bin.exe < $< > user_script_util.c
+	./text2bin.exe user_script_util_dot_lua < $< > user_script_util.c
 	$(TOOL_PREFIX)gcc$(TOOL_SUFFIX) $(CFLAGS) -c user_script_util.c
+
+license_text.o: ../COPYING text2bin.exe
+	./text2bin.exe license_text < $< > license_text.c
+	$(TOOL_PREFIX)gcc$(TOOL_SUFFIX) $(CFLAGS) -c license_text.c
 
 # Create an include file that undefines all macros in /usr/include/X11 that
 # don't start with an underscore.
