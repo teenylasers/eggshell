@@ -421,6 +421,9 @@ void LuaModelViewer::IdleProcessing() {
   // This is called from a single shot QTimer or when the event loop is about
   // to block (i.e. when there is no other work to do in the system. It's a
   // good place to start traces and to collect trace reports.
+  if (disable_idle_processing_) {
+    return;
+  }
   string report;
   TraceReport(&report);
   if (!report.empty() && emit_trace_report_) {
@@ -1342,8 +1345,16 @@ bool LuaModelViewer::OnInvisibleHandSweep() {
     grabFramebuffer().save(filename);
 
     // For making movies for the Rama documentation you can use instead this
-    // line, which captures the entire screen:
-    //   QGuiApplication::primaryScreen()->grabWindow(0).save(filename);
+    // code, which captures the entire screen:
+    //   {
+    //     disable_idle_processing_ = true;
+    //     QTime end_time = QTime::currentTime().addMSecs(500);
+    //     while (QTime::currentTime() < end_time) {
+    //       QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+    //     }
+    //     QGuiApplication::primaryScreen()->grabWindow(0).save(filename);
+    //     disable_idle_processing_ = false;
+    //   }
   }
 
   // Advance to the next value in a sweep.

@@ -254,6 +254,7 @@ public:
   int copy_of_argc_ = 0;                // Copy of argument given to main()
   char **copy_of_argv_ = 0;             // Copy of argument given to main()
   bool switch_to_model_after_each_solve_;
+  bool disable_idle_processing_ = false;
 
   // Connections to external controls.
   QListWidget *script_messages_;
