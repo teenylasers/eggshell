@@ -29,6 +29,7 @@ entirely deleted, e.g. so a comment line is not treated as a paragraph break.
       @eqref{...}             Reference to the named equation
       @table{...}             Table
       @arg{name}              Value of the -Dname=value command line argument
+      @html{@[...@]}          Embedded verbatim HTML (html output only)
 ]===@
 
 @subsection{@label{nestable} Nestable formatting commands}

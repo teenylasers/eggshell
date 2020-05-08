@@ -73,6 +73,7 @@ static char *Escape(const char *s, bool math_context = false);
 "@newcommands{"                         { ReadTeXMath(yylval); TOKEN(NEWCOMMANDS); }
 "@table{"                               { TOKEN(TABLE); }
 "@arg{"                                 { TOKEN(ARG); }
+"@html{"                                { TOKEN(HTML); }
 "@_"                                    { TOKEN(LINE_BREAK); }
 "@*"                                    { TOKEN(ITEM); }
 "@|"                                    { TOKEN(SEPARATOR); }

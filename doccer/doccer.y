@@ -32,7 +32,7 @@ bool ImageSize(char *filename, int *width, int *height);
 %token VERBATIM STARTBLOCK ENDBLOCK EMPH BOLD CODE LIST NUMLIST SECTION
        SUBSECTION SUBSUBSECTION TITLE SUBTITLE LINK LINE_BREAK ITEM WORD SPACE
        BLANKLINE INLINE_MATH DISPLAY_MATH NEWCOMMANDS FIGURE EQREF CONTENTS
-       AUTHOR TABLE SEPARATOR FORCED_SPACE LABEL ARG
+       AUTHOR TABLE SEPARATOR FORCED_SPACE LABEL ARG HTML
 
 // Misc directives.
 %start document
@@ -102,6 +102,7 @@ vbox_no_para:
                               : "%s\n", $1); }
   | VERBATIM { printf(html ? "<pre>%s</pre>\n"
                            : "\\begin{Verbatim}[formatcom=\\color{blue}]%s\\end{Verbatim}\n", $1); }
+  | HTML VERBATIM ENDBLOCK { printf("%s\n", $2); }
   | FIGURE WORD ENDBLOCK STARTBLOCK
       { int width, height;
         bool havesize = ImageSize($2, &width, &height);
