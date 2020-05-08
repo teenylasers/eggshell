@@ -1103,7 +1103,7 @@ inline std::complex<double> ToComplex(const JetComplex &c) {
 // values are still sane, e.g. taking the atan2 of two zero values with zero
 // derivatives.
 inline bool IsNaNValue(const JetNum &f) {
-  return isnan(f.a);
+  return std::isnan(f.a);
 }
 
 // Calling these likely means a bug, so declare but don't define them to ensure
