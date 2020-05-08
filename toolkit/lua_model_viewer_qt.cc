@@ -34,6 +34,7 @@
 #include <QApplication>
 #include <QAbstractEventDispatcher>
 #include <QTimer>
+#include <QScreen>
 
 using std::vector;
 using std::string;
@@ -1339,6 +1340,10 @@ bool LuaModelViewer::OnInvisibleHandSweep() {
     // approach would be to copy out the contents of the frame buffer that was
     // already rendered in the repaint() above.
     grabFramebuffer().save(filename);
+
+    // For making movies for the Rama documentation you can use instead this
+    // line, which captures the entire screen:
+    //   QGuiApplication::primaryScreen()->grabWindow(0).save(filename);
   }
 
   // Advance to the next value in a sweep.
