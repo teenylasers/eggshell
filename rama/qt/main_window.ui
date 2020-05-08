@@ -192,6 +192,8 @@
     <addaction name="actionZoomOut"/>
     <addaction name="separator"/>
     <addaction name="actionSet_animation_time_to_0"/>
+    <addaction name="actionIncrease_animation_time"/>
+    <addaction name="actionDecrease_animation_time"/>
     <addaction name="separator"/>
     <addaction name="menuShow_boundary"/>
     <addaction name="actionShowGrid"/>
@@ -1290,6 +1292,22 @@
   <action name="actionExportAntennaPatternAsMatlabData">
    <property name="text">
     <string>Export antenna pattern as matlab data...</string>
+   </property>
+  </action>
+  <action name="actionIncrease_animation_time">
+   <property name="text">
+    <string>Increase animation time</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Right</string>
+   </property>
+  </action>
+  <action name="actionDecrease_animation_time">
+   <property name="text">
+    <string>Decrease animation time</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Left</string>
    </property>
   </action>
  </widget>

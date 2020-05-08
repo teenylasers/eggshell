@@ -537,3 +537,13 @@ void MainWindow::on_actionExportAntennaPatternAsMatlabData_triggered() {
     ui->model->ExportAntennaPatternMatlab(filename.toUtf8().data());
   }
 }
+
+void MainWindow::on_actionIncrease_animation_time_triggered() {
+  ui->time_dial->setValue(ui->time_dial->value() + 1);
+  ui->model->TimeDialChanged(ui->time_dial->value());
+}
+
+void MainWindow::on_actionDecrease_animation_time_triggered() {
+  ui->time_dial->setValue(ui->time_dial->value() - 1);
+  ui->model->TimeDialChanged(ui->time_dial->value());
+}

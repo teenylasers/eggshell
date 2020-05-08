@@ -96,6 +96,8 @@ private slots:
   void on_actionShowSParameters_triggered();
   void on_actionSwitchToModelAfterEachSolve_triggered();
   void on_actionExportAntennaPatternAsMatlabData_triggered();
+  void on_actionIncrease_animation_time_triggered();
+  void on_actionDecrease_animation_time_triggered();
 
 private:
   Ui::MainWindow *ui = 0;
