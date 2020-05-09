@@ -1216,6 +1216,16 @@ void Shape::Clean(JetNum threshold) {
     threshold = kTolClean * length_max;
   }
 
+  // We don't delete points that are shared by multiple pieces, as these are
+  // topologically important and might be referenced by different material's
+  // polygons.
+  std::map<RPoint, int> use_count;
+  for (int i = 0; i < polys_.size(); i++) {
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      use_count[polys_[i].p[j]]++;
+    }
+  }
+
   for (int i = 0; i < polys_.size(); i++) {
     if (polys_[i].p.size() < 3) {
       continue;
@@ -1228,28 +1238,19 @@ void Shape::Clean(JetNum threshold) {
       // their neighbors than the threshold.
       const int n = polys_[i].p.size();
       vector<bool> to_delete(n);
-      if (pass == 0) {
-        for (int j1 = 0; j1 < n; j1++) {
-          int j2 = (j1 + 1) % n;
-          int j3 = (j1 + 2) % n;
+      for (int j1 = 0; j1 < n; j1++) {
+        int j2 = (j1 + 1) % n;        // We consider deleting j2
+        int j3 = (j1 + 2) % n;
+        if (use_count[polys_[i].p[j2]] <= 1) {
           JetPoint delta1 = polys_[i].p[j2].p - polys_[i].p[j1].p;
           JetPoint delta2 = polys_[i].p[j3].p - polys_[i].p[j2].p;
           JetNum length1 = delta1.norm();
           JetNum length2 = delta2.norm();
           JetNum sin_theta = Cross2(delta1, delta2) / (length1 * length2);
-          if (fabs(sin_theta) < kTolColinear) {
-            // j1-j2-j3 are colinear, delete j2 if it's too close to j1 or j2.
+          if (pass == 1 || fabs(sin_theta) < kTolColinear) {
+            // If fabs(sin_theta), j1-j2-j3 are colinear.
+            // Delete j2 if it's too close to j1 or j2:
             to_delete[j2] = (length1 < threshold || length2 < threshold);
-          }
-        }
-      } else {
-        int j1 = n - 1;         // Index of previous undeleted point
-        for (int j2 = 0; j2 < n; j2++) {
-          JetNum length = (polys_[i].p[j2].p - polys_[i].p[j1].p).norm();
-          if (length < threshold) {
-            to_delete[j2] = true;
-          } else {
-            j1 = j2;
           }
         }
       }
