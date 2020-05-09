@@ -108,7 +108,8 @@ script_test: all
 	./build/$(APP) -test tests/test_anisotropy.lua -test_number=10
 	./build/$(APP) -test tests/test_anisotropy.lua -test_number=11
 	./build/$(APP) -test tests/test_anisotropy.lua -test_number=12
-	./build/$(APP) -test tests/test_regressions.lua
+	./build/$(APP) -test tests/test_regressions.lua -test_number=1
+	./build/$(APP) -test tests/test_regressions.lua -test_number=2
 	@echo
 	@echo '*** Success ***'
 
