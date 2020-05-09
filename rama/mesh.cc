@@ -249,16 +249,17 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
     }
   }
 
-  // Make a reverse point index. In pass 0, for each Piece(i)[j] segment (i.e.
-  // from point j to j+1), figure out how many times that segment is used
-  // overall. Segments that are used just once are on the external boundary.
-  // For pass 1 and 2, make a mapping from UPIs to boundary Piece(i)[j]
-  // segments. Duplicate points that map to the same UPI happen if there are
-  // unmerged polygons with different material types, in which case a UPI could
-  // be mapped to multiple Piece(i)[j] segments, but we always select the one
-  // on the external boundary because the newly created mesh points will adopt
-  // the segment markers which are taken from this mapping, and we want those
-  // segment markers to indicate the correct boundary conditions.
+  // Make a reverse point index that maps unique point indexes to Piece(i)[j].
+  // In pass 0, for each Piece(i)[j] segment (i.e. from point j to j+1), figure
+  // out how many times that segment is used overall. Segments that are used
+  // just once are on the external boundary. For pass 1 and 2, make a mapping
+  // from UPIs to boundary Piece(i)[j] segments. Duplicate points that map to
+  // the same UPI happen if there are unmerged polygons with different material
+  // types, in which case a UPI could be mapped to multiple Piece(i)[j]
+  // segments, but we always select the one on the external boundary because
+  // the newly created mesh points will adopt the segment markers which are
+  // taken from this mapping, and we want those segment markers to indicate the
+  // correct boundary conditions.
   std::map<std::pair<int, int>, int> seg_count;         // (UPI,UPI) --> count
   vector<std::pair<int, int>> index_map(num_unique_points);  // UPI -> i,j
   for (int i = 0; i < num_unique_points; i++) {
@@ -279,7 +280,14 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
           int count = seg_count[std::make_pair(upi1, upi2)];
           if (count == 1) {
             // Give preference to boundary segments in pass 1.
-            CHECK(index_map[upi1].first == -1);
+            if (index_map[upi1].first != -1) {
+              // In this (rare, usually degenerate) case a point is on many
+              // external boundary segments, e.g. if different material's
+              // polygons come together at a neck. This can not be represented
+              // by index_map so we fail. @@@ Fix this?
+              ERROR_ONCE("Can not create mesh, polygons are necked");
+              return;
+            }
             index_map[upi1] = std::make_pair(i, j);
           }
         } else {

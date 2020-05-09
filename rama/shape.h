@@ -326,7 +326,9 @@ class Shape : public LuaUserClass {
   // triangle library regards the parts separated by the neck as distinct and
   // gets confused because AnyPointInPoly() returns a point only inside one of
   // them. Zero-area slivers (where two edges are coincident with the same
-  // endpoints) are discarded and not created as separate pieces.
+  // endpoints) are discarded and not created as separate pieces. Note that
+  // this does nothing about necks that are formed by multiple polygons with
+  // different materials that share a single point.
   void SplitPolygonsAtNecks();
 
   // Return the piece and edge that is closest to x,y. The edge index is
