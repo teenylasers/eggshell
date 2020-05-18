@@ -53,6 +53,7 @@ static char *Escape(const char *s, bool math_context = false);
 "{"                                     { TOKEN(STARTBLOCK); }
 "}"                                     { TOKEN(ENDBLOCK); }
 "@m{"                                   { ReadTeXMath(yylval); TOKEN(INLINE_MATH); }
+"@M*{"                                  { ReadTeXMath(yylval); TOKEN(DISPLAY_MATH_NONUM); }
 "@M{"                                   { ReadTeXMath(yylval); TOKEN(DISPLAY_MATH); }
 "@eqref{"                               { TOKEN(EQREF); }
 "@emph{"                                { TOKEN(EMPH); }

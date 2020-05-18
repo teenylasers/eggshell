@@ -21,6 +21,7 @@ entirely deleted, e.g. so a comment line is not treated as a paragraph break.
       @[ ... @]               Verbatim text (e.g. source code)
       @m{...}                 LaTeX math (inline)
       @M{...}                 LaTeX math (display)
+      @M*{...}                LaTeX math (display, no equation numbers)
       @newcommands{...}       Define new LaTeX math commands
       @title{...}             Set the title of the document
       @author{...}            Set the author of the document, used within @title{}

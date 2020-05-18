@@ -32,7 +32,7 @@ bool ImageSize(const char *filename, int *width, int *height);
 %token VERBATIM STARTBLOCK ENDBLOCK EMPH BOLD CODE LIST NUMLIST SECTION
        SUBSECTION SUBSUBSECTION TITLE SUBTITLE LINK LINE_BREAK ITEM WORD SPACE
        BLANKLINE INLINE_MATH DISPLAY_MATH NEWCOMMANDS FIGURE EQREF CONTENTS
-       AUTHOR TABLE SEPARATOR FORCED_SPACE LABEL ARG HTML
+       AUTHOR TABLE SEPARATOR FORCED_SPACE LABEL ARG HTML DISPLAY_MATH_NONUM
 
 // Misc directives.
 %start document
@@ -98,6 +98,8 @@ vbox_no_para:
   | SUBSUBSECTION opt_label { SectionNumber(2); } hbox_list2 ENDBLOCK { printf(html ? "</h4>\n" : "}\n"); }
   | DISPLAY_MATH { printf(html ? "\\[\\begin{align}%s\\end{align}\\]\n"
                                : "\\begin{align}%s\\end{align}\n", $1); }
+  | DISPLAY_MATH_NONUM { printf(html ? "\\[\\begin{align*}%s\\end{align*}\\]\n"
+                                     : "\\begin{align*}%s\\end{align*}\n", $1); }
   | NEWCOMMANDS { printf(html ? "<p style=\"display:none\">\\(%s\\)</p>\n"
                               : "%s\n", $1); }
   | VERBATIM { printf(html ? "<pre>%s</pre>\n"
