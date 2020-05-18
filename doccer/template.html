@@ -85,18 +85,56 @@ h4 {
   color: #6aa84f;
 }
 
-table {
+table.doc_table {
   border-collapse: collapse;
   padding: 0px;
 }
 
-table td {
+table.doc_table td {
   border: 1px solid #c0c0c0;
   vertical-align: top;
 }
 
-table td p {
+table.doc_table td p {
   margin: 5px 5px;
+}
+
+table.contents_table {
+  border-collapse: collapse;
+  padding: 0px;
+}
+
+table.contents_table td {
+  vertical-align: top;
+}
+
+table.contents_table td.col0 {
+  padding-right: 10px;
+  border-right: 4px solid #6aa84f;
+}
+
+td.contents_line_H2 {
+  padding-left: 0px;
+}
+
+td.contents_line_H3 {
+  padding-left: 30px;
+}
+
+td.contents_line_H4 {
+  padding-left: 60px;
+}
+
+td.contents_line_H2.col1 {
+  padding-left: 10px;
+}
+
+td.contents_line_H3.col1 {
+  padding-left: 40px;
+}
+
+td.contents_line_H4.col1 {
+  padding-left: 70px;
 }
 
 pre {
@@ -115,16 +153,15 @@ tt {
   font-size: 110%;
 }
 
-.contents_line_H2 {
-  margin-left: 30px;
+.doc_figure {
+  display: block;
+  margin: auto;
 }
 
-.contents_line_H3 {
-  margin-left: 60px;
-}
-
-.contents_line_H4 {
-  margin-left: 90px;
+.doc_caption {
+  display: block;
+  text-align: center;
+  font-size: 80%;
 }
 
 </style>
@@ -140,15 +177,21 @@ tt {
 var c = document.getElementById("contents");
 var elements = document.getElementsByClassName('section_entry');
 if (c && elements) {
-  var html = '<h2>Contents</h2>';
-  for (var i = 0; i < elements.length; i++) {
-    html += '<div class="contents_line_' +
-            elements[i].nodeName +
-            '"><a href="#' +
-            elements[i].id + '">' + elements[i].innerHTML +
-            '</a></div>';
+  var html = '<h2>Contents</h2><table class="contents_table">\n';
+  var L = elements.length + (elements.length & 1);  // Round up to even number
+  for (var i = 0; i < L; i++) {
+    var j = (i >> 1) + (i & 1)*(L/2);
+    if ((i & 1) == 0) html += '<tr>';
+    if (j < elements.length) {
+      html += '<td class="col'+(i&1)+' contents_line_' + elements[j].nodeName +
+              '"><a href="#' + elements[j].id + '">' + elements[j].innerHTML +
+              '</a></td>';
+    } else {
+      html += '<td></td>';
+    }
+    if ((i & 1) == 1) html += '</tr>\n';
   }
-  c.innerHTML = html;
+  c.innerHTML = html + '</table>\n';
 }
 
 // Set title.

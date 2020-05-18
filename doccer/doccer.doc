@@ -25,7 +25,7 @@ entirely deleted, e.g. so a comment line is not treated as a paragraph break.
       @title{...}             Set the title of the document
       @author{...}            Set the author of the document, used within @title{}
       @contents{}             Add a table of contents here
-      @figure{filename}{parameters}  Add inline figure
+      @figure{filename}{caption}  Add inline figure
       @eqref{...}             Reference to the named equation
       @table{...}             Table
       @arg{name}              Value of the -Dname=value command line argument
