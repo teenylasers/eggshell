@@ -19,9 +19,7 @@ EXCLUDE_FROM_TESTS = \
   lua_util.cc \
   matlab_engine.cc \
   plot_glut_example.cc \
-  plot_wx.cc \
-  viewer.cc \
-  wxgl_font.cc
+  viewer.cc
 
 run_all_tests:
 	g++ -o all_tests -Wall $(CCFLAGS) -D__TOOLKIT_DEFINE_TESTING_MAIN__ \

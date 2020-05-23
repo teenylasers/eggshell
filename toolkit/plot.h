@@ -11,7 +11,7 @@
 // more details.
 
 // Draw 2D graphs. This is a generic mechanism that can be used to draw to
-// OpenGL, wxWidgets etc. The rendering style, choice of label positions etc is
+// OpenGL, Qt, etc. The rendering style, choice of label positions etc is
 // somewhat in the style of Matlab.
 
 #ifndef __TOOLKIT_PLOT_H__

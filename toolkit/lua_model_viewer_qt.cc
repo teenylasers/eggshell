@@ -357,9 +357,11 @@ void MySlider::OnValueChanged(int value) {
 //***************************************************************************
 // LuaModelViewer.
 
-//@@@ gl_type ignored here is the GL state is set globally, hmm.
+//@@@ No way is provided here to set the GL window type (e.g. double buffered,
+//    multi-sample, etc), on Qt that is set globally. Perhaps we should have
+//    that capability here?
 
-LuaModelViewer::LuaModelViewer(QWidget *parent, int gl_type)
+LuaModelViewer::LuaModelViewer(QWidget *parent)
     : GLViewer(parent) {
   valid_ = false;
   dragging_marker_ = -1;

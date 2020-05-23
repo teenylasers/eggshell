@@ -69,7 +69,7 @@ class LuaModelViewer : public GLViewer {
   Q_OBJECT
 
  public:
-  LuaModelViewer(QWidget *parent, int gl_type);
+  explicit LuaModelViewer(QWidget *parent);
   ~LuaModelViewer();
 
   // Do background sweeps and optimization when idle.

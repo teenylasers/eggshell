@@ -23,13 +23,6 @@ using std::vector;
 
 #undef Trace
 
-#ifdef __TOOLKIT_WXWINDOWS__
-#include "stdwx.h"
-static wxStopWatch stopwatch;
-#define STOPWATCH_START stopwatch.Start();
-#define STOPWATCH_MICROSECONDS (stopwatch.TimeInMicro().ToLong())
-#endif
-
 #ifdef QT_CORE_LIB
 #include <QElapsedTimer>
 static QElapsedTimer stopwatch;

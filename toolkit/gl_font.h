@@ -12,13 +12,11 @@
 
 // OpenGL font support.
 //
-// The approaches used to render text to opengl on wxWidgets and Qt are very
-// different, and are therefore abstracted away in the API below. On wxWidgets
-// we render text to a pixmap and then blend that into the scene. On Qt we use
-// the text rendering capabilites of QPainter. QPainter touches a lot of opengl
-// state and allows only heavyweight switching to and from user opengl
-// rendering, so we batch all drawn strings and then emit them at the end of
-// each draw.
+// The approach used to render text on Qt is abstracted away in the API below.
+// On Qt we use the text rendering capabilites of QPainter. QPainter touches a
+// lot of opengl state and allows only heavyweight switching to and from user
+// opengl rendering, so we batch all drawn strings and then emit them at the
+// end of each draw.
 
 #ifndef __TOOLKIT_GL_FONT_H__
 #define __TOOLKIT_GL_FONT_H__
@@ -28,23 +26,11 @@
 
 struct Font;
 
-#ifdef __TOOLKIT_WXWINDOWS__
-typedef void QWidget;           // Unused type
-#endif
-
 #ifdef QT_CORE_LIB
 class QWidget;
 #endif
 
 #ifdef GL_FONT_IMPLEMENTATION
-  #ifdef __TOOLKIT_WXWINDOWS__
-  class wxFont;
-  struct Font {
-    Font() : font(0) {}
-    wxFont *font;
-  };
-  #endif
-
   #ifdef QT_CORE_LIB
   class QFont;
   class QFontMetrics;

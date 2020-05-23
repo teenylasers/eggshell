@@ -33,7 +33,7 @@ const double kMaxReasonableTriangles = 1e12;
 // Cavity.
 
 Cavity::Cavity(QWidget *parent)
-    : LuaModelViewer(parent, gl::DoubleBuffer | gl::MultiSampleBuffer) {  //@@@ gl bits ignored
+    : LuaModelViewer(parent) {
   antenna_pattern_plot_ = sparam_plot_ = 0;
   time_dial_ = 0;
   solver_draw_mode_static_ = Solver::DRAW_REAL;

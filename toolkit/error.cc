@@ -10,10 +10,6 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details.
 
-#ifdef __TOOLKIT_WXWINDOWS__
-#include "stdwx.h"
-#endif
-
 #include "error.h"
 #include "thread.h"
 #include <stdlib.h>
@@ -144,58 +140,6 @@ void ResetComplaints() {
   }
   complaint_flags.clear();
 }
-
-//***************************************************************************
-// wxWidgets error handling.
-
-#ifdef __TOOLKIT_WXWINDOWS__
-
-void wxErrorHandler::HandleError(ErrorHandler::Type type,
-                                 const char *msg, va_list ap) {
-  // Under windows the wxLog functions assume that %s strings are UTF-16, but
-  // our own Error() functions assume byte-sized characters. Thus we need to
-  // convert to wxString first.
-  std::string buffer;
-  {
-    // We need separate copies of 'ap' for all users, as users will mutate it.
-    va_list ap2;
-    va_copy(ap2, ap);
-    StringVPrintf(&buffer, msg, ap2);           //@@@@@@ declared in rem
-  }
-  wxString s = buffer;   // Convert string to wx native format
-
-  if (type == ErrorHandler::Error) {
-    wxLogError("%s", s);
-  } else if (type == ErrorHandler::Warning) {
-    wxLogWarning("%s", s);
-  } else if (type == ErrorHandler::Message) {
-    wxLogMessage("%s", s);
-  } else if (type == ErrorHandler::Panic) {
-    // On windows wxSafeShowMessage calls MessageBox, which runs its own event
-    // loop and permits the main window to process a subset of events, such as
-    // painting events. If this panic was triggered by a painting event,
-    // recursing back into the painting code could potentially cause an endless
-    // loop and all kinds of strange behavior. Therefore, we block all further
-    // event processing now with an event filter.
-    struct EventBlocker : public wxEventFilter {
-      int FilterEvent(wxEvent &event) {
-        return Event_Processed;
-      }
-    };
-    EventBlocker blocker;
-    wxEvtHandler::AddFilter(&blocker);
-
-    // Emit the error message and exit the application.
-    // @@@ Only under window does wxSafeShowMessage actually pop up a dialog
-    //     box, on other platforms it just prints to stderr. Actually pop up
-    //     a window on these other platforms.
-    s += "\nApplication will now abort.";
-    wxSafeShowMessage("Internal Error", s);
-    default_error_handler.HandleError(type, msg, ap);
-  }
-}
-
-#endif  // __TOOLKIT_WXWINDOWS__
 
 //***************************************************************************
 // qt error handling.

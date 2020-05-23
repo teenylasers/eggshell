@@ -60,18 +60,6 @@ namespace gl {
   void InitializeOpenGLFunctions(QOpenGLContext *context);
 #endif
 
-// Return an attribute list that can be passed to the constructor of
-// wxGLContext. The 'type' is an OR of the buffer type constants below. This
-// function hides various platform bugs in wxWidgets. The returned array is
-// valid until the next call to this function.
-enum {
-  DoubleBuffer      = 1,
-  DepthBuffer       = 2,
-  AlphaBuffer       = 4,
-  MultiSampleBuffer = 8
-};
-const int *GetAttributeList(int type);
-
 // Return the current program, it's a runtime error if there isn't one.
 GLint CurrentProgram();
 

@@ -153,61 +153,6 @@ class GLViewerBase {
 };
 
 //***************************************************************************
-// wxWidgets implementation.
-
-#ifdef __TOOLKIT_WXWINDOWS__
-
-#include "stdwx.h"
-#include "gl_utils.h"
-#include "color_based_selection.h"
-
-class GLViewer : public wxGLCanvas, public GLViewerBase {
- public:
-  // gl_type is an argument to gl::GetAttributeList().
-  typedef wxWindow ParentType;
-  GLViewer(ParentType* parent, int gl_type);
-  ~GLViewer();
-
- private:
-  // Drawing state.
-  wxGLContext *context_;                // OpenGL context
-
-  // WX event handling and other functionality.
-  void OnPaint(wxPaintEvent &event);
-  void OnSize(wxSizeEvent &evt);
-  void OnEraseBackground(wxEraseEvent &event);
-  void OnMouseEvent(wxMouseEvent &event);
-  void OnCaptureLost(wxMouseCaptureLostEvent &event);
-  void Redraw();
-  void MakeOpenGLContextCurrent() override;
-  // Return the client size scaled by GetContentScaleFactor().
-  void GetScaledClientSize(int *window_width, int *window_height);
-
-  friend class GLViewerWithSelection;
-  DECLARE_EVENT_TABLE()
-};
-
-class GLViewerWithSelection : public GLViewer {
- public:
-  GLViewerWithSelection(wxWindow* parent, int gl_type);
-  ~GLViewerWithSelection();
-
- protected:
-  // Find the object that intersects x,y in the frame buffer, and return its
-  // index. Return -1 if none intersects. The bottom left of the window is
-  // x,y=0,0.
-  int FindObject(int x, int y);
-
-  // We are selecting an object. Draw all objects into the current GL context
-  // Only draw the object geometry using the selection colors, don't alter the
-  // texture (and etc.) state. Drawing may be optimized by only drawing objects
-  // that intersect the much smaller selection frustum.
-  virtual void DrawForSelection(const gl::ColorBasedSelection &sel) = 0;
-};
-
-#endif  // __TOOLKIT_WXWINDOWS__
-
-//***************************************************************************
 // Qt implementation.
 
 #ifdef QT_CORE_LIB

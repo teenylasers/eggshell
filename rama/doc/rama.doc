@@ -1387,20 +1387,6 @@ libraries below have to be built with a custom processes.
 @* config.mk
 }
 
-@subsubsection{wxWidgets}
-
-wxWidgets is compiled to use its own internal implementations of vectors
-rather than the equivalent STL data structures. This is so we have the option
-to use the @c{_GLIBCXX_DEBUG} define in debug mode in the rest of the code.
-Using this flag causes STL data structures to change memory layout so it must
-be used consistently everywhere STL is used.
-
-wxWidgets is configured on Windows with:
-@===[
-./configure --host=x86_64-w64-mingw32 --disable-shared --disable-compat28 \
-            --with-opengl --with-msw --enable-http
-]===@
-
 @subsubsection{Eigen}
 
 Apply @c{eigen_patches.txt}.
@@ -1439,34 +1425,13 @@ The triangle library converts shape polygons into mesh triangles.
 }
 
 
-@subsubsection{wxWidgets}
-
-wxWidgets is configured on OS X with:
-
-@===[
-# Patch with:
-patch -p1 < .../wxwidgets_patches.txt
-
-# Optimized:
-./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9
-
-# Debug
-./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9 --enable-debug
-]===@
-
-
 @subsection{Design Notes}
 
 Just random notes for now.
 
 The ``invisible hand'' uses idle events to trigger recurrent processing of
 sweep and optimize updates while still being responsive to user input (mouse
-events etc). An alternative strategy is to use regular command events but call
-@c{wxTheApp->Yield(true)} before adding the next event within the event handler
-to ensure that those other events are processed. That however has reentrancy
-issues: arbitrary other class functions can be called, in particular the script
-may be re-run. Handling all those reentrancy issues separately is a pain, so we
-don't do that.
+events etc).
 
 #............................................................................
 @subsection{Computing the Jacobian}

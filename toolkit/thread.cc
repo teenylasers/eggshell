@@ -13,8 +13,6 @@
 #include "thread.h"
 #include "myvector"
 
-#ifndef __TOOLKIT_WXWINDOWS__
-
 void *ThreadRunner(void *userdata) {
   Thread *t = (Thread*) userdata;
   CHECK(t->running_);
@@ -53,8 +51,6 @@ void *Thread::Wait() {
   CHECK(pthread_join(tid_, &retval) == 0);
   return retval;
 }
-
-#endif  // not defined: __TOOLKIT_WXWINDOWS__
 
 //***************************************************************************
 // Parallel for loops.

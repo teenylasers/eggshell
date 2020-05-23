@@ -48,13 +48,6 @@ struct ErrorHandler {
 ErrorHandler *SetErrorHandler(ErrorHandler *e);
 ErrorHandler *GetErrorHandler();
 
-// An error handler for wxWidgets.
-#ifdef __TOOLKIT_WXWINDOWS__
-struct wxErrorHandler : public ErrorHandler {
-  void HandleError(Type type, const char *msg, va_list ap);
-};
-#endif
-
 // An error handler for Qt.
 #ifdef QT_CORE_LIB
 // This must be created after the QApplication is constructed.

@@ -15,10 +15,6 @@
 // code assumes that such things are not required because there is only one
 // rendering thread.
 
-#ifdef __TOOLKIT_WXWINDOWS__
-#include "stdwx.h"
-#endif
-
 #include "gl_utils.h"
 #include "shaders.h"
 #include "error.h"
@@ -33,83 +29,6 @@ namespace gl {
 
 //***************************************************************************
 // Public functions.
-
-#ifdef __TOOLKIT_WXWINDOWS__
-const int *GetAttributeList(int type) {
-  const int kMaxAttrib = 100;
-  static int attrib[kMaxAttrib];
-  int i = 0;
-
-  // GL attributes.
-  #ifdef __APPLE__
-    // The OS X implementation of glcanvas.mm:WXGLChoosePixelFormat() does not
-    // parse many WX_GL attributes correctly in wxWidgets 3.0.2 and later.
-    // Generate an attribute list that can be parsed correctly.
-    #if wxMAJOR_VERSION != 3 || wxMINOR_VERSION != 1 || wxRELEASE_NUMBER != 0
-    #error See if this version of wxWidgets can parse attrib_list correctly
-    #endif
-    if (type & DoubleBuffer) {
-      attrib[i++] = WX_GL_DOUBLEBUFFER;
-    }
-    attrib[i++] = WX_GL_MIN_RED;
-    attrib[i++] = 8;
-    attrib[i++] = WX_GL_MIN_ALPHA;
-    attrib[i++] = (type & AlphaBuffer) ? 8 : 0;
-    if (type & DepthBuffer) {
-      attrib[i++] = WX_GL_DEPTH_SIZE;
-      attrib[i++] = 8;          // 32 e.g. does not work
-    }
-    // Get at least OpenGL 3.2. On OS X 10.11.4 this gets OpenGL version. 4.1.
-    attrib[i++] = WX_GL_CORE_PROFILE;
-  #else
-    // Windows and linux.
-    attrib[i++] = WX_GL_RGBA;
-    attrib[i++] = WX_GL_LEVEL;
-    attrib[i++] = 0;
-    attrib[i++] = WX_GL_MIN_RED;
-    attrib[i++] = 8;
-    attrib[i++] = WX_GL_MIN_GREEN;
-    attrib[i++] = 8;
-    attrib[i++] = WX_GL_MIN_BLUE;
-    attrib[i++] = 8;
-    if (type & AlphaBuffer) {
-      attrib[i++] = WX_GL_MIN_ALPHA;
-      attrib[i++] = 8;
-    }
-    if (type & DepthBuffer) {
-      attrib[i++] = WX_GL_DEPTH_SIZE;
-      attrib[i++] = 32;
-    }
-    if (type & DoubleBuffer) {
-      attrib[i++] = WX_GL_DOUBLEBUFFER;
-    }
-  #endif
-  if (type & MultiSampleBuffer) {
-    attrib[i++] = WX_GL_SAMPLE_BUFFERS;   // Multi-sampling
-    attrib[i++] = GL_TRUE;
-    attrib[i++] = WX_GL_SAMPLES;          // 2x2 antialiasing supersampling
-    attrib[i++] = 4;
-    attrib[i++] = 0;                      // Terminate the list
-    attrib[i++] = 0;
-    CHECK(i < kMaxAttrib);
-
-    // On windows IsDisplaySupported() does not properly check for multisample
-    // capability but the wxGLCanvas::Create appears to do something
-    // intelligent if multisample is not available. On linux this works.
-    #ifndef __WXMSW__
-      if (wxGLCanvasBase::IsDisplaySupported(attrib)) {
-        return attrib;
-      }
-      // Back out the sample buffer attributes.
-      i -= 6;
-    #endif
-  }
-  attrib[i++] = 0;                      // Terminate the list
-  attrib[i++] = 0;
-  CHECK(i < kMaxAttrib);
-  return attrib;
-}
-#endif  // __TOOLKIT_WXWINDOWS__
 
 #ifdef QT_CORE_LIB
 

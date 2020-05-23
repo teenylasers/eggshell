@@ -15,8 +15,6 @@
 
 # OPTIMIZE is 1 for optimizations on, or 0 for debug features on.
 OPTIMIZE := 1
-# GUI is either wx or qt
-GUI := qt
 
 default: all
 -include ../common.mk           # For top level invocation
@@ -40,13 +38,6 @@ EXAMPLES = \
 # Make sure that any failures in piped commands are recognized.
 SHELL=/bin/bash -o pipefail
 
-# Check that GUI is set correctly.
-ifeq ($(GUI), qt)
-else ifeq ($(GUI), wx)
-else
-  $(error Bad value for GUI)
-endif
-
 # Extract the version number from version.h.
 ifndef VERSION
 VERSION := $(shell $(TOOL_PREFIX)cpp -dM version.h|grep __APP_VERSION__|cut -d '"' -f 2)
@@ -54,11 +45,7 @@ endif
 
 # Build directories
 DIRS = build/lua build/toolkit
-ifeq ($(GUI), qt)
-  DIRS += build/qt
-else
-  DIRS += build/dialogblocks
-endif
+DIRS += build/qt
 
 # -R means no-builtin-variables and no-builtin-rules:
 MAKEFLAGS += -R
@@ -153,23 +140,13 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
       common.o shape.o mesh.o solver.o \
       clipper.o triangle.o user_script_util.o license_text.o
 
-ifeq ($(GUI), qt)
-  OBJ += toolkit/thread.o cavity_qt.o qt/main.o qt/main_window.o qt/about.o \
-         qt/sweep.o qt/error_window.o toolkit/lua_model_viewer_qt.o \
-         qt/moc_main_window.o qt/moc_about.o  qt/moc_sweep.o \
-         qt/moc_error_window.o qt/moc_lua_model_viewer_qt.o \
-         qt/plugin_import.o
-  UI_HEADERS = qt/ui_about.h qt/ui_error_window.h qt/ui_main_window.h \
-               qt/ui_sweep.h
-else
-  OBJ += cavity.o app.o toolkit/lua_model_viewer_wx.o \
-         dialogblocks/mainwin.o dialogblocks/aboutwin.o dialogblocks/sweep.o
-  # Precompiled headers, are most useful for speeding up the windows compile,
-  # they don't seem to have much speed impact on mac and linux.
-  ifeq ($(PLATFORM), windows)
-    PCH = ../stdwx.h.gch
-  endif
-endif
+OBJ += toolkit/thread.o cavity_qt.o qt/main.o qt/main_window.o qt/about.o \
+       qt/sweep.o qt/error_window.o toolkit/lua_model_viewer_qt.o \
+       qt/moc_main_window.o qt/moc_about.o  qt/moc_sweep.o \
+       qt/moc_error_window.o qt/moc_lua_model_viewer_qt.o \
+       qt/plugin_import.o
+UI_HEADERS = qt/ui_about.h qt/ui_error_window.h qt/ui_main_window.h \
+             qt/ui_sweep.h
 
 APP = rama.exe
 
@@ -185,72 +162,50 @@ ifneq ($(PLATFORM), windows)
   LUA_EXTRA_CFLAGS = -DLUA_USE_POSIX
 endif
 
-ifeq ($(GUI), qt)
-  CC := $(TOOL_PREFIX)gcc
-  CXX := $(TOOL_PREFIX)g++
-  GUI_DEF = -DQT_DEPRECATED_WARNINGS -DQT_DISABLE_DEPRECATED_BEFORE=0x060000 \
-            -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB
-  GUI_INC = -I$(QT_DIR)/include -I$(QT_DIR)/include/QtWidgets \
-            -I$(QT_DIR)/include/QtGui -I$(QT_DIR)/include/QtNetwork \
-            -I$(QT_DIR)/include/QtCore
-  ifeq ($(OPTIMIZE), 1)
-    CCFLAGS += -DQT_NO_DEBUG
-    D :=
-  else
-    CCFLAGS += -DQT_QML_DEBUG
-    ifeq ($(PLATFORM), osx)
-      D := _debug
-    else
-      D := d
-    endif
-  endif
-  GUI_LIBS = -L$(QT_DIR)/lib -L$(TOOLS_DIR)/Qt-5.9.2/plugins/platforms \
-    -lQt5Widgets$(D) -lQt5Gui$(D) -lQt5Core$(D) -lQt5Network$(D) \
-    -lqtlibpng$(D) -lqtharfbuzz$(D) -lqtpcre2$(D) -lqtfreetype$(D) \
-    -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D)
-  ifeq ($(PLATFORM), osx)
-    GUI_LIBS += -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
-      -lQt5ClipboardSupport$(D) -lQt5AccessibilitySupport$(D) \
-      -lQt5CglSupport$(D) -lQt5GraphicsSupport$(D) \
-      -framework OpenGL -framework AGL -framework IOKit \
-      -framework Carbon -framework AppKit -framework SystemConfiguration \
-      -framework Security
-    CCFLAGS += -D__TOOLKIT_MAT_FILE_USE_ZLIB__
-  endif
-  ifeq ($(PLATFORM), windows)
-    GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -lmingw32 \
-      -lqtmain$(D) -lqwindows$(D) -lQt5EventDispatcherSupport$(D) \
-      -lQt5FontDatabaseSupport$(D) -lqtfreetype$(D) -lQt5ThemeSupport$(D) \
-      -lQt5Gui$(D) -lQt5Core$(D) \
-      -ldwmapi -loleaut32 -limm32 -lopengl32 -lgdi32 -liphlpapi -lversion \
-      -lws2_32 -luuid -lole32 -lwinmm
-    GUI_DEF += -DUNICODE -D_UNICODE -DQT_NEEDS_QMAIN
-    CFLAGS += -mthreads
-    CCFLAGS += -fno-keep-inline-dllexport -fexceptions
-    CCFLAGS += -Wa,-mbig-obj
-  endif
-  CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
+CC := $(TOOL_PREFIX)gcc
+CXX := $(TOOL_PREFIX)g++
+GUI_DEF = -DQT_DEPRECATED_WARNINGS -DQT_DISABLE_DEPRECATED_BEFORE=0x060000 \
+          -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB
+GUI_INC = -I$(QT_DIR)/include -I$(QT_DIR)/include/QtWidgets \
+          -I$(QT_DIR)/include/QtGui -I$(QT_DIR)/include/QtNetwork \
+          -I$(QT_DIR)/include/QtCore
+ifeq ($(OPTIMIZE), 1)
+  CCFLAGS += -DQT_NO_DEBUG
+  D :=
 else
-  # wxWidgets.
-  CC := $(shell $(WXCONFIG) --cc)
-  CXX := $(shell $(WXCONFIG) --cxx)
-  RESCOMP := $(shell $(WXCONFIG) --rescomp)
-  ifeq ($(PLATFORM), windows)
-    CCFLAGS += -Wno-unused-local-typedefs -Wno-inconsistent-missing-override
-    OBJ += rc.o
-    UNDEF_X11_H =
+  CCFLAGS += -DQT_QML_DEBUG
+  ifeq ($(PLATFORM), osx)
+    D := _debug
   else
-    ifeq ($(PLATFORM), linux)
-      CCFLAGS += -Wno-unused-local-typedefs
-      UNDEF_X11_H = undef_x11.h
-    else
-      CCFLAGS += -Wno-inconsistent-missing-override
-      UNDEF_X11_H =
-    endif
+    D := d
   endif
-  CCFLAGS += $(shell $(WXCONFIG) --cxxflags) -D__TOOLKIT_WXWINDOWS__=1
-  GUI_LIBS = $(shell $(WXCONFIG) --libs core,base,gl,aui,net $(WX_LIBS_SED))
 endif
+GUI_LIBS = -L$(QT_DIR)/lib -L$(TOOLS_DIR)/Qt-5.9.2/plugins/platforms \
+  -lQt5Widgets$(D) -lQt5Gui$(D) -lQt5Core$(D) -lQt5Network$(D) \
+  -lqtlibpng$(D) -lqtharfbuzz$(D) -lqtpcre2$(D) -lqtfreetype$(D) \
+  -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D)
+ifeq ($(PLATFORM), osx)
+  GUI_LIBS += -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
+    -lQt5ClipboardSupport$(D) -lQt5AccessibilitySupport$(D) \
+    -lQt5CglSupport$(D) -lQt5GraphicsSupport$(D) \
+    -framework OpenGL -framework AGL -framework IOKit \
+    -framework Carbon -framework AppKit -framework SystemConfiguration \
+    -framework Security
+  CCFLAGS += -D__TOOLKIT_MAT_FILE_USE_ZLIB__
+endif
+ifeq ($(PLATFORM), windows)
+  GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -lmingw32 \
+    -lqtmain$(D) -lqwindows$(D) -lQt5EventDispatcherSupport$(D) \
+    -lQt5FontDatabaseSupport$(D) -lqtfreetype$(D) -lQt5ThemeSupport$(D) \
+    -lQt5Gui$(D) -lQt5Core$(D) \
+    -ldwmapi -loleaut32 -limm32 -lopengl32 -lgdi32 -liphlpapi -lversion \
+    -lws2_32 -luuid -lole32 -lwinmm
+  GUI_DEF += -DUNICODE -D_UNICODE -DQT_NEEDS_QMAIN
+  CFLAGS += -mthreads
+  CCFLAGS += -fno-keep-inline-dllexport -fexceptions
+  CCFLAGS += -Wa,-mbig-obj
+endif
+CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
 
 ifdef MATLAB_INC
   ENGINE_LIBS = libmx.a libeng.a
@@ -367,8 +322,6 @@ qt/ui_%.h: ../qt/%.ui
 rc.o: ../dialogblocks/rama.rc
 	$(RESCOMP) -i $< -o $@
 
-# The sed command is required for wxWidgets on windows because wx-config seems
-# not to get the proper library names in version 3.0.1.
 $(APP): $(OBJ) $(LUA_OBJ) $(ENGINE_LIBS)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $(APP) $(WINDOWS_STATIC_LINK) \
             $(OBJ) $(LUA_OBJ) $(ENGINE_LIBS) $(CERES_LIB) \

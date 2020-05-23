@@ -42,8 +42,6 @@ show_configuration:
 	@echo "CFLAGS      = $(CFLAGS)"
 	@echo "CCFLAGS     = $(CCFLAGS)"
 	@echo "LDFLAGS     = $(LDFLAGS)"
-	# Path to the wxWidgets wxconfig tool, e.g. '/foo/bar/wx-config' :
-	@echo "WXCONFIG    = $(WXCONFIG)"
 	# Path to the Qt distribution.
 	@echo "QT_DIR      = $(QT_DIR)"
 	# Eigen include directory:
@@ -75,8 +73,6 @@ show_configuration:
 	@echo "LAPACK_DIR  = $(LAPACK_DIR)"
 	# Path to the documentation system
 	@echo "DOCCER      = $(DOCCER)"
-	# sed command to fix the output of wx-config --libs as necessary:
-	@echo "WX_LIBS_SED = $(WX_LIBS_SED)"
 	# Includes and link for a good version of readline.
 	@echo "READLINE_INC = $(READLINE_INC)"
 	@echo "READLINE_LIB = $(READLINE_LIB)"
@@ -110,11 +106,6 @@ endif
 # Set STUFF_DIR to the root of the 'stuff' repository.
 STUFF_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-ifeq ($(OPTIMIZE), 1)
-  WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
-else
-  WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-dbg/wx-config
-endif
 QT_DIR := $(TOOLS_DIR)/Qt-5.9.2
 EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.4
 CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
@@ -182,10 +173,6 @@ ifeq ($(PLATFORM), windows)
   # Statically link windows binaries to prevent dependence on mingw DLLs that
   # wont be distributed with the application.
   LDFLAGS += -static -static-libgcc -static-libstdc++
-
-  # wx-config seems not to get the proper library names in version 3.0.1, this
-  # sed command fixes that up.
-  WX_LIBS_SED = | sed 's/\-3\.0\.a/-3.0-x86_64-w64-mingw32.a/g'
 endif
 
 ifeq ($(PLATFORM), osx)
