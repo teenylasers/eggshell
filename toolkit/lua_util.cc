@@ -32,9 +32,9 @@ static const char *LuaStrerror(int err) {
     case LUA_ERRRUN: return "Script could not run";
     case LUA_ERRSYNTAX: return "Script syntax error";
     case LUA_ERRMEM: return "Memory allocation error";
-    case LUA_ERRGCMM: return "Script error while running a __gc metamethod";
     case LUA_ERRERR: return "Script error while running the message handler";
     case LUA_ERRFILE: return "Script file can not be read";
+    case LUA_YIELD: return "The thread (coroutine) yields";
     default: return "Unknown error while running Lua";
   }
 }
@@ -338,12 +338,12 @@ void Lua::UseStandardLibraries(bool safe) {
   lua_settop(L_, top);
 }
 
-bool Lua::RunString(const std::string &script, bool run_it) {
-  return Run(script, false, run_it);
+bool Lua::RunString(const std::string &script, bool run_it, const char *name) {
+  return Run(script, false, run_it, name);
 }
 
 bool Lua::RunFile(const std::string &filename, bool run_it) {
-  return Run(filename, true, run_it);
+  return Run(filename, true, run_it, 0);
 }
 
 int Lua::Print() {
@@ -382,7 +382,8 @@ void LuaHash(lua_State *L, std::string *hash, bool strip) {
   hash->assign((char*) digest, sizeof(digest));
 }
 
-bool Lua::Run(const std::string &s, bool s_is_filename, bool run_it) {
+bool Lua::Run(const std::string &s, bool s_is_filename, bool run_it,
+              const char *name) {
   there_were_errors_ = false;
   int top = lua_gettop(L_);
 
@@ -391,7 +392,7 @@ bool Lua::Run(const std::string &s, bool s_is_filename, bool run_it) {
   if (s_is_filename) {
     err = luaL_loadfile(L_, s.c_str());
   } else {
-    err = luaL_loadbuffer(L_, s.data(), s.size(), NULL);
+    err = luaL_loadbuffer(L_, s.data(), s.size(), name);
   }
   if (err != LUA_OK) {
     char buffer[1000];

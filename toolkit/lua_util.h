@@ -95,8 +95,10 @@ class Lua {
   // runtime error the StackBacktrace() function will be called zero or more
   // times. For all errors the Error() function will be called once. If run_it
   // is false then the script is not run and the compiled chunk is left at the
-  // top of the stack.
-  bool RunString(const std::string &script, bool run_it = true);
+  // top of the stack. If the name is provided to RunString() it will used in
+  // error messages.
+  bool RunString(const std::string &script, bool run_it = true,
+                 const char *name = 0);
   bool RunFile(const std::string &filename, bool run_it = true);
 
   // Like lua_pcall but using the built-in message handler for errors.
@@ -137,7 +139,8 @@ class Lua {
   bool there_were_errors_;
   std::map<int, void*> user_objects_;
 
-  bool Run(const std::string &s, bool s_is_filename, bool run_it);
+  bool Run(const std::string &s, bool s_is_filename, bool run_it,
+           const char *name);
 
   DISALLOW_COPY_AND_ASSIGN(Lua);
 };

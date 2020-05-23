@@ -237,11 +237,11 @@ triangle.o: CFLAGS += -DNO_TIMER -DTRILIBRARY \
 #############################################################################
 # Lua.
 
-LUA_DIR = ../lua-5.3.0/src
+LUA_DIR = ../lua-5.4.0/src
 LUA_SRC = lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c \
   lmem.c lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c \
   ltm.c lundump.c lvm.c lzio.c \
-  lauxlib.c lbaselib.c lbitlib.c lcorolib.c ldblib.c liolib.c \
+  lauxlib.c lbaselib.c lcorolib.c ldblib.c liolib.c \
   lmathlib.c loslib.c lstrlib.c ltablib.c lutf8lib.c loadlib.c linit.c
 
 LUA_OBJ = $(LUA_SRC:%.c=lua/%.o)

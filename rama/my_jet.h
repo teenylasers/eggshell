@@ -549,6 +549,12 @@ Jet<T, N> log10(const Jet<T, N>& f) {
   return log(f) / M_LN10;
 }
 
+// log2(a + h) = log(a + h) / log(2)
+template <typename T, int N> inline
+Jet<T, N> log2(const Jet<T, N>& f) {
+  return log(f) / M_LN2;
+}
+
 // exp(a + h) ~= exp(a) + exp(a) h
 template <typename T, int N> inline
 Jet<T, N> exp(const Jet<T, N>& f) {

@@ -443,7 +443,7 @@ For waveguide mode display the following options are available:
 Simulations in Rama are driven by Lua scripts that specify the boundary of
 the cavity, the locations of ports, any dielectric materials, and other
 parameters. Here's the
-@link{http://www.lua.org/manual/5.3/manual.html}{reference manual} for Lua,
+@link{http://www.lua.org/manual/5.4/manual.html}{reference manual} for Lua,
 which explains the structure of the language. That has much more detail than
 you actually need to run Rama, a gentler introduction is the book
 @link{http://www.lua.org/pil/}{Programming in Lua}. An older version of that
@@ -703,7 +703,7 @@ another function, so for example the following is a convenient idiom:
 
 @subsection{Functions and variables accessible to the Lua script}
 
-The following @link{http://www.lua.org/manual/5.3/manual.html}{Lua standard libraries}
+The following @link{http://www.lua.org/manual/5.4/manual.html}{Lua standard libraries}
 can be used: base, table, string, utf8 and
 math. The standard Lua @c{print()} function sends text to the ``script messages''
 tab. The standard Lua @c{error()} function will output its error message to this

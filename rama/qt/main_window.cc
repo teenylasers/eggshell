@@ -340,7 +340,7 @@ void MainWindow::on_actionRamaWebsite_triggered() {
 }
 
 void MainWindow::on_actionLuaManual_triggered() {
-  QString link = "http://www.lua.org/manual/5.3/";
+  QString link = "http://www.lua.org/manual/5.4/";
   QDesktopServices::openUrl(QUrl(link));
 }
 

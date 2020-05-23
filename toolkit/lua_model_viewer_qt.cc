@@ -792,12 +792,12 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
   // user scripts.
   string user_script_util(&user_script_util_dot_lua,
                           user_script_util_dot_lua_length);
-  if (!lua_->RunString(user_script_util.c_str())) {
+  if (!lua_->RunString(user_script_util.c_str(), true, "user_script_util")) {
     // On script failure an error message will have been shown. But this should
     // never happen.
     lua_->Error("Internal error in script utility code");
   } else {
-    if (!lua_->RunString(script_.c_str())) {
+    if (!lua_->RunString(script_.c_str(), true, "main script")) {
       // On script failure an error message should have been shown.
       CHECK(lua_->ThereWereErrors());
     }
