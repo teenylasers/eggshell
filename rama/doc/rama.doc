@@ -11,143 +11,221 @@
 # more details.
 
 # @@@ TODO: Notes for things to add to this document
+# * Tutorial.
+#   - ALMA coupler. Model. S parameters. Sweeps. Optimize. Build in reality
+#   - Wifi house. Radiation boundary.
+# * Add x,y,z axis to waveguide mode picture.
+# * Command line arguments.
+# * The mathematical backbone of Rama is described in this companion document,
+#   @link{https://evenedric.github.io/fem.html}{The Finite Element Method}.
 # * Make it clear that optimize() should return many values and that they can
 #   be negative. Don't return values like a^2+b^2+c^2, return a,b,c instead.
 # * Spell check.
 
 @title{Rama}
 @subtitle{v@arg{version}}
-@author{Evenedric}
 
-@emph{This is the manual for the Rama simulator. It is a work in progress and
-not all parts have been written!}
-
-Here are the @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
-and the @link{http://ramasimulator.org/Rama.dmg}{Mac image}
-for the latest version of Rama.
+@figure{images/horn_phase.gif}{}
 
 @contents{}
 
 #############################################################################
 @section{Introduction to Rama}
 
-Rama is a finite element simulator for electromagnetic and quantum mechanical
-systems. It is intended for physics education and for engineering design of
-certain problems. Rama is very fast and interactive, because it is limited to
-two dimensional systems (and some 3D systems that have the right kind of 2D
-symmetry). The user can adjust model geometry and see new solutions generated
-in real time. This is a good way to develop quick intuitions about many models.
+Rama is an open source physics simulator for electromagnetic and quantum
+mechanical systems. It is intended for physics education, and to be an
+engineering design tool. It simulates two dimensional systems, though it will
+also simulate some 3D systems that have the right kind of symmetry. Rama is
+based on the finite element method. Compared to other such simulators, Rama has
+some unique features:
 
-@figure{ramademo1.gif}{}
-
-Rama has a variety of features to investigate and design systems.
 @list{
-@* The field solutions can be visualized in many ways.
-@* Plots can be generated from model parameters swept over values.
-@* Model parameters can be optimized to improve an objective function.
+@* Rama is fast. Solutions to many interesting problems are produced in a
+   fraction of a second.
+@* Because Rama is fast, it is interactive. You can adjust your model with
+   sliders and see the solution change in real time. This is a good way to
+   develop quick intuitions about many physical situations.
+@* Rama models are created with scripts, rather than with CAD tools. This may
+   seem like a disadvantage, but models created this way can be more easily
+   parameterized and made interactive.
+@* Rama's built in optimization tools quickly solve for optimal configurations.
+@* Rama has many ways to visualize solutions, and can generate all kinds of
+   plots to help you understand your model.
 }
 
 The 2D limitation might seem to rule out using Rama for serious design
-problems. However there are many 3D problems with 2D symmetries that allow
-Rama to generate exact solutions, especially problems involving
+problems. However there are many 3D problems with symmetries that allow Rama to
+generate exact solutions, especially problems involving
 @link{http://en.wikipedia.org/wiki/Waveguide}{waveguide}-fed cavities. Some
 other problems have 2D models that approximate the full 3D situations, and
-Rama can provide design intuition in these cases.
+Rama can provide design intuition in these cases, although not exact solutions.
+Rama can often be the starting point for a new design, to get the basics worked
+out quickly before moving to another simulator's much slower 3D design process.
 
-[TODO: maybe add a getting started guide, walk through one of the examples?]
+@subsection{Getting Rama}
 
-@subsection{Rama development}
-
+Here are the @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
+and the @link{http://ramasimulator.org/Rama.dmg}{Mac image}
+for the latest stable version of Rama.
 All Rama development is done on @link{https://github.com/Evenedric/stuff}{github}.
-Documentation and binaries are available here, at @link{http://ramasimulator.org}{ramasimulator.org}.
-The mathematical backbone of Rama is described in this companion document,
-@link{https://evenedric.github.io/fem.html}{The Finite Element Method}.
+
+@subsection{Rama Examples}
+
+Here is an example of interactively changing the width of a horn antenna, to
+investigate the point at which it starts radiating:
+
+@figure{images/horn_sweep.gif}{}
+
+Here we simulate a WR-10 coupler designed for the ALMA radio telescope, to
+check its performance:
+
+@figure{images/example_alma.jpg}{}
+
+Here we inspect the electric field in a mode of a waveguide:
+
+@figure{images/example_mode.jpg}{}
+
+Here we simulate a quantum mechanical wave packet being deflected by the
+potential radiating from a point charge.
+
+@figure{images/example_qm.jpg}{}
 
 #############################################################################
-@section{Concepts of simulation}
+@section{What can be simulated}
 
-Rama solves the Schrödinger equation for nonrelativistic particles, or
-@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}.
-Solutions are produced within 2D cavities that have boundary conditions and
-materials described by a script. Four kinds of cavities are supported:
-@numlist{
-@* @b{@c{S}} cavities contain Schrödinger fields and are bounded by walls
-   where @m{\psi=0}. The constant frequency (i.e. fixed momentum) Schrödinger
-   equation is solved:
-   @M{
-     \nabla^2 \psi + 2 m \left( \omega - {V \by \hbar} \right) \psi &= 0
-   }
-   We use Planck units with @m{\hbar=1} and @m{m=1/2}, giving
-   @M{
-     \nabla^2 \psi + ( \omega - V ) \: \psi &= 0
-   }
-@* @b{@c{Ez}} cavities contain electromagnetic (EM) fields and are bounded by
-   walls of constant depth in the Z direction, and all electric fields point
-   in the Z direction:
+@subsection{Electromagnetic cavities (Z field)}
 
-   @figure{EzCavity.png}{}
+Rama can solve
+@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}
+to determine the electromagnetic fields in @b{@c{Ez}} cavities, which are
+bounded by walls of constant depth in the Z direction, and where all electric
+fields point in the Z direction:
 
-   Rama computes a 2D field @m{\phi(x,y)} such that the full 3D electric and
-   magnetic phasor fields are
+@figure{images/cavity_Ez.png}{}
 
-   @M{
-     \mathbf{E} &= \left[ 0, 0, \phi(x,y) \right] \\
-     \mathbf{H} &= {i \by \mu \omega} \: \left[
-      {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right]
-   }
+The cavity depth is arbitrary, in fact the solution is independent of the
+depth. A depth of infinity models free space propagation.
 
-   where @m{\phi} satisfies the 2D Helmtolhz equation with wavenumber
-   @m{k = \omega \sqrt{\mu \epsilon}}.
-
-@* @b{@c{Exy}} cavities cavities contain EM fields and are bounded by walls of
-   constant depth in the Z direction, and all electric fields lie in the XY
-   plane:
-
-   @figure{ExyCavity.png}{}
-
-   Rama computes a 2D field @m{\phi(x,y)} such that the full 3D electric and
-   magnetic phasor fields are
-
-   @M{
-     \mathbf{E} &= {i \by \epsilon \omega} \: {d^2  k^2 \by d^2 k^2 - \pi^2}
-                   \: \cos\left({\pi z \by d}\right) \: \left[
-      {-\del \phi(x,y) \by \del y}, {\del \phi(x,y) \by \del x}, 0 \right] \\
-     \mathbf{H} &= \left[ \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del x},
-                          \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del y},
-                          \cos\left({\pi z \by d}\right) \phi(x,y) \right] \\
-      \alpha &= { \pi d \by \pi^2-d^2 k^2}
-   }
-
-   where @m{d} is the depth of the cavity and @m{\phi} satisfies the 2D
-   Helmtolhz equation with wavenumber
-   @m{k = \sqrt{\omega^2 \mu \epsilon - \pi^2/d^2}}.
-
-@* @b{@c{TE}} and @b{@c{TM}} cavities correspond to cross sections of
-   arbitrarily shape EM waveguides. Rama can compute the TE and TM modes.
-}
-
-In all cases the interior of the cavity can be free space or can contain
-materials with various dielectric properties. The boundary of the cavity can be
-metal walls, ports (from which energy enters or leaves) or absorbers used in
-radiation problems.
-
+The interior of the cavity can be free space or can contain materials with
+various dielectric properties. The boundary of the cavity can be metal walls,
+ports (from which energy enters or leaves) or absorbers used in radiation
+problems.
 The ports are actually
 @link{http://en.wikipedia.org/wiki/Waveguide}{rectangular waveguides}. It is
-assumed that the fields at the ports have the @m{TE_{10}} mode. In each
-simulation one port is the excited port, where energy in injected. Energy will
-exit through the other ports.
+assumed that the fields at the ports have the @m{TE_{10}} mode. Energy is
+injected through excited ports and exits through all ports and absorbers.
+
+These cavities can be models of real life structures make from sheet metal, or
+milled out of metal blocks using "split block construction" like so:
+
+@figure{images/splitblock.jpg}{(image from @link{https://www.techbriefs.com/component/content/article/tb/techbriefs/physical-sciences/14855}{here})}
+
+Under the hood, rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+electric and magnetic phasor fields are
+
+@M{
+  \mathbf{E} &= \left[ 0, 0, \phi(x,y) \right] \\
+  \mathbf{H} &= {i \by \mu \omega} \: \left[
+   {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right]
+}
+
+where @m{\phi} satisfies the 2D
+@link{https://en.wikipedia.org/wiki/Helmholtz_equation}{Helmholtz equation}
+with wave number @m{k = \omega \sqrt{\mu \epsilon}}.
+
+
+@subsection{Electromagnetic cavities (XY field)}
+
+Rama can solve
+@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}
+to determine the electromagnetic fields in @b{@c{Exy}} cavities, which are
+bounded by walls of constant depth in the Z direction, and where all electric
+fields are in the XY plane:
+
+@figure{images/cavity_Exy.png}{}
+
+The cavity depth is arbitrary. The solution depends on depth, and if the depth
+is too small the cavity will not support propagating waves.
+A depth of infinity models free space propagation.
+
+As with @b{@c{Ez}} cavities, the interior can be free space or can contain
+dielectrics, and the boundary can be metal, @m{TE_{10}} ports, or absorbers.
+
+Under the hood, rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+electric and magnetic phasor fields are
+
+@M{
+  \mathbf{E} &= \alpha {i d \mu \omega \by \pi}
+                \: \cos\left({\pi z \by d}\right) \: \left[
+   {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right] \\
+  \mathbf{H} &= \left[ \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del x},
+                       \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del y},
+                       \cos\left({\pi z \by d}\right) \phi(x,y) \right] \\
+   \alpha &= { \pi d \by \pi^2-d^2 k_0^2}
+}
+
+where @m{d} is the depth of the cavity and @m{\phi} satisfies the 2D
+@link{https://en.wikipedia.org/wiki/Helmholtz_equation}{Helmholtz equation}
+with wave number @m{k = \sqrt{\omega^2 \mu \epsilon - \pi^2/d^2}}.
+
+
+@subsection{Waveguide modes}
+
+Rama can solve
+@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}
+to determine the electromagnetic fields in waveguides of constant cross section:
+
+@figure{images/waveguide.png}{}
+
+The @b{@c{TE}} and @b{@c{TM}} modes can be separately computed.
+
+
+@subsection{Schrödinger's equation}
+
+Rama can solve the Schrödinger's equation for nonrelativistic particles in
+a 2D cavity. The constant frequency (i.e. fixed momentum) Schrödinger equation
+is solved:
+
+@M{
+  \nabla^2 \psi + {2 m \by \hbar} \left( \omega - {V \by \hbar} \right) \psi &= 0
+}
+
+We use Planck units with @m{\hbar=1} and @m{m=1/2}, giving
+
+@M{
+  \nabla^2 \psi + ( \omega - V ) \: \psi &= 0
+}
+
+The wave function @m{\psi} is computed within the cavity.
+The interior of the cavity can be free space (@m{V=0}) or can contain areas
+with nonzero @m{V} (in much the same way that electromagnetic cavities can
+contain dielectric materials).
+
+The boundary of the cavity can be walls where @m{\psi=0}, ports (from which
+waves enter or leave) or absorbers used in radiation problems.
+The ports behave similarly to those in @b{@c{Ez}} cavities.
 
 #############################################################################
 @section{Rama user interface}
 
+@subsection{Windows and tabs}
+
 Rama simulations are managed from a single window:
 
-@figure{ramaUI.png}{}
+@figure{images/rama_ui.png}{}
 
-In the cavity tab, mouse buttons are used to change the view:
+The left hand pane contains the parameters defined by the model, which can be
+adjusted by entering numerical values or by moving sliders.
+
+The right hand pane contains various tabs that show different aspects of the
+model. The window under each of these tabs can be dragged away to a separate
+window - in this way it is possible to see several of those windows at once.
+
+The "model" tab shows the geometry of the model, the mesh, and the field
+solution. Mouse buttons are used to change the view:
 @list{
 @* Right click + drag: pan the view.
-@* Mouse wheel: zoom around the mouse pointer.
+@* Mouse wheel: zoom in or out, centered around the mouse pointer.
 @* Ctrl + right click + drag: zoom around the mouse pointer.
 @* On Mac trackpads:
    @list{
@@ -156,31 +234,208 @@ In the cavity tab, mouse buttons are used to change the view:
    }
 }
 
-Model scripts are loaded with the File/Open menu command. Scripts are executed
-to create the model. If the Field checkbox is ticked, the field is then
-computed and displayed. The script is re-executed (and the field recomputed)
-when either:
+The "Sweep" tab is a plot that shows various values computed as a parameter
+varies. It is often used to show S-parameters of model ports, but can also
+plot any user value generated by the script.
+
+The "S Params" tab is a plot that shows S parameters over frequency, for
+multi-frequency solves.
+
+The "Antenna" tab is a plot that shows the radiation emitted by the model for
+each angle. It is only useful for certain models that have radiation boundaries
+defined.
+
+The "Script messages" tab shows errors and other output from the model.
+When there is a model error the view will automatically switch to this tab.
+
+
+@subsection{The model}
+
+Model scripts are loaded with the File/Open menu command, or are specified on
+the command line. Scripts are executed to create the model. If the "Field"
+checkbox is ticked, the field solution is then computed and displayed. The
+script is re-executed (and the field recomputed) when either:
 @list{
 @* A parameter is changed through its text box or slider.
 @* The script is edited and saved with an external text editor.
 @* The File/Reload menu command is selected.
 }
 
-[TODO: write more] Notes:
+The multi-choice box that defaults to "Hide mesh" can be used to show the mesh,
+or to draw the dielectric properties into the model.
+
+If the checkbox "Field" is ticked then the field solution is computed and
+displayed. If it is not ticked then the model geometry (or mesh) is shown.
+
+If the checkbox "Animate" is ticked, then the field solution is computed and
+animated, so you can get a sense of how the waves flow.
+
+The multi-choice box that defaults to "amplitude and phase" is used to select
+how the field solution is displayed. The options (which depend on the cavity
+type) are:
 @list{
-@* Explain menu commands in detail.
-@* Tabs can be rearranged, multiple tabs at once.
-@* Explain script messages and what happens on errors.
+@* @b{Ez/Hz amplitude and phase}. Display the field solution directly, as the
+   amplitude and phase of the electric or magnetic Z component (or in other
+   words, the real part of the phasor @m{\phi}).
+@* @b{Ez/Hz max amplitude}. Display the maximum amplitude of the field
+   solution that is ever reached during animation (or in other words, the
+   amplitude of the phasor).
+@* @b{[Ex,Ey] max amplitude}. In @b{@c{Exy}} cavities display the maximum
+   amplitude of the (Ex,Ey) vector.
+@* @b{H & Jsurf amplitude}. In @b{@c{Ez}} cavities display the maximum
+   amplitude of the (Hx,Hy) vector, which is also proportional to the amplitude
+   of the surface current on the constant-Z walls.
+@* @b{Rotated vector E}. In @b{@c{Exy}} cavities display the (Ex,Ey) vector,
+   rotated by 90 degrees.
+@* @b{Vector Jsurf}. In @b{@c{Ez}} cavities display the surface current
+   vector at the constant-Z walls
+@* @b{Vector E, Jsurf}. In @b{@c{Exy}} cavities display the (Ex,Ey) vector,
+   which is also proportional to the surface current on the constant-Z walls.
+@* @b{Vector H}. In @b{@c{Ez}} cavities display the (Hx,Hy) vector.
+@* @b{Poynting vector}. Display the Poynting power flow vector.
 }
 
-@subsection{Sweeps}
+During animation the phase of the displayed solution is rotated. If a
+maximum amplitude is being displayed then the animation shows the amplitude of
+the rotating phasor.
 
-[TODO: write this]
+For waveguide mode display the following options are available:
+@list{
+@* @b{Ez} or @b{Hz} to view the Z component of the field.
+@* @b{Ez amplitude} or @b{Hz amplitude} to view the absolute value of the Z
+   component of the field.
+@* @b{[Ex,Ey] amplitude} or @b{[Hx,Hy] amplitude} to view the amplitude of the
+   X,Y component of the field.
+@* @b{[Ex,Ey]} to view the (Ex,Ey) vector.
+@* @b{[Hx,Hy]} to view the (Hx,Hy) vector.
+}
 
-@figure{PlotExample.png}{}
 
-Within the plot window, zoom in by left-clicking and dragging to select an area
-of the plot. Zoom out to the previous view by right-clicking.
+@subsection{Menu command reference}
+
+# We omit "system" menu commands that look differently on mac/windows/linux.
+# For example on macs the "help/about" command appears under a separate menu
+# for the application. The quit/exit commands is also system dependent.
+# We also don't list keyboard shortcuts here because they're system dependent
+# and easy to discover.
+
+@list{
+@* @b{File}
+   @list{
+   @* @b{Open model}: Open a new model script Lua file and executed it to
+      create a new model.
+   @* @b{Reload model}: Reload the current model script file, and execute it
+      to recreate the model.
+   @* @b{Auto-run model on change}: Automatically detect when the model script
+      file changes, and reload it when that happens. This is on by default.
+      This makes it convenient to develop models - just save it in your text
+      editor and immediately see the results.
+   @* @b{Export boundary as DXF}. Export the model boundary shape
+      (@c{config.cd}) as a DXF file, so it can be imported into a CAD program.
+   @* @b{Export boundary as x,y list} Export the model boundary shape
+      (@c{config.cd}) as text file list of coordinates.
+   @* @b{Export field as matlab data}. Save the mesh and current field
+      solution to a matlab file. The following matrices are saved:
+      @list{
+      @* @c{p}: Mesh point coordinates.
+      @* @c{t}: Mesh triangles, indexes into @c{p}.
+      @* @c{u}: Solution complex values, one for each point.
+      }
+      In matlab the solution can be visualized with:
+@===[
+  patch('Vertices',p,'Faces',t,'FaceVertexCData',real(u),...
+        'FaceColor','interp','EdgeColor','none'); axis equal
+]===@
+   @* @b{Export plot as matlab data}. Export the current sweep plot as a matlab
+      file containing an @c{x} coordinate vector and a complex @c{y} matrix
+      with columns for each port or channel. In matlab, to reproduce the sweep
+      plot in dB use:
+@===[
+  plot(x,20*log10(abs(y)))
+]===@
+   @* @b{Export antenna pattern as matlab data}. Compute and export the
+      antenna pattern. The following vectors are saved:
+      @list{
+      @* @c{azimuth} - the azimuths at which the far field is evaluated (radians).
+      @* @c{field} - the complex values of the far field at each azimuth.
+      @* @c{xcorrection}, @c{ycorrection} - used for phase center correction, as below.
+      }
+      To plot the beam pattern magnitude in dB:
+@===[
+  plot(azimuth,20*log10(abs(field)))
+]===@
+      To plot the beam phase, assuming a phase center at cx,cy (in config units):
+@===[
+  plot(azimuth,angle(field.*(xcorrection.^cx.*ycorrection.^cy)))
+]===@
+   }
+@* @b{Edit}
+   @list{
+   @* @b{Copy parameters to clipboard}. Set the clipboard to a fragment of Lua
+      code that sets the @c{default_parameters} table to the current
+      parameter values. This can be pasted in to the Lua script, as a way of
+      saving the current parameter values.
+   }
+@* @b{View}
+   @list{
+   @* @b{Zoom to extents}. Set the view so the entire model is visible.
+   @* @b{Zoom in/out}. Zoom in to or out from the model, around the current
+      mouse pointer position, in case other methods of zooming (like the mouse
+      scroll wheel) are not available.
+   @* @b{Set animation time to 0}. The animation time controls the phase of
+      the wave or the position of the wideband pulse. This resets the time to
+      zero, starting the animation from the beginning.
+   @* @b{Increase/Decrease animation time}. Move the current animation time
+      forwards or backwards by one unit.
+   @* @b{Show boundary}: Select which features of the boundary are displayed:
+      lines, ports, or vertices. Vertex derivatives with respect to the first
+      checked parameter can also be displayed, as vectors.
+   @* @b{Show grid}. Toggle the grid.
+   @* @b{Show markers}. Show the handles for markers, which are 2D parameter
+      values. The handles can be dragged to adjust those parameters.
+   @* @b{Show S parameters}. Show the computed S-parameters for all ports in
+      the model.
+   @* @b{Antialiasing}. Render the model and field more smoothly, using
+      anti-aliasing. On some platforms this can be slow, and so can be switched
+      off.
+   @* @b{Switch to model after each solve}. When this option is turned off,
+      each time a new field solution is computed the model tab is made visible.
+      Turn this option off to allow other tabs to remain visible.
+   }
+@* @b{Solve}
+   @list{
+   @* @b{Sweep}. Plot S-parameters or other values over parameter values.
+      See the section on @link{sweeps}{sweeps}.
+   @* @b{Select optimizer}. Select the numerical technique that will be used to
+      perform optimizations. For certain problems some techniques perform
+      better than others. Options are Levenberg Marquardt, and Subspace dogleg.
+   @* @b{Start optimization}. Adjust the selected parameters to improve the
+      output of the @c{config.optimize} function.
+      See the section on @link{optimization}{optimization}.
+   @* @b{Stop sweep or optimization}. Abort the current sweep or optimization,
+      in case it is taking too long.
+   @* @b{Run test() after each solve}. After each solve, run the
+      @c{config.test} function.
+   }
+@* @b{Help}
+   @list{
+   @* @b{Rama manual}. Open a web brower at the Rama manual.
+   @* @b{Rama website}. Open a web brower at the Rama website.
+   @* @b{Lua manual}. Open a web browser at the Lua manual.
+   @* @b{Check for latest version}. Check to see if there is a new version
+      of Rama.
+   }
+}
+
+#############################################################################
+@section{Tutorial}
+
+
+# @@@ Sweeps?
+# @@@ Multi-frequency?
+# @@@ Radiation patterns?
+# @@@ VSWR visualization
+
 
 #############################################################################
 @section{Lua scripting}
@@ -216,7 +471,7 @@ the following fields:
   @| The geometry of the ``computational domain''. This is a shape object that
      specifies the boundary polygon, dielectric regions, and the location of
      ports. Usually most of the script is concerned with creating this object
-     (see ``Shape objects'' below).
+     (see the section on @link{shapes}{shape objects}).
 
   @* @c{frequency}
   @| The frequency in Hz to run the simulation at. This is a single number for
@@ -589,7 +844,7 @@ At the end of the script it is a good idea to do these things:
 }
 
 #############################################################################
-@section{Shape objects}
+@section{@label{shapes} Shape objects}
 
 A shape object represents the 2D geometry of the computational domain. It
 contains the boundary polygons, dielectric regions, and the location of ports.
@@ -948,6 +1203,21 @@ should generally be one of the last steps in model creation.}
 #############################################################################
 @section{Sweeps and Optimization}
 
+@subsection{@label{sweeps} Sweeps}
+
+[TODO: write this]
+
+@figure{PlotExample.png}{}
+
+Within the plot window, zoom in by left-clicking and dragging to select an area
+of the plot. Zoom out to the previous view by right-clicking.
+
+@@@@@@ Another way:
+The "S Params" tab is a plot that shows S parameters over frequency, for
+multi-frequency solves.
+
+@subsection{@label{optimization} Optimization}
+
 TODO: write me. NOTES:
 @list{
 @* Select parameters to optimize
@@ -1303,3 +1573,34 @@ Each @c{JetNum} contains the derivative with respect to just one parameter, so
 the above steps have to be done once per parameter. The @c{JetNum} could
 contain more derivatives but that would slow down the Lua interpreter, and we
 spend most of the time doing the matrix solves anyway.
+
+#############################################################################
+@section{Rama License}
+
+Rama is open source software that anyone is free to use and modify. It is
+licensed to you under the terms of the GNU General Public License, version 3
+(or @link{https://www.gnu.org/licenses/gpl-3.0.en.html}{GPLv3}).
+
+Rama is built upon many other open source software libraries, that each have
+their own licenses. Those other licenses are linked in the Rama
+@link{https://raw.githubusercontent.com/Evenedric/stuff/master/rama/COPYING}{COPYING file}.
+The licenses vary widely in what they permit, but the most restrictive of them
+are also GPLv3.
+
+For details of Rama's own license, please see the Rama
+@link{https://raw.githubusercontent.com/Evenedric/stuff/master/rama/COPYING}{COPYING file}.
+However, to summarise:
+
+@list{
+@* Anyone can use this software, free of charge. That includes private,
+   educational, and commercial use.
+@* Anyone can copy, modify and distribute this software.
+@* If you modify this software, your modifications must also be licensed under
+   GPLv3.
+@* If you distribute this software, those who receive it must inherit these same
+   rights and responsibilities.
+@* This software is provided without any warranty.
+@* The authors of this software can not be held liable for any damages inflicted
+   by the software.
+@* All copyrights are held by the respective authors.
+}
