@@ -1236,8 +1236,7 @@ void Shape::Clean(JetNum threshold) {
       // the best chance of cleaning up the shape without modifying the
       // boundary. On the second pass delete all points that are closer to
       // their neighbors than the threshold.
-      const int n = polys_[i].p.size();
-      vector<bool> to_delete(n);
+      int n = polys_[i].p.size();
       for (int j1 = 0; j1 < n; j1++) {
         int j2 = (j1 + 1) % n;        // We consider deleting j2
         int j3 = (j1 + 2) % n;
@@ -1248,21 +1247,16 @@ void Shape::Clean(JetNum threshold) {
           JetNum length2 = delta2.norm();
           JetNum sin_theta = Cross2(delta1, delta2) / (length1 * length2);
           if (pass == 1 || fabs(sin_theta) < kTolColinear) {
-            // If fabs(sin_theta), j1-j2-j3 are colinear.
+            // If fabs(sin_theta) is small, j1-j2-j3 are colinear.
             // Delete j2 if it's too close to j1 or j2:
-            to_delete[j2] = (length1 < threshold || length2 < threshold);
+            if (length1 < threshold || length2 < threshold) {
+              polys_[i].p.erase(polys_[i].p.begin() + j2);
+              j1--;
+              n--;
+            }
           }
         }
       }
-
-      // Actually delete the points.
-      int dest = 0;
-      for (int src = 0; src < n; src++) {
-        if (!to_delete[src]) {
-          polys_[i].p[dest++] = polys_[i].p[src];
-        }
-      }
-      polys_[i].p.resize(dest);
     }
   }
 }
