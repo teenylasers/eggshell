@@ -70,7 +70,7 @@ lua: dirs
 docs: dirs
 	$(MAKE) $(MY_MAKEFLAGS) docs2
 docs2:
-	cp ../doc/*.png .       # So locally building and viewing the manual works
+	ln -f -s ../doc/images  # So locally building and viewing the manual works
 	$(DOCCER) -Dversion=$(VERSION) ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama.html
 
 test: unittest script_test
