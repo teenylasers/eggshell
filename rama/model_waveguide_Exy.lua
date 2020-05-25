@@ -13,7 +13,6 @@ config = {
   type = 'Exy',
   unit = 'mil',
   mesh_edge_length = Parameter{label='Mesh edge length', min=2, max=30, default=5},
-  mesh_refines = 0,
   excited_port = 1,
   frequency = freq,
   depth = 122,

@@ -3,7 +3,6 @@ config = {
   type = 'Ez',
   unit = 'mil',
   mesh_edge_length = Parameter{label='Mesh edge length', min=2, max=30, default=5},
-  mesh_refines = 0,
   excited_port = 1,
   frequency = Parameter{label='Frequency (Hz)', min=30e9, max=90e9, default=70e9},
 }

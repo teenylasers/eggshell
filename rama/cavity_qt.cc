@@ -960,7 +960,6 @@ void Cavity::SetConfigFromTable() {
             LUA_TSTRING, 0, -1)
   GET_FIELD(unit, true, DistanceScale, lua_tostring, LUA_TSTRING, 0, -1)
   GET_FIELD(mesh_edge_length, true, ToDouble, lua_tonumber, LUA_TNUMBER, 0, -1)
-  GET_FIELD(mesh_refines, true, ToDouble, lua_tonumber, LUA_TNUMBER, 0, -1)
   GET_FIELD(depth, config_.type == ScriptConfig::EXY, ToDouble, lua_tonumber,
             LUA_TNUMBER, 0, -1)
   GET_FIELD(boresight, false, ToDouble, lua_tonumber, LUA_TNUMBER, -1e99, 0)

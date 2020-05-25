@@ -4,7 +4,6 @@ config = {
   unit = 'mil',
   frequency = Parameter{label='Frequency (Hz)', min=60e9, max=90e9, default=70e9},
   mesh_edge_length = Parameter{label='Mesh edge length', min=2, max=30, default=8},
-  mesh_refines = 0,
   excited_port = 1,
 }
 ParameterDivider()

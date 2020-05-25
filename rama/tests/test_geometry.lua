@@ -16,7 +16,6 @@ config = {
   type = 'Ez',
   unit = 'm',
   mesh_edge_length = 1e9,
-  mesh_refines = 0,
   excited_port = 1,
   frequency = 60e9,
   depth = 0,

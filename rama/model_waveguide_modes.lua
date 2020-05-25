@@ -3,7 +3,6 @@ config = {
   type = 'TE',
   unit = 'mil',
   mesh_edge_length = Parameter{label='Mesh edge length', min=2, max=30, default=5},
-  mesh_refines = 0,
   max_modes = 10,
 }
 

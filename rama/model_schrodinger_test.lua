@@ -5,7 +5,6 @@ config = {
   type = 'S',
   unit = 'm',
   mesh_edge_length = Parameter{label='Mesh edge length', min=0.2, max=3, default=0.5},
-  mesh_refines = 0,
   excited_port = 1,
   frequency = Parameter{label='Momentum', min=0.1, max=1, default=0.1},
   -- Another option is to look at a wideband pulse:

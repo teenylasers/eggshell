@@ -25,7 +25,6 @@ config = {
   unit = 'mm',
   frequency = freq,
   mesh_edge_length = Parameter{label='Mesh edge length', min=0.1, max=0.5, default=0.2},
-  mesh_refines = 0,
   excited_port = Parameter{label='Excited port', min=1, max=4, default=1, integer=true},
   depth = 2.54,
   optimize = function(port_power, port_phase, field)

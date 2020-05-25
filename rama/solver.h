@@ -60,7 +60,6 @@ struct ScriptConfig {
   bool schrodinger;             // EZ cavities for Schrodinger simulation
   double unit;                  // One script-distance-unit is this many meters
   double mesh_edge_length;      // In units of 'unit'
-  int mesh_refines;
   vector<JetNum> port_excitation;  // Magnitudes and phases of port excitations
   vector<double> frequencies;   // All frequencies to simulate
   double depth;                 // In units of 'unit'
@@ -74,7 +73,6 @@ struct ScriptConfig {
     schrodinger = false;
     unit = -1;
     mesh_edge_length = -1;
-    mesh_refines = -1;
     depth = -1;
     boresight = 0;
     antenna_pattern = AT_ABC;
@@ -87,7 +85,6 @@ struct ScriptConfig {
         && schrodinger      == c.schrodinger
         && unit             == c.unit
         && mesh_edge_length == c.mesh_edge_length
-        && mesh_refines     == c.mesh_refines
         && port_excitation  == c.port_excitation
         && frequencies      == c.frequencies
         && depth            == c.depth

@@ -54,7 +54,6 @@ config = {
   unit = 'mm',
   frequency = Parameter{label='Frequency (Hz)', min=75e9, max=115e9, default=93e9},
   mesh_edge_length = Parameter{label='Mesh edge length', min=0.1, max=0.5, default=0.2},
-  mesh_refines = 0,
   excited_port = 1,
   depth = 2.54,
 
