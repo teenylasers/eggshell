@@ -1,4 +1,6 @@
 
+-- Study the modes of waveguides with various cross sections.
+
 config = {
   type = 'TE',
   unit = 'mil',

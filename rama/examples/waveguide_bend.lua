@@ -1,4 +1,6 @@
--- Waveguide bends.
+
+-- Study waveguide bends to understand how sharp a bend can be made before
+-- there is substantial reflection.
 
 config = {
   unit = 'mil',
