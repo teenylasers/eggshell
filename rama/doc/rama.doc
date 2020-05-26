@@ -12,12 +12,10 @@
 
 # @@@ TODO: Notes for things to add to this document
 # * Tutorial.
-#   - ALMA coupler. Model. S parameters. Sweeps. Optimize. Build in reality
-#   - Wifi house. Radiation boundary.
+#   - Wifi house. Radiation boundary. Radiation patterns.
 # * Command line arguments.
 # * The mathematical backbone of Rama is described in this companion document,
 #   @link{https://evenedric.github.io/fem.html}{The Finite Element Method}.
-# * Remove mesh_refines
 # * PMLs
 # * util table - add to "6.9 Utility functions" ?
 # * Remove old images
@@ -30,6 +28,7 @@
 # * Terminology and definitons:
 #   - S paramaters
 #   - Waveguide modes and TE10
+# * VSWR visualization with amplitude
 
 @title{Rama}
 @subtitle{v@arg{version}}
@@ -352,6 +351,10 @@ vectors) can be changed with the brightness slider.
       editor and immediately see the results.
    @* @b{Export boundary as DXF}. Export the model boundary shape
       (@c{config.cd}) as a DXF file, so it can be imported into a CAD program.
+      The coordinates in the DXF are in the @c{config.unit} units, but the
+      value of @c{config.unit} is not saved in the DXF file. Therefore you must
+      set the units manually or scale the model when importing into a CAD
+      program.
    @* @b{Export boundary as x,y list} Export the model boundary shape
       (@c{config.cd}) as text file list of coordinates.
    @* @b{Export field as matlab data}. Save the mesh and current field
@@ -450,12 +453,167 @@ vectors) can be changed with the brightness slider.
 #############################################################################
 @section{Tutorial}
 
+@subsection{ALMA coupler}
 
-# @@@ Sweeps?
-# @@@ Multi-frequency?
-# @@@ Radiation patterns?
-# @@@ VSWR visualization
+Here we design a four port coupler similar to one used in the
+Atacama Large Millimeter/submillimeter Array (ALMA), a radio telescope.
+The starting point of the coupler is the paper
+@link{http://legacy.nrao.edu/alma/memos/html-memos/alma468/memo468.pdf}{Designs of Wideband 3dB Branch-line Couplers for ALMA Bands 3 to 10}.
 
+Physically, the coupler might look like this:
+
+@figure{images/alma_closed.png}{}
+
+The four ports are rectangular
+@link{https://en.wikipedia.org/wiki/Waveguide_(radio_frequency)}{waveguides},
+with screw holes and pins to support the standard
+@link{http://www.google.com/search?q=wr-12+waveguide&tbm=isch}{WR-12} waveguide
+flange connection.
+The waveguide channels are made with split block construction, i.e. the
+channels are milled in separate aluminum blocks which are bolted together:
+
+@figure{images/alma_open.png}{}
+
+Create a Lua file to model just the active area in the center of the block (the
+final file is available in the Rama distribution under
+@c{examples/tutorial_ALMA.lua}).
+This shape will be created:
+
+@figure{images/alma_cd.png}{}
+
+First add a @c{config} table that sets the properties of the simulation. The
+simulation frequency is set to a parameter so that it is easy to change with a
+slider:
+
+@===[
+  config = {
+    type = 'Exy',
+    unit = 'mm',
+    frequency = Parameter{label='Frequency (Hz)', min=75e9, max=115e9, default=93e9},
+    mesh_edge_length = 0.2,
+    excited_port = 1,
+    depth = 2.54,
+  }
+]===@
+
+Then set some variables that will control the geometry. The default values are
+taken from the above paper:
+
+@===[
+  -- Basic parameters.
+  B = 1.27        -- Waveguide short dimension
+  S = 0.605       -- Spacing to other arm of coupler
+  L = 2           -- Feed length
+
+  -- Parameters for adjustable post and gap sizes.
+  G1 = Parameter{label='Gap 1',  min=0.05, max=1, default=0.332}
+  P1 = Parameter{label='Post 1', min=0.05, max=1, default=0.542}
+  G2 = Parameter{label='Gap 2',  min=0.05, max=1, default=0.544}
+  P2 = Parameter{label='Post 2', min=0.05, max=1, default=0.424}
+  G3 = Parameter{label='Gap 3',  min=0.05, max=1, default=0.598}
+]===@
+
+Now create the geometry itself by adding together rectangles into the shape
+variable @c{cd}:
+
+@===[
+  -- Create feed-through channels.
+  width = 2*L + 2*(G1+P1+G2+P2)+G3
+  cd = Rectangle(0, 0, width, B) + Rectangle(0, B+S, width, 2*B+S)
+
+  -- Create the air gaps between the channels.
+  x = L
+  cd = cd + Rectangle(x, 0, x + G1, 2*B+S)  x = x + G1 + P1
+  cd = cd + Rectangle(x, 0, x + G2, 2*B+S)  x = x + G2 + P2
+  cd = cd + Rectangle(x, 0, x + G3, 2*B+S)  x = x + G3 + P2
+  cd = cd + Rectangle(x, 0, x + G2, 2*B+S)  x = x + G2 + P1
+  cd = cd + Rectangle(x, 0, x + G1, 2*B+S)
+]===@
+
+The ports are specified by selecting points in the middle of each port segment:
+
+@===[
+  -- Add the ports.
+  cd:Port(cd:Select(0, B/2), 1)
+  cd:Port(cd:Select(0, S+B*1.5), 2)
+  cd:Port(cd:Select(width, B/2), 3)
+  cd:Port(cd:Select(width, S+B*1.5), 4)
+]===@
+
+Finally set the @c{config.cd} variable to @c{cd} (alternatively @c{config.cd}
+could have been used directly instead of @c{cd} above):
+
+@===[
+  config.cd = cd
+]===@
+
+Running Rama on this file and selecting ``Hz max amplitude'' to show the
+amplitude of the waves gives:
+
+@figure{images/alma_power.png}{}
+
+For the coupler to work, power injected on port 1 needs to be equally split
+between ports 3 and 4, with no power being returned on ports 1 or 2. The
+displayed S parameters show that the configuration is close to this situation,
+but is not perfect. To automatically optimize a better configuration, add an
+@c{optimize} function to the @c{config} table like so:
+
+@===[
+  config = {
+    ...
+    optimize = function(port_power, port_phase, field)
+      return port_power[1],                 -- Minimal return loss
+             port_power[2],                 -- Minimal output to port 2
+             port_power[3] - port_power[4]  -- Balance ports 3 and 4
+    end,
+  }
+]===@
+
+The three values returned by @c{optimize} will, if they go to zero, result in
+the desired constraints being achieved.
+Now tick all gap and post parameters, and run ``Solve/Start optimization''.
+After optimization has finished the situation has improved, particularly the
+balance of power between ports 3 and 4.
+
+Run ``Solve/Sweep'' to plot the S-parameters over frequency:
+
+@figure{images/alma_sweep1.png}{}
+
+Notice that at the default frequency (93 GHz) ports 3 and 4 are well balanced,
+but at other frequences the balance is not so good. To improve this, optimize
+over multiple frequencies simultaneously. Change @c{config.frequency} to be
+@c{LinearRange(85e9, 100e9, 50)}, to optimize over 85 GHz to 100 GHz. Now the
+@c{optimize} function needs to be changed to return information for all
+frequencies:
+
+@===[
+  optimize = function(port_power, port_phase, field)
+    -- Hint to the solver that we're going to be Select()ing all solutions.
+    field.SolveAll()
+    -- Compute values to optimize over all frequencies.
+    local T = {}
+    for i = 1,#config.frequency do
+      field.Select(i)
+      port_power, port_phase = field.Ports()
+      table.insert(T, port_power[1])  -- Minimal return loss
+      table.insert(T, port_power[2])  -- Minimal output to port 2
+      table.insert(T, port_power[3] - port_power[4])  -- Balance ports 3 and 4
+    end
+    -- Return all values to the optimizer.
+    return table.unpack(T)
+  end,
+]===@
+
+After rerunning the optimization, the S-parameters over frequency can be seen
+using the ``S Params'' tab:
+
+@figure{images/alma_sweep2.png}{}
+
+(Note that the ``Solve/Sweep'' command can't be used for this because
+@c{config.frequency} is no longer a single value controlled by a parameter.)
+The balance between ports 3 and 4 is greatly improved across frequency,
+somewhat at the expense of the power returned on ports 1 and 2. This tradeoff
+can be adjusted by weighting the values returned by the @c{optimize} function.
 
 #############################################################################
 @section{Lua scripting}
@@ -503,9 +661,6 @@ the following fields:
      usually be no larger than 1/10 of the wavelength. Smaller numbers here
      result in finer meshes that will have more accurate solutions but which
      will take longer to solve.
-
-  @* @c{mesh_refines}
-  @| The number of mesh refinement steps to take. This is currently ignored.
 
   @* @c{excited_port}
   @| If this is an integer @m{\ge 1}, the port to inject a signal on.
