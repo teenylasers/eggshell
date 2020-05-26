@@ -13,17 +13,12 @@
 # @@@ TODO: Notes for things to add to this document
 # * Tutorial.
 #   - Wifi house. Radiation boundary. Radiation patterns.
-# * Command line arguments.
 # * The mathematical backbone of Rama is described in this companion document,
 #   @link{https://evenedric.github.io/fem.html}{The Finite Element Method}.
 # * PMLs
 # * util table - add to "6.9 Utility functions" ?
-# * Remove old images
-# * Modelling problems, the need to have adjacent ports with non-colinear geometry between them
-# *   this is because Clipper will merge colinear pieces.
 # * Building from source
 # * Design notes
-# * Antenna example
 # * Spell check.
 # * Terminology and definitons:
 #   - S paramaters
@@ -450,6 +445,21 @@ vectors) can be changed with the brightness slider.
    }
 }
 
+@subsection{Command line arguments}
+
+Rama can be started from the command line with the following arguments:
+
+@table{
+@* @c{filename.lua}
+@| The path of a Lua model script file to load and run.
+@* @c{-unittest}
+@| Run all the unit tests, print status and exit.
+@* @c{-test}
+@| Run the @c{config.test()} function in the script file then exit.
+@* @c{-key=value}
+@| See the definition of @c{FLAGS} in @link{luafnvars}{this section}.
+}
+
 #############################################################################
 @section{Tutorial}
 
@@ -873,7 +883,7 @@ another function, so for example the following is a convenient idiom:
   shape:AddPoint(ParameterMarker{...})
 ]===@
 
-@subsection{Functions and variables accessible to the Lua script}
+@subsection{@label{luafnvars} Functions and variables accessible to the Lua script}
 
 The following @link{http://www.lua.org/manual/5.4/manual.html}{Lua standard libraries}
 can be used: base, table, string, utf8 and
@@ -1546,19 +1556,24 @@ with the same cutoff frequency.
 #############################################################################
 @section{Modeling}
 
-@subsection{Modelling tips}
+@subsection{Ports}
 
-Here are suggestions for how to make models that best describe a real physical
-setup.
+Ports are line segments. Multiple co-linear ports with co-linear regular
+boundary segments in between are not supported - they will be merged into a
+single segment and the distinction between the ports will be lost. This happens
+because of a limitation in the Clipper library, that we should fix at some
+point.
 
-Notes for now:
-@list{
-@* Use a smaller mesh size for better accuracy.
-@* Don't violate the @m{TE_{10}} mode assumption at ports, i.e. use an
-   appropriate width and keep this width for a short distance.
-}
+Ports in @c{Ez} and @c{Exy} cavities are intended to support the @m{TE_{10}}
+mode. For this to work, the port width for @c{Ez} or the cavity depth for
+@c{Exy} should be large enough to operate above the cutoff frequency of the
+waveguide. If the port is too wide, other modes will be possible but only the
+@m{TE_{10}} mode will be excited or absorbed. The waveguide should be constant
+width after the port, for a significant fraction of a wavelength, to ensure
+that the @m{TE_{10}} mode becomes establisted so that the simulation is
+physically meaningful for excited or absorbed waves.
 
-@subsubsection{Coordinates}
+@subsection{Coordinates}
 
 To help deal with geometrical tolerancing issues within Rama, shape coordinates
 have a limited resolution. There are effectively 32 bits to the left and right
