@@ -20,17 +20,6 @@ default: all
 -include ../common.mk           # For top level invocation
 -include ../../common.mk        # For invocation in the build directory
 
-# Examples distributed along with the binary.
-EXAMPLES = \
-  model_ALMA_coupler_Exy.lua \
-  model_antenna_pattern_test.lua \
-  model_horn_Ez.lua \
-  model_schrodinger_test.lua \
-  model_waveguide_Exy.lua \
-  model_waveguide_Ez.lua \
-  model_waveguide_bend.lua \
-  model_waveguide_modes.lua
-
 #############################################################################
 # Rules that can be run from the top level directory (all other rules need
 # to be run from the build directory).
@@ -71,7 +60,7 @@ docs: dirs
 	$(MAKE) $(MY_MAKEFLAGS) docs2
 docs2:
 	ln -f -s ../doc/images  # So locally building and viewing the manual works
-	$(DOCCER) -Dversion=$(VERSION) ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama.html
+	$(DOCCER) -Dversion=$(VERSION) $(DOCCER_DICTIONARY) ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama.html
 
 test: unittest script_test
 
@@ -115,9 +104,8 @@ macdeploy2: $(APP) docs2
 	rm -rf Rama.app && cp -av ../release/Rama.app .
 	mkdir Rama.app/Contents/MacOS
 	cp $(APP) Rama.app/Contents/MacOS
+	cp -av ../examples Rama.app
 	cp rama.html ../doc/*.{png,gif} Rama.app/Contents/Resources
-	mkdir Rama.app/Examples
-	cp $(addprefix ../,$(EXAMPLES)) Rama.app/Examples
 	hdiutil create -volname Rama -srcfolder Rama.app -ov -format UDZO Rama.dmg
 	echo $(VERSION) > latest_version_mac.txt
 	scp Rama.dmg rama.html *.png *.gif latest_version_mac.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator

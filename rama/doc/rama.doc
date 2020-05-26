@@ -19,11 +19,34 @@
 # * util table - add to "6.9 Utility functions" ?
 # * Building from source
 # * Design notes
-# * Spell check.
 # * Terminology and definitons:
 #   - S paramaters
 #   - Waveguide modes and TE10
 # * VSWR visualization with amplitude
+
+# Populate the spell check dictionary.
+@spelling{GPLv} @spelling{COPYING} @spelling{i.e} @spelling{e.g} @spelling{Lua}
+@spelling{JetNum} @spelling{ScriptConfig} @spelling{config} @spelling{Exy}
+@spelling{Ez} @spelling{XY} @spelling{Jsurf} @spelling{params}
+@spelling{Maxwell's} @spelling{Schrödinger} @spelling{Schrödinger's}
+@spelling{C++} @spelling{co-linear} @spelling{S-parameters}
+@spelling{multi-frequency} @spelling{Mesher} @spelling{polyline}
+@spelling{polylines} @spelling{Rama} @spelling{Rama's} @spelling{tolerancing}
+@spelling{non-default} @spelling{levenberg-marquardt} @spelling{jacobians}
+@spelling{hx,hy} @spelling{Ex,Ey} @spelling{Ez,Hz} @spelling{Ez/Hz}
+@spelling{x,y} @spelling{checkbox} @spelling{checkboxes}
+@spelling{multi-choice} @spelling{auto-run} @spelling{dxf} @spelling{'th}
+@spelling{x=} @spelling{y=} @spelling{/} @spelling{copy-by-reference}
+@spelling{test(} @spelling{test()} @spelling{PML} @spelling{submillimeter}
+@spelling{elementwise} @spelling{github} @spelling{trackpads}
+@spelling{website} @spelling{on-screen} @spelling{filesystem}
+@spelling{refactoring} @spelling{antialiasing} @spelling{constant-Z}
+@spelling{Atacama} @spelling{utf} @spelling{false} @spelling{JetComplex}
+@spelling{ZFillCallback} @spelling{PNG} @spelling{linux} @spelling{eigen}
+@spelling{zlib} @spelling{cygwin} @spelling{matlab} @spelling{gnu-isms}
+@spelling{linux-isms} @spelling{windows-isms} @spelling{lapack}
+@spelling{arpack} @spelling{Inno} @spelling{toolchain} @spelling{C++-specific}
+
 
 @title{Rama}
 @subtitle{v@arg{version}}
@@ -210,7 +233,7 @@ The boundary of the cavity can be walls where @m{\psi=0}, ports (from which
 waves enter or leave) or absorbers used in radiation problems.
 The ports behave similarly to those in @b{@c{Ez}} cavities.
 
-Non-constant momentum solutions can be computed using the
+Non constant momentum solutions can be computed using the
 @link{multifrequency}{multi-frequency} feature. This allows the behavior of
 compact wave packets to be studied.
 
@@ -259,14 +282,14 @@ this tab, where the error messages are.
 
 @subsection{The model}
 
-Model scripts are loaded with the ``File/Open'' menu command, or are specified
-on the command line. The script is executed to create the model. If the
-``Field'' checkbox is ticked, the field solution is then computed and
-displayed. The script is re-executed (and the field recomputed) when either:
+Model scripts are loaded with the ``File / Open'' menu command, or are
+specified on the command line. The script is executed to create the model. If
+the ``Field'' checkbox is ticked, the field solution is then computed and
+displayed. The script is reexecuted (and the field recomputed) when either:
 @list{
 @* A parameter is changed through its text box or slider.
 @* The script is edited and saved with an external text editor.
-@* The ``File/Reload'' menu command is selected.
+@* The ``File / Reload'' menu command is selected.
 }
 
 The multi-choice box that defaults to ``Hide mesh'' can be used to show the mesh,
@@ -382,7 +405,8 @@ vectors) can be changed with the brightness slider.
 @===[
   plot(azimuth,20*log10(abs(field)))
 ]===@
-      To plot the beam phase, assuming a phase center at cx,cy (in config units):
+      To plot the beam phase, assuming a phase center at @c{cx,cy} (in config
+      units):
 @===[
   plot(azimuth,angle(field.*(xcorrection.^cx.*ycorrection.^cy)))
 ]===@
@@ -397,13 +421,13 @@ vectors) can be changed with the brightness slider.
 @* @b{View}
    @list{
    @* @b{Zoom to extents}. Set the view so the entire model is visible.
-   @* @b{Zoom in/out}. Zoom in to or out from the model, around the current
+   @* @b{Zoom in / out}. Zoom in to or out from the model, around the current
       mouse pointer position, in case other methods of zooming (like the mouse
       scroll wheel) are not available.
    @* @b{Set animation time to 0}. The animation time controls the phase of
       the wave or the position of the wideband pulse. This resets the time to
       zero, starting the animation from the beginning.
-   @* @b{Increase/Decrease animation time}. Move the current animation time
+   @* @b{Increase / Decrease animation time}. Move the current animation time
       forwards or backwards by one unit.
    @* @b{Show boundary}: Select which features of the boundary are displayed:
       lines, ports, or vertices. Vertex derivatives with respect to the first
@@ -414,7 +438,7 @@ vectors) can be changed with the brightness slider.
    @* @b{Show S parameters}. Show the computed S-parameters for all ports in
       the model.
    @* @b{Antialiasing}. Render the model and field more smoothly, using
-      anti-aliasing. On some platforms this can be slow, and so can be switched
+      antialiasing. On some platforms this can be slow, and so can be switched
       off.
    @* @b{Switch to model after each solve}. When this option is turned on,
       each time a new field solution is computed the model tab is made visible.
@@ -426,7 +450,7 @@ vectors) can be changed with the brightness slider.
       See the section on @link{sweeps}{sweeps}.
    @* @b{Select optimizer}. Select the numerical technique that will be used to
       perform optimizations. For certain problems some techniques perform
-      better than others. Options are Levenberg Marquardt, and Subspace dogleg.
+      better than others. Options are Levenberg-Marquardt, and Subspace dogleg.
    @* @b{Start optimization}. Adjust the selected parameters to improve the
       output of the @c{config.optimize} function.
       See the section on @link{optimization}{optimization}.
@@ -466,9 +490,9 @@ Rama can be started from the command line with the following arguments:
 @subsection{ALMA coupler}
 
 Here we design a four port coupler similar to one used in the
-Atacama Large Millimeter/submillimeter Array (ALMA), a radio telescope.
+Atacama Large Millimeter / submillimeter Array (ALMA), a radio telescope.
 The starting point of the coupler is the paper
-@link{http://legacy.nrao.edu/alma/memos/html-memos/alma468/memo468.pdf}{Designs of Wideband 3dB Branch-line Couplers for ALMA Bands 3 to 10}.
+@link{http://legacy.nrao.edu/alma/memos/html-memos/alma468/memo468.pdf}{Designs of Wideband 3dB Branch line Couplers for ALMA Bands 3 to 10}.
 
 Physically, the coupler might look like this:
 
@@ -581,16 +605,16 @@ but is not perfect. To automatically optimize a better configuration, add an
 
 The three values returned by @c{optimize} will, if they go to zero, result in
 the desired constraints being achieved.
-Now tick all gap and post parameters, and run ``Solve/Start optimization''.
+Now tick all gap and post parameters, and run ``Solve / Start optimization''.
 After optimization has finished the situation has improved, particularly the
 balance of power between ports 3 and 4.
 
-Run ``Solve/Sweep'' to plot the S-parameters over frequency:
+Run ``Solve / Sweep'' to plot the S-parameters over frequency:
 
 @figure{images/alma_sweep1.png}{}
 
 Notice that at the default frequency (93 GHz) ports 3 and 4 are well balanced,
-but at other frequences the balance is not so good. To improve this, optimize
+but at other frequencies the balance is not so good. To improve this, optimize
 over multiple frequencies simultaneously. Change @c{config.frequency} to be
 @c{LinearRange(85e9, 100e9, 50)}, to optimize over 85 GHz to 100 GHz. Now the
 @c{optimize} function needs to be changed to return information for all
@@ -619,8 +643,8 @@ using the ``S Params'' tab:
 
 @figure{images/alma_sweep2.png}{}
 
-(Note that the ``Solve/Sweep'' command can't be used for this because
-@c{config.frequency} is no longer a single value controlled by a parameter.)
+Note that the ``Solve / Sweep'' command can't be used for this because
+@c{config.frequency} is no longer a single value controlled by a parameter.
 The balance between ports 3 and 4 is greatly improved across frequency,
 somewhat at the expense of the power returned on ports 1 and 2. This tradeoff
 can be adjusted by weighting the values returned by the @c{optimize} function.
@@ -663,7 +687,7 @@ the following fields:
 
   @* @c{frequency}
   @| The frequency in Hz to run the simulation at. This is a single number for
-     a single-frequency simulation. For a multi-frequency simulation this is
+     a single frequency simulation. For a multi-frequency simulation this is
      an array of frequencies.
 
   @* @c{mesh_edge_length}
@@ -699,7 +723,7 @@ the following fields:
   optimization is to get the errors as close to zero as possible.
 
   The @c{field} table contains functions that can be called with x,y
-  coordinates to return various field-derived quantities:
+  coordinates to return various field derived quantities:
 @===[
   field.Select(n)       -- Select field for frequency n (1..#config.frequency)
                         -- All functions below return values for this frequency
@@ -728,7 +752,7 @@ the following fields:
   }
 
   If @c{config.optimize} is defined it is also called once for each regular
-  (non-optimization) run of the script, to help verify the function contains no
+  (non optimization) run of the script, to help verify the function contains no
   runtime errors. For these calls the @c{field} functions may return all zeros.
 
   @* @c{test} (optional)
@@ -753,7 +777,7 @@ the following fields:
      will be computed. Options are
      @list{
      @* @c{"at_ABC"}, which means that the far field will be computed at the
-        exterior of the computational domain, whereever there is an ABC
+        exterior of the computational domain, wherever there is an ABC
         boundary. This is the default.
      @* @c{"at_far_field_material"}, which means that the far field will be
         computed at the boundary between regular materials and those that have
@@ -765,7 +789,7 @@ the following fields:
 
   @* @c{boresight} (optional)
   @| For antenna simulations, the angle that is nominally the highest gain part
-     of the beam. This angle becomes the zero-azimuth on the antenna pattern
+     of the beam. This angle becomes the zero azimuth on the antenna pattern
      plot. This angle is in degrees, 0 is towards the right and 90 is up. If
      this is not specified it defaults to 0.
 
@@ -798,7 +822,7 @@ value of the parameter is specified by @c{default} (which must be between
 @c{min} and @c{max}). The returned @c{value} of the @c{Parameter()} function is
 the current value of the parameter. The first time the script is run this will
 be the @c{default}, but when the user changes the parameter the script will be
-re-run, @c{Parameter()} will return the new value and an updated solution will
+rerun, @c{Parameter()} will return the new value and an updated solution will
 be computed for any new geometry.
 
 By default parameters can take any real value. Parameters that are restricted
@@ -841,8 +865,8 @@ If it is not given, the default value will be read from the global
 @c{default_parameters} table using the parameter label as a key, if that table
 and key exists. If that table or key doesn't exist the parameter will take the
 @c{min} value. This mechanism allows easy copying of the current parameter
-values back into the script: simply select ``Edit/Copy'' from the menu and the
-current parameters will be copied to the clipboard in this form:
+values back into the script: simply select ``Edit / Copy'' from the menu and
+the current parameters will be copied to the clipboard in this form:
 
 @===[
   default_parameters = {
@@ -934,13 +958,13 @@ number).
   @* @c{a + b}, @c{a - b}, @_
      @c{a * b}, @c{a / b}, @_
      @c{a ^ b}
-  @| The element-wise sum (product, etc) of @c{a} and @c{b}. This result is a
+  @| The elementwise sum (product, etc) of @c{a} and @c{b}. This result is a
      vector of the same size as @c{a} or @c{b}.
   @* @c{a + k}, @c{k + a}, etc.
-  @| The element-wise sum of @c{a} and @c{k}. This result is a vector of the
+  @| The elementwise sum of @c{a} and @c{k}. This result is a vector of the
      same size as @c{a} (and likewise for the other operators).
   @* @c{Vector()}
-  @| Create a new zero-sized vector.
+  @| Create a new zero size vector.
   @* @c{@#a}
   @| The number of elements in @c{a}.
   @* @c{a:Resize(n)}
@@ -963,7 +987,7 @@ number).
   @* @c{vec.eq(a,b)} @| A vector with ones where @m{a = b} and zero otherwise.
      Named comparison functions are used for elementwise comparison instead of
      overloading the comparison operators, because the latter can only return
-     single bools.
+     single booleans.
   @* @c{vec.ne(a,b)} @| A vector with ones where @m{a \ne b} and zero otherwise.
   @* @c{vec.lt(a,b)} @| A vector with ones where @m{a < b} and zero otherwise.
   @* @c{vec.gt(a,b)} @| A vector with ones where @m{a > b} and zero otherwise.
@@ -1049,17 +1073,17 @@ The following global functions will create the standard primitive shapes:
      where (x,y) is the center of the circle.
 
   @* @c{Rectangle(x1,y1,x2,y2)}
-  @| Return a rectangle shape with 4 vertices, where (x1,y1) and (x2,y2) are
-     vertices on diagonally opposite corners.
+  @| Return a rectangle shape with 4 vertices, where @m{(x_1,y_1)} and
+     @m{(x_2,y_2)} are vertices on diagonally opposite corners.
 
   @* @c{Shape()}
   @| Return a new, empty shape. This is useful when @c{AddPoint()} is used to
      create a shape directly from vertices.
 }
 
-Shapes can be created vertex-by-vertex using @c{AddPoint()}. For example, to
-create a triangle from the points (x1,y1), (x2,y2), and (x3,y3) you can do
-this.
+Shapes can be created vertex by vertex using @c{AddPoint()}. For example, to
+create a triangle from the points @m{(x_1,y_1)}, @m{(x_2,y_2)}, and
+@m{(x_3,y_3)} you can do this.
 
 @===[
   triangle = Shape():AddPoint(x1,y1):AddPoint(x2,y2):AddPoint(x3,y3)
@@ -1190,7 +1214,7 @@ rotate @c{s} about (3,4) you could do this:
      area holes. Other cases are not handled and result in an error.
 
   @* @c{s:ChamferVertex(x,y, @_@~@~predist,postdist)}
-  @| Add a chamfer of the given pre- and post-vertex distances to the vertex
+  @| Add a chamfer of the given pre- and post- vertex distances to the vertex
      closest to @c{x},@c{y}. It is a runtime error if the shape is empty.
 
   @* @c{s:Clean(threshold)}
@@ -1262,8 +1286,8 @@ rotate @c{s} about (3,4) you could do this:
 
   @* @c{s:Select(x1,y1,x2,y2)}
   @| Returns a selection table for all polygon edges that intersect the
-     rectangle (x1,y1,x2,y2). The selection table is an array of @c{@{p,e@}}
-     tables.
+     rectangle @m{(x_1,y_1,x_2,y_2)}. The selection table is an array of
+     @c{@{p,e@}} tables.
 
   @* @c{s:SelectAll()}
   @| Returns a selection table for all polygon edges in the shape. The
@@ -1349,7 +1373,7 @@ unmerged pieces with different material properties, so the shape piece and
 vertex access functions may return unexpected results after painting.
 
 @emph{Also note that in the current implementation of dielectrics, if
-dielectric-containing shapes are combined with others using the
+dielectric containing shapes are combined with others using the
 @c{+},@c{*},@c{-},@c{~} operators then the dielectric regions will be erased.
 This limitation will be corrected in a future version. This means that painting
 should generally be one of the last steps in model creation.}
@@ -1378,7 +1402,7 @@ should generally be one of the last steps in model creation.}
 
 @subsection{@label{sweeps} Sweeps}
 
-The ``Solve/Sweep'' menu command creates a plot by sweeping a parameter over a
+The ``Solve / Sweep'' menu command creates a plot by sweeping a parameter over a
 range of values. For example, using this command on the
 @c{model_ALMA_coupler_Exy.lua} model (included with Rama) opens this dialog
 box:
@@ -1399,8 +1423,8 @@ Once the sweep has completed the sweep tab will show a plot of the results:
 
 @figure{images/sweep_results.png}{}
 
-Within the plot window, zoom in by left-clicking and dragging to select an area
-of the plot. Zoom out to the previous view by right-clicking.
+Within the plot window, zoom in by left clicking and dragging to select an area
+of the plot. Zoom out to the previous view by right clicking.
 
 If the ``Plot test()'' checkbox was not ticked, the plot will show the
 S-parameters at each port, which is a measurement of the amount of power
@@ -1452,9 +1476,9 @@ To use the optimizer, here are the steps:
    }
 @* Select the parameters to optimize by ticking the checkboxes to the left of
    the parameter names. A range of checkboxes can be ticked by selecting one
-   and then shift-selecting another. The more parameters are selected, the
-   longer optimization will take. Any parameter can be selected, not just
-   parameters that control the geometry.
+   and then selecting another with shift pressed. The more parameters are
+   selected, the longer optimization will take. Any parameter can be selected,
+   not just parameters that control the geometry.
 @* Move the selected parameters to their initial values. The optimization
    will converge to a @emph{locally} optimal configuration that may be somewhat
    close to the initial values. Better configurations that are further away may
@@ -1462,13 +1486,13 @@ To use the optimizer, here are the steps:
    So before optimization is attempted you should manually explore how the
    solution looks across a range of parameter values, and start with parameter
    values near to where you think a reasonable configuration is.
-@* (Optionally) select the optimization method with the ``Solve/Select
+@* (Optionally) select the optimization method with the ``Solve / Select
    optimizer'' menu. For certain problems some techniques perform better than
-   others. The default Levenberg Marquardt technique works for most problems.
-@* Run the optimizer with the ``Solve/Start optimization'' menu command.
+   others. The default Levenberg-Marquardt technique works for most problems.
+@* Run the optimizer with the ``Solve / Start optimization'' menu command.
    The parameters will be adjusted and the field will be solved repeatedly as
    the optimizer searches for a solution. If the process is taking too long
-   you can select ``Solve/Stop sweep or optimization'' to abort it.
+   you can select ``Solve / Stop sweep or optimization'' to abort it.
    When convergence is achieved a message will be displayed with convergence
    information.
 @* If you are not happy with the solution, you can always tweak the parameter
@@ -1496,7 +1520,7 @@ example, sweeps and the antenna plot.
 
 The ``S Params'' window plots the S parameters across all the frequencies in the
 model. However if an S parameter plot is all that is desired it is generally
-simpler to use the Sweep command to sweep a frequency paramater.
+simpler to use the Sweep command to sweep a frequency parameter.
 Computing multiple frequencies can be slower per update, as the model needs to
 be solved multiple times.
 
@@ -1570,7 +1594,7 @@ mode. For this to work, the port width for @c{Ez} or the cavity depth for
 waveguide. If the port is too wide, other modes will be possible but only the
 @m{TE_{10}} mode will be excited or absorbed. The waveguide should be constant
 width after the port, for a significant fraction of a wavelength, to ensure
-that the @m{TE_{10}} mode becomes establisted so that the simulation is
+that the @m{TE_{10}} mode becomes established so that the simulation is
 physically meaningful for excited or absorbed waves.
 
 @subsection{Coordinates}
@@ -1640,7 +1664,7 @@ libraries below have to be built with a custom processes.
 @list{
 @* Cygwin with @c{x86_64-w64-mingw32}, make (and other packages?)
 @* Matlab
-@* config.mk
+@* @c{config.mk}
 }
 
 @subsubsection{Eigen}
@@ -1676,7 +1700,7 @@ The triangle library converts shape polygons into mesh triangles.
 @subsubsection{Release process}
 
 @list{
-@* Update @c{__APP_VERSION__} in version.h before each binary release.
+@* Update @c{__APP_VERSION__} in @c{version.h} before each binary release.
 @* Run Inno Setup Compiler.
 }
 
@@ -1733,7 +1757,7 @@ and the @c{config.optimize} output. We use the chain rule to figure out
     can not simply replace those integers with @c{JetNum}. However each Clipper
     integer coordinate has an associated @c{Z} value, which we modify to
     contain the required derivatives. The @c{Z} derivatives for new vertices
-    introducted by Clipper are computed correctly by the Clipper
+    introduced by Clipper are computed correctly by the Clipper
     @c{ZFillCallback}.
 
     For simplicity below we enforce that @c{ScriptConfig} should not depend
@@ -1780,7 +1804,7 @@ and the @c{config.optimize} output. We use the chain rule to figure out
     }
 
     The cost of this is one multiplication by @m{\del A / \del p} (which might
-    be cheap if it is sparse) and one solve with the already-factored
+    be cheap if it is sparse) and one solve with the already factored
     @m{A^{-1}}.
 
 @*  @m{dx/dp \rightarrow} Compute port powers @m{\rightarrow P}, where
