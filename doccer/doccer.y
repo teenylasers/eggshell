@@ -33,6 +33,7 @@ bool ImageSize(const char *filename, int *width, int *height);
        SUBSECTION SUBSUBSECTION TITLE SUBTITLE LINK LINE_BREAK ITEM WORD SPACE
        BLANKLINE INLINE_MATH DISPLAY_MATH NEWCOMMANDS FIGURE EQREF CONTENTS
        AUTHOR TABLE SEPARATOR FORCED_SPACE LABEL ARG HTML DISPLAY_MATH_NONUM
+       SPELLING
 
 // Misc directives.
 %start document
@@ -105,19 +106,20 @@ vbox_no_para:
   | VERBATIM { printf(html ? "<pre>%s</pre>\n"
                            : "\\begin{Verbatim}[formatcom=\\color{blue}]%s\\end{Verbatim}\n", $1); }
   | HTML VERBATIM ENDBLOCK { printf("%s\n", $2); }
-  | FIGURE WORD ENDBLOCK STARTBLOCK
-      { int width, height;
-        bool havesize = ImageSize($2, &width, &height);
+  | FIGURE { SpellCheckOff(); } WORD ENDBLOCK STARTBLOCK
+      { SpellCheckOn();
+        int width, height;
+        bool havesize = ImageSize($3, &width, &height);
         if (html) {
           if (havesize) {
             printf("<img class='doc_figure' src='%s' width=%d height=%d><div class='doc_caption'>",
-                   ImageFilename($2), width/2, height/2);
+                   ImageFilename($3), width/2, height/2);
           } else {
             printf("<img class='doc_figure' src='%s'><div class='doc_caption'>",
-                   ImageFilename($2));
+                   ImageFilename($3));
           }
         } else {
-          printf("\\Figure{%s}{}", ImageFilename($2));
+          printf("\\Figure{%s}{}", ImageFilename($3));
         }
       }
     opt_hbox_list ENDBLOCK { printf(html ? "</div>\n" : "\n"); }
@@ -126,6 +128,7 @@ vbox_no_para:
     opt_space_or_blankline
     table_item_list
     ENDBLOCK { printf(html ? "\n</table>\n" : "\\\\ \\hline \\end{longtabu*}\n"); }
+  | SPELLING { SpellCheckOff(); } WORD ENDBLOCK { SpellCheckOn(); AddWordToDictionary($3); }
   ;
 
 // An hbox_list that is rendered as a single paragraph.
@@ -157,15 +160,14 @@ hbox:
 // An hbox object, not counting space.
 hbox_no_space:
     WORD { printf("%s", $1); }
-  // | inline_math
   | EQREF { printf("\\eqref{eq:"); } hbox_list ENDBLOCK
           { printf("}"); }
   | EMPH { printf(html ? "<em>" : "\\emph{"); } hbox_list ENDBLOCK
          { printf(html ? "</em>" : "}"); }
   | BOLD { printf(html ? "<b> " : "\\textbf{"); } hbox_list ENDBLOCK
          { printf(html ? "</b>" : "}"); }
-  | CODE { printf(html ? "<tt>" : "\\texttt{"); } hbox_list ENDBLOCK
-         { printf(html ? "</tt>" : "}"); }
+  | CODE { SpellCheckOff(); printf(html ? "<tt>" : "\\texttt{"); } hbox_list ENDBLOCK
+         { SpellCheckOn(); printf(html ? "</tt>" : "}"); }
   | LINK { char *link = $1;
            link += 6;                   // Skip the '@link{'
            link[strlen(link) - 1] = 0;  // Remove the }
@@ -222,8 +224,8 @@ table_item:
 opt_space_or_blankline: | SPACE | BLANKLINE ;
 
 opt_label:
-                          { section_label = 0; }
-  | LABEL WORD ENDBLOCK   { section_label = $2; }
+                                             { section_label = 0; }
+  | LABEL { SpellCheckOff(); } WORD ENDBLOCK { SpellCheckOn(); section_label = $3; }
   ;
 
 %%
