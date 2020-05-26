@@ -29,7 +29,7 @@ LIBNAME = $(notdir $(CERES_LIB))
 CCFLAGS += \
   -Werror=all -Werror=extra -Wno-unknown-pragmas -Wno-sign-compare \
   -Wno-unused-parameter -Wno-missing-field-initializers -Wno-ignored-qualifiers \
-  -Wno-overloaded-virtual \
+  -Wno-overloaded-virtual -Wno-int-in-bool-context -Wno-deprecated-copy \
   -I$(CERES_DIR)/include -I$(CERES_DIR)/internal \
   -I$(CERES_DIR)/internal/ceres  -I$(CERES_DIR)/internal/ceres/miniglog \
   -I$(EIGEN_DIR) $(EIGEN_FLAGS) -I. -DANDROID
