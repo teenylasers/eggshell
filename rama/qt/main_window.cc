@@ -486,8 +486,11 @@ void MainWindow::on_wideband_pulse_stateChanged(int arg1) {
 }
 
 void MainWindow::SetNumFrequencies(int n) {
+  // If n==1 then the slider will be disabled, but setting min=max=1 will cause
+  // the slider to disappear for some reason. Therefore if n==1 we set max to 2
+  // and value to 1 ensuring that the slider is visible and looks innocuous.
   ui->frequency_index_slider->setMinimum(1);
-  ui->frequency_index_slider->setMaximum(n);
+  ui->frequency_index_slider->setMaximum(std::max(n, 2));
   ui->frequency_index_spinner->setMinimum(1);
   ui->frequency_index_spinner->setMaximum(n);
 }
