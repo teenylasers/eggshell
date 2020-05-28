@@ -78,7 +78,7 @@ void RenderDrawStrings(QWidget *win) {
     double y = win->height() - s.y / scale;
 
     // Measure and align the text.
-    double w = s.font->fm->width(s.s.c_str());
+    double w = s.font->fm->size(0, s.s.c_str()).width();
     double h = s.font->fm->height();
     double ascent = s.font->fm->ascent();
     double descent = s.font->fm->descent();

@@ -106,7 +106,7 @@ endif
 # Set STUFF_DIR to the root of the 'stuff' repository.
 STUFF_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-QT_DIR := $(TOOLS_DIR)/Qt-5.9.2
+QT_DIR := $(TOOLS_DIR)/qt5_build
 EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.4
 CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
 ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
@@ -126,7 +126,7 @@ ifeq ($(PLATFORM), osx)
   # since homebrew gfortran appears to have a bug that prevents passing this
   # flag. If the flag is not passed the object files will not have the correct
   # version.
-  FORTRAN_COMPILER := gfortran -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
+  FORTRAN_COMPILER := gfortran-8 -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
 endif
 ifeq ($(PLATFORM), windows)
   INNO_SETUP := '/c/Program Files (x86)/Inno Setup 5/Compil32.exe'
@@ -176,7 +176,7 @@ ifeq ($(PLATFORM), windows)
 endif
 
 ifeq ($(PLATFORM), osx)
-  CFLAGS += -mmacosx-version-min=10.9
+  CFLAGS += -mmacosx-version-min=10.12
 endif
 
 ifeq ($(OPTIMIZE), 1)

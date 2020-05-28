@@ -156,7 +156,7 @@ class PlotWindow : public Plot::Window {
                 TextAlignment halign, TextAlignment valign,
                 bool rotate_90) override {
     int height = metrics[current_font]->height();
-    int width = metrics[current_font]->width(s);
+    int width = metrics[current_font]->size(0, s).width();
     int ascent = metrics[current_font]->ascent();
     int descent = metrics[current_font]->descent();
     ::AlignText(width, height, descent, halign, valign, rotate_90, &x, &y);
@@ -235,7 +235,7 @@ class PlotWindow : public Plot::Window {
   }
 
   double TextWidth(const char *s) override {
-    return metrics[current_font]->width(s);
+    return metrics[current_font]->size(0, s).width();
   }
 
   double TextHeight(double *descent) override {

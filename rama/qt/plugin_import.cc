@@ -16,6 +16,7 @@
 
 #ifdef __APPLE__
   Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin)
+  Q_IMPORT_PLUGIN(QMacStylePlugin)
 #endif
 
 #ifdef __WINNT__
