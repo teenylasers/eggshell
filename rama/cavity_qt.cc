@@ -256,11 +256,11 @@ void Cavity::DrawModel() {
         (show_wideband_pulse_ && solver_.Size() > 1) ? &solver_ : 0);
 
     // Draw the port powers, or cutoff frequencies, or other such information.
+    double dummy_width, line_height;
+    DrawStringGetSize("1", &s_parameter_font, &dummy_width, &line_height);
     if (config_.TypeIsElectrodynamic()) {
       vector<JetComplex> power;
       double scale = devicePixelRatio();
-      double dummy_width, line_height;
-      DrawStringGetSize("1", &s_parameter_font, &dummy_width, &line_height);
       if (show_sparameters_ && solver->ComputePortOutgoingPower(&power)) {
         for (int i = 0; i < power.size(); i++) {
           char s[100];
