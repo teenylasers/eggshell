@@ -94,4 +94,10 @@ void RenderDrawStrings(QWidget *win) {
   strings.clear();
 }
 
+void DrawStringGetSize(const char *s, const Font *font,
+                       double *width, double *height) {
+  *width = font->fm->size(0, s).width();
+  *height = font->fm->height();
+}
+
 #endif  // QT_CORE_LIB

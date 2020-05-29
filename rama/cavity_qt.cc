@@ -259,13 +259,15 @@ void Cavity::DrawModel() {
     if (config_.TypeIsElectrodynamic()) {
       vector<JetComplex> power;
       double scale = devicePixelRatio();
+      double dummy_width, line_height;
+      DrawStringGetSize("1", &s_parameter_font, &dummy_width, &line_height);
       if (show_sparameters_ && solver->ComputePortOutgoingPower(&power)) {
         for (int i = 0; i < power.size(); i++) {
           char s[100];
           snprintf(s, sizeof(s), "S%d = %.2f dB @ %.1f" DEGREE_SYMBOL,
                    i + 1, 10*log10(ToDouble(abs(power[i]))),
                    ToDouble(arg(power[i])) * 180.0 / M_PI);
-          DrawString(s, 10*scale, window_height - (10 + 20*i)*scale,
+          DrawString(s, 10*scale, window_height - (10 + line_height*i)*scale,
                      &s_parameter_font, 0,0,0, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
         }
       }
@@ -286,7 +288,7 @@ void Cavity::DrawModel() {
           char prefix = SIPrefix(F, 0.99, &mag);
           char s[100];
           snprintf(s, sizeof(s), "F%d = %.2f %cHz", i, F / mag, prefix);
-          DrawString(s, 10*scale, window_height - (10 + 20*i)*scale,
+          DrawString(s, 10*scale, window_height - (10 + line_height*i)*scale,
                      &s_parameter_font, 0,0,0, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
         }
       }

@@ -62,4 +62,8 @@ void DrawStringM(const char *s, double x, double y, double z,
 // unpredictably change the opengl state.
 void RenderDrawStrings(QWidget *win);
 
+// Get the dimensions of the string in the font.
+void DrawStringGetSize(const char *s, const Font *font,
+                       double *width, double *height);
+
 #endif
