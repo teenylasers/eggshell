@@ -52,7 +52,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>290</width>
+         <width>289</width>
          <height>676</height>
         </rect>
        </property>
@@ -1217,7 +1217,7 @@
   </action>
   <action name="actionCheckForLatestVersion">
    <property name="text">
-    <string>Check for latest version</string>
+    <string>Download latest version</string>
    </property>
   </action>
   <action name="actionAbout">

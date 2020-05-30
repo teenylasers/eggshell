@@ -106,7 +106,7 @@ endif
 # Set STUFF_DIR to the root of the 'stuff' repository.
 STUFF_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-QT_DIR := $(TOOLS_DIR)/qt5_build
+QT_DIR := $(TOOLS_DIR)/qt5_install
 EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.4
 CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
 ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
