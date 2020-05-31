@@ -49,7 +49,6 @@ MainWindow::MainWindow(QWidget *parent) :
   tabifyDockWidget(ui->dock_model, ui->dock_sparams);
   tabifyDockWidget(ui->dock_model, ui->dock_antenna);
   tabifyDockWidget(ui->dock_model, ui->dock_script_messages);
-  // resizeDocks({ui->dock_model}, {650}, Qt::Horizontal);
   ui->dock_model->raise();
 
   // Default shows and hidden controls.
@@ -60,10 +59,14 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->mode_number->hide();
 
   // Position the window so it takes up the entire screen minus a margin.
-  QRect rect = windowHandle()->screen()->availableGeometry();
-  rect = rect.marginsRemoved(QMargins(rect.width()/8, rect.height()/8,
-                                      rect.width()/8, rect.height()/8));
-  setGeometry(rect);
+  QScreen *s = QGuiApplication::screenAt(mapToGlobal({width()/2, height()/2}));
+  if (s) {
+    QRect rect = s->availableGeometry();
+    rect = rect.marginsRemoved(QMargins(rect.width()/8, rect.height()/8,
+                                        rect.width()/8, rect.height()/8));
+    setGeometry(rect);
+    resizeDocks({ui->dock_model}, {rect.width() /3*2}, Qt::Horizontal);
+  }
 
   // Connect the model viewer to other controls.
   ui->model->Connect(ui->script_messages, ui->parameter_pane, ui->plot,

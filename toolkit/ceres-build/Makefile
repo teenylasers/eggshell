@@ -142,7 +142,7 @@ OBJ = $(SRC:%.cc=%.o)
 all: $(LIBNAME)
 
 $(LIBNAME): $(OBJ)
-	$(TOOL_PREFIX)ar rcv $(LIBNAME) $(OBJ)
+	ar rcv $(LIBNAME) $(OBJ)
 
 %.o: $(CERES_DIR)/internal/ceres/%.cc
 	$(TOOL_PREFIX)g++$(TOOL_SUFFIX) $(CCFLAGS) -o $@ -c $<

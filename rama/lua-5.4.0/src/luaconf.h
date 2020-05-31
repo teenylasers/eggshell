@@ -611,9 +611,7 @@
 ** leave 'lua_strx2number' undefined and Lua will provide its own
 ** implementation.
 */
-#if !defined(LUA_USE_C89)
 #define lua_strx2number(s,p)		lua_str2number(s,p)
-#endif
 
 
 /*
@@ -629,10 +627,8 @@
 ** Otherwise, you can leave 'lua_number2strx' undefined and Lua will
 ** provide its own implementation.
 */
-#if !defined(LUA_USE_C89)
 #define lua_number2strx(L,b,sz,f,n)  \
 	((void)L, l_sprintf(b,sz,f,(LUAI_UACNUMBER)(ToDouble(n))))
-#endif
 
 
 /*

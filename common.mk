@@ -86,7 +86,7 @@ show_configuration:
 # Determine the OS we're building on.
 
 ifeq ($(OS), Windows_NT)
-  # OS is defined in the environment in cygwin builds.
+  # OS is defined in the environment in cygwin and MSYS2 builds.
   PLATFORM := windows
 else
   # OS X and linux don't seem to have anything useful in the environment to

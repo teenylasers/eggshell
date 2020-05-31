@@ -661,7 +661,12 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
     delete parameter_layout_;
     parameter_layout_ = new QGridLayout(parameter_window_);
     parameter_layout_->setSpacing(5);
-    parameter_layout_->setContentsMargins(0, 0, 0, 0);
+    #if defined(__WINNT__)
+      // For some reason Windows wants extra margin here:
+      parameter_layout_->setContentsMargins(10, 0, 10, 0);
+    #else
+      parameter_layout_->setContentsMargins(0, 0, 0, 0);
+    #endif
     qDeleteAll(parameter_window_->findChildren<QWidget*>
                  (QString(), Qt::FindDirectChildrenOnly));
   }

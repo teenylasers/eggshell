@@ -29,7 +29,7 @@ SHELL=/bin/bash -o pipefail
 
 # Extract the version number from version.h.
 ifndef VERSION
-VERSION := $(shell $(TOOL_PREFIX)cpp -dM version.h|grep __APP_VERSION__|cut -d '"' -f 2)
+VERSION := $(shell grep __APP_VERSION__ version.h|grep __APP_VERSION__|cut -d '"' -f 2)
 endif
 
 # Build directories
@@ -186,12 +186,13 @@ ifeq ($(PLATFORM), windows)
   GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -lmingw32 \
     -lqtmain$(D) -lqwindows$(D) -lQt5EventDispatcherSupport$(D) \
     -lQt5FontDatabaseSupport$(D) -lqtfreetype$(D) -lQt5ThemeSupport$(D) \
-    -lQt5Gui$(D) -lQt5Core$(D) \
+    -lQt5Gui$(D) -lQt5Core$(D) -lQt5WindowsUiAutomationSupport$(D) \
     -ldwmapi -loleaut32 -limm32 -lopengl32 -lgdi32 -liphlpapi -lversion \
-    -lws2_32 -luuid -lole32 -lwinmm
+    -lws2_32 -luuid -lole32 -lwinmm -lnetapi32 -luserenv -lwtsapi32 -lz
   GUI_DEF += -DUNICODE -D_UNICODE -DQT_NEEDS_QMAIN
   CFLAGS += -mthreads
   CCFLAGS += -fno-keep-inline-dllexport -fexceptions
+  CFLAGS += -Wno-int-in-bool-context  # For Eigen
   CCFLAGS += -Wa,-mbig-obj
 endif
 CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
@@ -222,6 +223,12 @@ mainwin.o: CCFLAGS += -Wno-error=unused-variable
 # of signed overflow.
 triangle.o: CFLAGS += -DNO_TIMER -DTRILIBRARY \
   -DANSI_DECLARATORS -DEXTERNAL_TEST -fwrapv -Wno-uninitialized
+
+clipper.o: CCFLAGS += -Wno-class-memaccess
+#ifeq ($(PLATFORM), windows)
+  lua/lstring.o: CFLAGS += -Wno-stringop-overflow
+  lua/lmathlib.o: CFLAGS += -Wno-overflow  # Suspicious
+#endif
 
 #############################################################################
 # Lua.
