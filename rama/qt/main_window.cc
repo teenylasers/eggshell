@@ -19,6 +19,8 @@
 #include <QClipboard>
 #include <QNetworkReply>
 #include <QMessageBox>
+#include <QWindow>
+#include <QScreen>
 
 #include "main_window.h"
 #include "ui_main_window.h"
@@ -47,7 +49,7 @@ MainWindow::MainWindow(QWidget *parent) :
   tabifyDockWidget(ui->dock_model, ui->dock_sparams);
   tabifyDockWidget(ui->dock_model, ui->dock_antenna);
   tabifyDockWidget(ui->dock_model, ui->dock_script_messages);
-  resizeDocks({ui->dock_model}, {650}, Qt::Horizontal);   //@@@ scale width by main window size
+  // resizeDocks({ui->dock_model}, {650}, Qt::Horizontal);
   ui->dock_model->raise();
 
   // Default shows and hidden controls.
@@ -56,6 +58,12 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->display_style_TM->hide();
   ui->mode_label->hide();
   ui->mode_number->hide();
+
+  // Position the window so it takes up the entire screen minus a margin.
+  QRect rect = windowHandle()->screen()->availableGeometry();
+  rect = rect.marginsRemoved(QMargins(rect.width()/8, rect.height()/8,
+                                      rect.width()/8, rect.height()/8));
+  setGeometry(rect);
 
   // Connect the model viewer to other controls.
   ui->model->Connect(ui->script_messages, ui->parameter_pane, ui->plot,
