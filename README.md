@@ -1,6 +1,6 @@
 # Things and also stuff
 
-For rama documentation refer to [ramasimulator.org](http://ramasimulator.org]).
+For rama documentation refer to [ramasimulator.org](http://ramasimulator.org).
 
 ## Build instructions (all platforms)
 
