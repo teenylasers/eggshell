@@ -13,11 +13,8 @@
 # @@@ TODO: Notes for things to add to this document
 # * Tutorial.
 #   - Wifi house. Radiation boundary. Radiation patterns.
-# * The mathematical backbone of Rama is described in this companion document,
-#   @link{https://evenedric.github.io/fem.html}{The Finite Element Method}.
 # * PMLs
 # * util table - add to "6.9 Utility functions" ?
-# * Building from source
 # * Design notes
 # * Terminology and definitons:
 #   - S paramaters
@@ -42,10 +39,7 @@
 @spelling{website} @spelling{on-screen} @spelling{filesystem}
 @spelling{refactoring} @spelling{antialiasing} @spelling{constant-Z}
 @spelling{Atacama} @spelling{utf} @spelling{false} @spelling{JetComplex}
-@spelling{ZFillCallback} @spelling{PNG} @spelling{linux} @spelling{eigen}
-@spelling{zlib} @spelling{cygwin} @spelling{matlab} @spelling{gnu-isms}
-@spelling{linux-isms} @spelling{windows-isms} @spelling{lapack}
-@spelling{arpack} @spelling{Inno} @spelling{toolchain} @spelling{C++-specific}
+@spelling{ZFillCallback} @spelling{PNG} @spelling{linux} @spelling{matlab}
 
 
 @title{Rama}
@@ -91,9 +85,14 @@ the basics worked out quickly before moving to another simulator's much slower
 
 @subsection{Getting Rama}
 
-Here are the @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
-and the @link{http://ramasimulator.org/Rama.dmg}{Mac image}
-for the latest stable version of Rama.
+Rama is available for Mac, Windows and Linux platforms. Here are the installers
+for the latest stable version:
+
+@list{
+@* @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
+@* @link{http://ramasimulator.org/Rama.dmg}{Mac image}
+}
+
 All Rama development is done on @link{https://github.com/Evenedric/stuff}{github}.
 
 @subsection{Rama Examples}
@@ -907,7 +906,7 @@ another function, so for example the following is a convenient idiom:
   shape:AddPoint(ParameterMarker{...})
 ]===@
 
-@subsection{@label{luafnvars} Functions and variables accessible to the Lua script}
+@subsection{@label{luafnvars} Functions and variables available to the script}
 
 The following @link{http://www.lua.org/manual/5.4/manual.html}{Lua standard libraries}
 can be used: base, table, string, utf8 and
@@ -1645,75 +1644,12 @@ may be implemented later, if there is need.
 #############################################################################
 @section{Rama Internals}
 
-This part of the manual is only useful if you want to do Rama software
-development.
+This is a random selection of documentation about the internals of Rama.
 
-@subsection{Building from source on windows}
+@subsection{Building from source}
 
-It is much more annoying to build on windows than on linux. We use the
-@c{x86_64-w64-mingw32} toolchain on cygwin so that we can (a) use GNU source on
-both linux and windows, and (b) still build native binaries on windows. The
-other major option (Visual C++) would compile much faster but also require a
-lot of Visual C++-specific modifications to the code. However building for
-@c{x86_64-w64-mingw32} is a big pain, because it mixes gnu-isms, linux-isms and
-windows-isms in a way that confuses many libraries. Therefore, many of the
-libraries below have to be built with a custom processes.
+See the @link{https://github.com/Evenedric/stuff}{instructions on github}.
 
-@subsubsection{Prerequisites}
-
-@list{
-@* Cygwin with @c{x86_64-w64-mingw32}, make (and other packages?)
-@* Matlab
-@* @c{config.mk}
-}
-
-@subsubsection{Eigen}
-
-Apply @c{eigen_patches.txt}.
-
-Eigen blas and lapack. From the eigen source directory:
-@===[
-mkdir build_dir
-cd build_dir
-make clean && cmake .. && make -j4 CMAKE_CXX_FLAGS=-mmacosx-version-min=10.9 \
-  CMAKE_C_FLAGS=-mmacosx-version-min=10.9 VERBOSE=1 blas lapack
-]===@
-
-@subsubsection{Triangle}
-
-The triangle library converts shape polygons into mesh triangles.
-
-@subsubsection{Clipper}
-@subsubsection{Lua}
-@subsubsection{Ceres}
-@subsubsection{ARPACK}
-
-@===[
-./configure --disable-alloca --with-our-malloc16 --disable-shared
-  --enable-static --disable-threads --enable-sse2 --host=x86_64-w64-mingw32
-]===@
-
-@subsubsection{Zlib}
-
-@subsubsection{Matlab (optional)}
-
-@subsubsection{Release process}
-
-@list{
-@* Update @c{__APP_VERSION__} in @c{version.h} before each binary release.
-@* Run Inno Setup Compiler.
-}
-
-
-@subsection{Design Notes}
-
-Just random notes for now.
-
-The ``invisible hand'' uses idle events to trigger recurrent processing of
-sweep and optimize updates while still being responsive to user input (mouse
-events etc).
-
-#............................................................................
 @subsection{Computing the Jacobian}
 
 For optimization we need to compute derivatives of the @c{config.optimize}
