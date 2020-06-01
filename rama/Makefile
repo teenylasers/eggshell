@@ -224,11 +224,11 @@ mainwin.o: CCFLAGS += -Wno-error=unused-variable
 triangle.o: CFLAGS += -DNO_TIMER -DTRILIBRARY \
   -DANSI_DECLARATORS -DEXTERNAL_TEST -fwrapv -Wno-uninitialized
 
-clipper.o: CCFLAGS += -Wno-class-memaccess
-#ifeq ($(PLATFORM), windows)
+ifeq ($(PLATFORM), windows)
+  clipper.o: CCFLAGS += -Wno-class-memaccess
   lua/lstring.o: CFLAGS += -Wno-stringop-overflow
   lua/lmathlib.o: CFLAGS += -Wno-overflow  # Suspicious
-#endif
+endif
 
 #############################################################################
 # Lua.
