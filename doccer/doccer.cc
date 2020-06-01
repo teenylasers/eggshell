@@ -7,7 +7,8 @@
 
 void Usage() {
   fprintf(stderr, "Usage: doccer [-l] [-t template_file] [-Dname=value] "
-                  "[-s dictionary_file] <filename.doc>\n");
+                  "[-s dictionary_file] [-i image_filename_prefix] "
+                  "<filename.doc>\n");
   exit(1);
 }
 
@@ -37,6 +38,12 @@ int main(int argc, char **argv) {
           Usage();
         }
         dictionary_filename = argv[i];
+      } else if (argv[i][1] == 'i') {
+        i++;
+        if (i == argc || image_filename_prefix) {
+          Usage();
+        }
+        image_filename_prefix = argv[i];
       } else {
         Usage();
       }

@@ -9,6 +9,7 @@
 int line_count = 1;
 bool html = true;
 map<string, const char *> defines;
+char *image_filename_prefix = 0;
 
 void Panic(const char *msg, ...) {
   va_list ap;

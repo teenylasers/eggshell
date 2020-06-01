@@ -112,14 +112,14 @@ vbox_no_para:
         bool havesize = ImageSize($3, &width, &height);
         if (html) {
           if (havesize) {
-            printf("<img class='doc_figure' src='%s' width=%d height=%d><div class='doc_caption'>",
-                   ImageFilename($3), width/2, height/2);
+            printf("<img class='doc_figure' src='%s%s' width=%d height=%d><div class='doc_caption'>",
+                   image_filename_prefix, ImageFilename($3), width/2, height/2);
           } else {
-            printf("<img class='doc_figure' src='%s'><div class='doc_caption'>",
-                   ImageFilename($3));
+            printf("<img class='doc_figure' src='%s%s'><div class='doc_caption'>",
+                   image_filename_prefix, ImageFilename($3));
           }
         } else {
-          printf("\\Figure{%s}{}", ImageFilename($3));
+          printf("\\Figure{%s%s}{}", image_filename_prefix, ImageFilename($3));
         }
       }
     opt_hbox_list ENDBLOCK { printf(html ? "</div>\n" : "\n"); }

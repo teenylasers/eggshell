@@ -24,6 +24,7 @@ extern int doccer_parser_parse();
 extern int doccer_lexxer_lex(char **yylval_param);
 extern int doccer_parser_lex(char **yylval_param);
 extern map<string, const char *> defines;
+extern char *image_filename_prefix;
 
 // Error handling.
 void Panic(const char *msg, ...)
