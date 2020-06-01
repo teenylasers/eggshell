@@ -30,14 +30,7 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 Source: "..\build\rama.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_ALMA_coupler_Exy.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_antenna_pattern_test.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_horn_Ez.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_schrodinger_test.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_Exy.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_Ez.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_bend.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_modes.lua"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\examples\*"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\doc\*.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\doc\*.gif"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build\rama.html"; DestDir: "{app}"; Flags: ignoreversion
