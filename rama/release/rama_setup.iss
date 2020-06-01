@@ -30,9 +30,8 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 Source: "..\build\rama.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\examples\*"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\doc\*.png"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\doc\*.gif"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\examples"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build\images"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build\rama.html"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
