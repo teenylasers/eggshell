@@ -60,6 +60,9 @@ int main(int argc, char **argv) {
   if (dictionary_filename) {
     EnableSpellChecking(dictionary_filename);
   }
+  if (!image_filename_prefix) {
+    image_filename_prefix = strdup("");
+  }
 
   // Write the file header by reading the template up until the first '@'.
   FILE *template_file = fopen(template_filename, "rb");
