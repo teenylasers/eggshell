@@ -99,7 +99,7 @@ windeploy2: $(APP) docs2
 	$(TOOL_PREFIX)strip $(APP)
 	$(INNO_SETUP) /cc ../release/rama_setup.iss
 	echo $(VERSION) > latest_version.txt
-	scp setup_rama.exe rama.html *.png *.gif latest_version.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
+	scp setup_rama.exe rama_pub.html *.png *.gif latest_version.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
 
 macdeploy: all test
 	$(MAKE) $(MY_MAKEFLAGS) macdeploy2
