@@ -96,7 +96,7 @@ script_test: all
 	@echo
 	@echo '*** Success ***'
 
-windeploy: all #  test
+windeploy: all test
 	$(MAKE) $(MY_MAKEFLAGS) windeploy2
 windeploy2: $(APP) docs2
 	strip $(APP)
