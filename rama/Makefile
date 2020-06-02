@@ -65,6 +65,7 @@ docs2:
 ifeq ($(PLATFORM), windows)
 	rm -rf images  # Since 'ln' actually does a copy on MSYS2
 endif
+	pushd $(MEDIA_PATH) && git pull && popd  # Make sure images up to date
 	ln -f -s $(MEDIA_PATH)  # So locally building and viewing the manual works
 	$(DOCCER) -Dversion=$(VERSION) $(DOCCER_DICTIONARY) ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama.html
 	$(DOCCER) -Dversion=$(VERSION) -i https://evenedric.github.io/ ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama_pub.html
@@ -103,8 +104,9 @@ windeploy2: $(APP) docs2
 	# Note two forward slashes escape to a single / in MSYS2:
 	$(INNO_SETUP) //cc '..\release\rama_setup.iss'
 	echo $(VERSION) > latest_version.txt
-	scp setup_rama.exe rama_pub.html latest_version.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
+	scp setup_rama.exe latest_version.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
 
+# Only the mac deployment copies the documentation to ramasimulator.org.
 macdeploy: all test
 	$(MAKE) $(MY_MAKEFLAGS) macdeploy2
 macdeploy2: $(APP) docs2
@@ -119,11 +121,21 @@ macdeploy2: $(APP) docs2
 	echo $(VERSION) > latest_version_mac.txt
 	scp Rama.dmg rama_pub.html latest_version_mac.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
 
+linuxdeploy: all test
+	$(MAKE) $(MY_MAKEFLAGS) linuxdeploy2
+linuxdeploy2: $(APP) docs2
+	strip $(APP)
+	rm -rf rama-* && mkdir rama-$(VERSION)
+	cp -av $(APP) ../examples $(MEDIA_PATH) rama.html rama-$(VERSION)
+	echo $(VERSION) > latest_version_linux.txt
+	tar cfvz rama-$(VERSION).tgz rama-$(VERSION)
+	scp rama-$(VERSION).tgz latest_version_linux.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
+
 cleanapp:
 	-rm -f build/*.d build/*.o build/$(APP) $(subst ../,,$(PCH)) *.d
 
 clean: cleanapp
-	-rm -rf build dialogblocks/*.pjd.bak
+	-rm -rf build
 
 #############################################################################
 # Application files (including single-file libraries).
@@ -158,6 +170,10 @@ endif
 ifneq ($(PLATFORM), windows)
   LUA_EXTRA_CFLAGS = -DLUA_USE_POSIX
 endif
+ifeq ($(PLATFORM), linux)
+  CCFLAGS += -fPIC
+  CFLAGS += -fPIC
+endif
 
 CC := $(TOOL_PREFIX)gcc
 CXX := $(TOOL_PREFIX)g++
@@ -177,12 +193,15 @@ else
     D := d
   endif
 endif
-GUI_LIBS = -L$(QT_DIR)/lib -L$(QT_DIR)/plugins/platforms -L$(QT_DIR)/plugins/styles \
+ifeq ($(PLATFORM), linux)
+  GUI_LIBS = -Wl,-Bstatic -static-libgcc -static-libstdc++ -Wl,--start-group
+endif
+GUI_LIBS += -L$(QT_DIR)/lib -L$(QT_DIR)/plugins/platforms -L$(QT_DIR)/plugins/styles \
   -lQt5Widgets$(D) -lQt5Gui$(D) -lQt5Core$(D) -lQt5Network$(D) \
-  -lqtlibpng$(D) -lqtharfbuzz$(D) -lqtpcre2$(D) -lqtfreetype$(D) \
+  -lqtharfbuzz$(D) -lqtpcre2$(D) \
   -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D)
 ifeq ($(PLATFORM), osx)
-  GUI_LIBS += -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
+  GUI_LIBS += -lqtlibpng$(D) -lqtfreetype$(D) -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
     -lQt5ClipboardSupport$(D) -lQt5AccessibilitySupport$(D) \
     -lQt5GraphicsSupport$(D) -lqmacstyle$(D) \
     -framework OpenGL -framework AGL -framework IOKit \
@@ -193,7 +212,7 @@ ifeq ($(PLATFORM), osx)
 endif
 ifeq ($(PLATFORM), windows)
   GUI_LIBS += -Wl,-s -Wl,-subsystem,windows -lmingw32 \
-    -lqtmain$(D) -lqwindows$(D) -lQt5EventDispatcherSupport$(D) \
+    -lqtlibpng$(D) -lqtfreetype$(D) -lqtmain$(D) -lqwindows$(D) -lQt5EventDispatcherSupport$(D) \
     -lQt5FontDatabaseSupport$(D) -lqtfreetype$(D) -lQt5ThemeSupport$(D) \
     -lQt5Gui$(D) -lQt5Core$(D) -lQt5WindowsUiAutomationSupport$(D) \
     -ldwmapi -loleaut32 -limm32 -lopengl32 -lgdi32 -liphlpapi -lversion \
@@ -203,6 +222,18 @@ ifeq ($(PLATFORM), windows)
   CCFLAGS += -fno-keep-inline-dllexport -fexceptions
   CFLAGS += -Wno-int-in-bool-context  # For Eigen
   CCFLAGS += -Wa,-mbig-obj
+endif
+ifeq ($(PLATFORM), linux)
+  GUI_LIBS += -lQt5LinuxAccessibilitySupport$(D) -lQt5AccessibilitySupport$(D) \
+    -lQt5QuickParticles$(D) -lQt5FontDatabaseSupport$(D) -lQt5Purchasing$(D) \
+    -lQt5DBus$(D) -lQt5ServiceSupport$(D) -lQt5ThemeSupport$(D) -lQt5XcbQpa$(D) \
+    -lQt5XmlPatterns$(D) -lQt5EdidSupport$(D) -lQt5GlxSupport$(D) \
+    -lqxcb -L$(QT_DIR)/plugins/xcbglintegrations -lqxcb-glx-integration \
+    -pthread -lICE -lz -licui18n -licudata -licuuc -lpng -lglib-2.0 \
+    -lxcb-util -lxcb-shape -lxcb-record -lxcb-randr -lxcb-xinerama -lxcb-static \
+    -lxcb-xkb -lxcb-sync -lxkbcommon -lxkbcommon-x11 -lxcb -lxcb-glx -lX11-xcb -lX11 -lXrender \
+    -lfontconfig -lfreetype -lSM -lICE -ldbus-1  -lexpat -lXau -lXdmcp -licui18n \
+    -Wl,--end-group -Wl,-Bdynamic -lGL -ldl -lsystemd
 endif
 CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
 

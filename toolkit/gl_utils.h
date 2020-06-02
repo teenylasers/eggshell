@@ -32,7 +32,6 @@
     #include <GL/gl.h>
     #include <GL/glext.h>
   #endif
-  #define GL(fn) gl##fn
 #endif
 
 #include "Eigen/Dense"
@@ -51,10 +50,10 @@ namespace gl {
 
 #ifdef QT_CORE_LIB
   extern QOpenGLFunctions_3_3_Core gl_functions;
-  #ifdef __WINNT__
-    #define GL(fn) gl::gl_functions.gl##fn
-  #else
+  #ifdef __APPLE__
     #define GL(fn) gl##fn
+  #else
+    #define GL(fn) gl::gl_functions.gl##fn
   #endif
   void SetDefaultOpenGLSurfaceFormat();
   void InitializeOpenGLFunctions(QOpenGLContext *context);

@@ -23,6 +23,11 @@
   Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
 #endif
 
+#ifdef __linux__
+  Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
+  Q_IMPORT_PLUGIN(QXcbGlxIntegrationPlugin)
+#endif
+
 // Some others that might come in handy later:
 //   Q_IMPORT_PLUGIN(QGifPlugin)
 //   Q_IMPORT_PLUGIN(QICNSPlugin)

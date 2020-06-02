@@ -51,7 +51,7 @@ to the need to patch many of those things. Build automation would be nice!
 ```
   The configuration depends on the platform. For Linux:
 ```
-  ~/tools/qt5/configure -prefix ~/tools/qt5_install -static -opensource -confirm-license -debug-and-release -opengl desktop -nomake examples -nomake tests
+  ~/tools/qt5/configure -prefix ~/tools/qt5_install -static -opensource -confirm-license -debug-and-release -opengl desktop -nomake examples -nomake tests -qt-xcb
 ```
   For OSX add this to the configure line: `-platform macx-clang QMAKE_MACOSX_DEPLOYMENT_TARGET=10.12`.
   For Windows, see the extra instructions below.

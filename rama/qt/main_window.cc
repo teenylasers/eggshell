@@ -29,8 +29,10 @@
 #include "../version.h"
 #include "../../toolkit/error.h"
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
 #define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_MAC__
+#elseif defined(__linux__)
+#define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_LINUX__
 #else
 #define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_WIN__
 #endif
@@ -338,7 +340,11 @@ void MainWindow::on_actionRamaManual_triggered() {
     dir.cd("../../Contents/Resources");
   #endif
   QString path = dir.absoluteFilePath("rama.html");
-  QDesktopServices::openUrl(QUrl("file:///" + path));
+  #ifdef __linux__
+    QDesktopServices::openUrl(QUrl("file://" + path));
+  #else
+    QDesktopServices::openUrl(QUrl("file:///" + path));
+  #endif
 }
 
 void MainWindow::on_actionRamaWebsite_triggered() {
@@ -470,7 +476,7 @@ void MainWindow::VersionReplyAvailable(QNetworkReply *reply) {
     if (latest > current) {
       Message("A newer version of " __APP_NAME__ " is available (current "
               "version is " __APP_VERSION__ ", latest version is %d.%d). "
-              "Use 'Help/Install Latest' to install the latest version.",
+              "Use 'Help/Download latest' to install the latest version.",
               major, minor);
     }
   }

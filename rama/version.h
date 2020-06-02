@@ -33,5 +33,6 @@
 #define __APP_LATEST_MAC_DOWNLOAD_PATH__ "/Rama.dmg"
 #define __APP_LATEST_VERSION_PATH_WIN__ "/latest_version.txt"
 #define __APP_LATEST_VERSION_PATH_MAC__ "/latest_version_mac.txt"
+#define __APP_LATEST_VERSION_PATH_LINUX__ "/latest_version_linux.txt"
 
 #endif
