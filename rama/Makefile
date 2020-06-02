@@ -62,6 +62,9 @@ lua: dirs
 docs: dirs
 	$(MAKE) $(MY_MAKEFLAGS) docs2
 docs2:
+ifeq ($(PLATFORM), windows)
+	rm -rf images  # Since 'ln' actually does a copy on MSYS2
+endif
 	ln -f -s $(MEDIA_PATH)  # So locally building and viewing the manual works
 	$(DOCCER) -Dversion=$(VERSION) $(DOCCER_DICTIONARY) ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama.html
 	$(DOCCER) -Dversion=$(VERSION) -i https://evenedric.github.io/ ../doc/rama.doc | sed 's@__MATHJAX__@$(MATHJAX_PUBLIC)@' | sed 's@__TITLE__@Rama@' > rama_pub.html
@@ -93,18 +96,19 @@ script_test: all
 	@echo
 	@echo '*** Success ***'
 
-windeploy: all test
+windeploy: all #  test
 	$(MAKE) $(MY_MAKEFLAGS) windeploy2
 windeploy2: $(APP) docs2
-	$(TOOL_PREFIX)strip $(APP)
-	$(INNO_SETUP) /cc ../release/rama_setup.iss
+	strip $(APP)
+	# Note two forward slashes escape to a single / in MSYS2:
+	$(INNO_SETUP) //cc '..\release\rama_setup.iss'
 	echo $(VERSION) > latest_version.txt
-	scp setup_rama.exe rama_pub.html *.png *.gif latest_version.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
+	scp setup_rama.exe rama_pub.html latest_version.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
 
 macdeploy: all test
 	$(MAKE) $(MY_MAKEFLAGS) macdeploy2
 macdeploy2: $(APP) docs2
-	$(TOOL_PREFIX)strip $(APP)
+	strip $(APP)
 	rm -rf Rama.app && cp -av ../release/Rama.app .
 	mkdir Rama.app/Contents/MacOS
 	cp $(APP) Rama.app/Contents/MacOS

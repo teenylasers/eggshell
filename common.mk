@@ -129,7 +129,7 @@ ifeq ($(PLATFORM), osx)
   FORTRAN_COMPILER := gfortran-8 -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
 endif
 ifeq ($(PLATFORM), windows)
-  INNO_SETUP := '/c/Program Files (x86)/Inno Setup 5/Compil32.exe'
+  INNO_SETUP := '/c/Program Files (x86)/Inno Setup 6/Compil32.exe'
   #MATLAB_LIB := /c/Program Files/MATLAB/R2013a/extern/lib/win64/microsoft
   #MATLAB_INC := /c/Program\ Files/MATLAB/R2013a/extern/include
   READLINE_LIB := -lreadline

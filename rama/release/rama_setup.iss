@@ -14,12 +14,13 @@ AppPublisher={#__APP_PUBLISHER__}
 AppPublisherURL={#__APP_URL__}
 AppSupportURL={#__APP_URL__}
 AppUpdatesURL={#__APP_URL__}
-DefaultDirName={pf}\{#__APP_NAME__}
+DefaultDirName={autopf}\{#__APP_NAME__}
 DefaultGroupName={#__APP_NAME__}
 OutputDir=../build
 OutputBaseFilename=setup_rama
 Compression=lzma
 SolidCompression=yes
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -30,8 +31,8 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 Source: "..\build\rama.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\examples"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\build\images"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\examples\*"; DestDir: "{app}\examples"; Flags: ignoreversion
+Source: "..\build\images\*"; DestDir: "{app}\images"; Flags: ignoreversion
 Source: "..\build\rama.html"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
