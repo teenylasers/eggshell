@@ -44,7 +44,7 @@ diff -r -u -w lua-5.4.0-original/src/liolib.c lua-5.4.0/src/liolib.c
      else {
 diff -r -u -w lua-5.4.0-original/src/lobject.c lua-5.4.0/src/lobject.c
 --- lua-5.4.0-original/src/lobject.c	2020-05-06 04:33:36.000000000 -0700
-+++ lua-5.4.0/src/lobject.c	2020-05-23 13:55:17.000000000 -0700
++++ lua-5.4.0/src/lobject.c	2020-05-30 10:10:49.000000000 -0700
 @@ -540,8 +540,8 @@
  
  
@@ -123,7 +123,7 @@ diff -r -u -w lua-5.4.0-original/src/lua.h lua-5.4.0/src/lua.h
  LUA_API int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);
 diff -r -u -w lua-5.4.0-original/src/luaconf.h lua-5.4.0/src/luaconf.h
 --- lua-5.4.0-original/src/luaconf.h	2020-05-06 04:33:37.000000000 -0700
-+++ lua-5.4.0/src/luaconf.h	2020-05-23 12:56:51.000000000 -0700
++++ lua-5.4.0/src/luaconf.h	2020-05-31 16:59:01.000000000 -0700
 @@ -8,6 +8,8 @@
  #ifndef luaconf_h
  #define luaconf_h
@@ -164,12 +164,25 @@ diff -r -u -w lua-5.4.0-original/src/luaconf.h lua-5.4.0/src/luaconf.h
  
  #define l_floatatt(n)		(DBL_##n)
  
-@@ -629,7 +631,7 @@
+@@ -609,9 +611,7 @@
+ ** leave 'lua_strx2number' undefined and Lua will provide its own
+ ** implementation.
  */
- #if !defined(LUA_USE_C89)
+-#if !defined(LUA_USE_C89)
+ #define lua_strx2number(s,p)		lua_str2number(s,p)
+-#endif
+ 
+ 
+ /*
+@@ -627,10 +627,8 @@
+ ** Otherwise, you can leave 'lua_number2strx' undefined and Lua will
+ ** provide its own implementation.
+ */
+-#if !defined(LUA_USE_C89)
  #define lua_number2strx(L,b,sz,f,n)  \
 -	((void)L, l_sprintf(b,sz,f,(LUAI_UACNUMBER)(n)))
+-#endif
 +	((void)L, l_sprintf(b,sz,f,(LUAI_UACNUMBER)(ToDouble(n))))
- #endif
  
  
+ /*
