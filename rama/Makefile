@@ -128,8 +128,8 @@ linuxdeploy2: $(APP) docs2
 	rm -rf rama-* && mkdir rama-$(VERSION)
 	cp -av $(APP) ../examples $(MEDIA_PATH) rama.html rama-$(VERSION)
 	echo $(VERSION) > latest_version_linux.txt
-	tar cfvz rama-$(VERSION).tgz rama-$(VERSION)
-	scp rama-$(VERSION).tgz latest_version_linux.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
+	tar cfvz rama.tgz rama-$(VERSION)
+	scp rama.tgz latest_version_linux.txt $(RAMASIMULATORUSER)@ramasimulator.org:public_html/ramasimulator
 
 cleanapp:
 	-rm -f build/*.d build/*.o build/$(APP) $(subst ../,,$(PCH)) *.d

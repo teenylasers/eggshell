@@ -91,9 +91,12 @@ for the latest stable version:
 @list{
 @* @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
 @* @link{http://ramasimulator.org/Rama.dmg}{Mac image}
+@* @link{http://ramasimulator.org/rama.tgz}{Linux archive}
 }
 
 All Rama development is done on @link{https://github.com/Evenedric/stuff}{github}.
+If you discover problems please
+@link{https://github.com/Evenedric/stuff/issues/new}{submit an issue here}.
 
 @subsection{Rama Examples}
 
