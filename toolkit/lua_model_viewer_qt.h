@@ -101,6 +101,7 @@ public:
   void CopyParametersToClipboard();
   void ToggleRunTestAfterSolve();
   void ScriptTestMode();
+  bool IsScriptTestMode() const { return script_test_mode_; }
 
   // Connect to external controls.
   void Connect(QListWidget *script_messages, QWidget *parameter_window,

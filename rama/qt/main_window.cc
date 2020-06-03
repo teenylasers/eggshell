@@ -80,15 +80,19 @@ MainWindow::MainWindow(QWidget *parent) :
                    this, &MainWindow::OnFileChanged);
 
   // Asynchronously retrieve the latest application version number and
-  // display a message if there is a newer version available.
-  QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-  connect(manager, SIGNAL(finished(QNetworkReply*)),
-          this, SLOT(VersionReplyAvailable(QNetworkReply*)));
-  QNetworkRequest request(QUrl(__APP_URL__ __APP_LATEST_VERSION_PATH__));
-  // A user agent is necessary otherwise the security module on an apache
-  // server denies the request.
-  request.setRawHeader("User-Agent", "Rama");
-  manager->get(request);
+  // display a message if there is a newer version available. Don't do
+  // this is script test mode though, because we are going to be exiting
+  // very soon and processing the reply might cause problems.
+  if (!ui->model->IsScriptTestMode()) {
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    connect(manager, SIGNAL(finished(QNetworkReply*)),
+            this, SLOT(VersionReplyAvailable(QNetworkReply*)));
+    QNetworkRequest request(QUrl(__APP_URL__ __APP_LATEST_VERSION_PATH__));
+    // A user agent is necessary otherwise the security module on an apache
+    // server denies the request.
+    request.setRawHeader("User-Agent", "Rama");
+    manager->get(request);
+  }
 }
 
 MainWindow::~MainWindow() {
