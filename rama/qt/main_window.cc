@@ -31,7 +31,7 @@
 
 #if defined(__APPLE__)
 #define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_MAC__
-#elseif defined(__linux__)
+#elif defined(__linux__)
 #define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_LINUX__
 #else
 #define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_WIN__
