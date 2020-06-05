@@ -99,18 +99,20 @@ if FLAGS.test_number == '2' then
 end
 
 -----------------------------------------------------------------------------
--- Test that the coincident vertex rule allows dielectric painting without
+-- Test 3: that the coincident vertex rule allows dielectric painting without
 -- losing port information.
+-- Test 4: that EdgeInfo for duplicate (coincident) vertices is consistent.
 
-if FLAGS.test_number == '3' then
-  coating = Parameter{label='Coating', min=1, max=2, default=2, integer=true}
-
+if FLAGS.test_number == '3' or FLAGS.test_number == '4' then
   config = {
     type = 'Ez',
     unit = 'mm',
     mesh_edge_length = 0.8,
     frequency = 60e9,
     excited_port = 1,
+    test = function(port_power, port_phase, field)
+      print 'Pass test: coincident vertex rule or EdgeInfo consistency'
+    end
   }
 
   W = 35
@@ -124,6 +126,13 @@ if FLAGS.test_number == '3' then
   cd = Shape():AddPoint(0,0):AddPoint(x1, 0):AddPoint(W, -S):AddPoint(W, H+S)
               :AddPoint(x2, H):AddPoint(0, H)
 
+  local q = Shape():AddPoint(x1,0):AddPoint(x2,H):AddPoint(x2,2*H)
+                   :AddPoint(2*W,2*H):AddPoint(2*W,-H):AddPoint(x1,-H):Reverse()
+
+  if FLAGS.test_number == '4' then
+    cd:Paint(q, 0xffff00, 2)
+  end
+
   cd:Port(cd:Select(0,H/2), 1)
   cd:Port(cd:Select(W,H/2), 2)
   cd:Port(cd:Select(0.01,H), 3)
@@ -131,10 +140,9 @@ if FLAGS.test_number == '3' then
   cd:Port(cd:Select(0.01,0), 5)
   cd:Port(cd:Select(W-0.01,-S), 6)
 
-  local thickness = Parameter{label='Thickness', min=0, max=5, default=0.7}
-  local radome = Shape():AddPoint(x1,0):AddPoint(x2,H):AddPoint(x2,2*H)
-                        :AddPoint(2*W,2*H):AddPoint(2*W,-H):AddPoint(x1,-H):Reverse()
-  cd:Paint(radome, 0xffff00, 2)
+  if FLAGS.test_number == '3' then
+    cd:Paint(q, 0xffff00, 2)
+  end
 
   config.cd = cd
 
@@ -154,6 +162,7 @@ Piece 2 has 4 vertices, color=0xffff00, epsilon=2+0 i
   oldprint = print
   print = function(s) output = output .. s .. '\n' end
   util.Dump(cd)
-  oldprint(output)
+  print = oldprint
+  print(output)
   assert(output == expecting)
 end

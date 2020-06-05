@@ -235,8 +235,11 @@ class Shape : public LuaUserClass {
   void SetToPiece(int n, const Shape &p);
 
   // Set the given piece,edge to the given edge kind. Return true on success or
-  // false if there is a conflict on this edge.
-  bool AssignPort(int piece, int edge, EdgeKind kind) MUST_USE_RESULT;
+  // false if there is a conflict on this edge. If pmap is nonzero, use it to
+  // ensure that coincident (duplicate) points all have consistent EdgeInfo.
+  typedef std::map<std::pair<JetNum, JetNum>, vector<std::pair<int,int>>> PointMap;
+  bool AssignPort(int piece, int edge, EdgeKind kind, PointMap *pmap = 0)
+    MUST_USE_RESULT;
 
   // Return the orientation of the n'th piece. True is outer (anticlockwise)
   // orientation, false is inner (clockwise) orientation.
@@ -397,6 +400,7 @@ class Shape : public LuaUserClass {
   int LuaFilletVertex(lua_State *L);
   int LuaChamferVertex(lua_State *L);
   int LuaPaint(lua_State *L);
+  int LuaHasPorts(lua_State *L);
   int LuaClean(lua_State *L);
 
  private:

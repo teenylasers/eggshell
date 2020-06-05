@@ -233,18 +233,34 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
     }
   }
 
-  // We remove all duplicate points and give all points 'UPI's (unique point
-  // indexes).
+  // Even though there can be duplicate points, we give all point coordinates
+  // 'UPI's (unique point indexes). Duplicate points occur when unmerged
+  // polygons with different material types come together. We insist that
+  // duplicate points nevertheless have the same EdgeInfo, so that later when
+  // we copy EdgeInfo from the shape into the mesh there is no ambiguity that
+  // leads to errors in port formation.
   typedef std::map<std::pair<JetNum, JetNum>, int> PointMap;
   PointMap point_map;                           // x,y -> UPI
+  vector<EdgeInfo> upi_edge_info;               // UPI --> edge info
   int num_unique_points = 0;
   for (int i = 0; i < s.NumPieces(); i++) {
     for (int j = 0; j < s.Piece(i).size(); j++) {
       JetPoint p = s.Piece(i)[j].p;
-      if (point_map.count(std::make_pair(p[0], p[1])) == 0) {
+      auto it = point_map.find(std::make_pair(p[0], p[1]));
+      if (it == point_map.end()) {
         // This is a new point.
         point_map[std::make_pair(p[0], p[1])] = num_unique_points;
+        upi_edge_info.push_back(s.Piece(i)[j].e);
         num_unique_points++;
+      } else {
+        if (upi_edge_info[it->second] != s.Piece(i)[j].e) {
+          // Even though we found a bug, we don't CHECK() and crash, because
+          // ensuring this consistency is a little hard to get right and we
+          // don't want to render the program unusable in some weird corner
+          // case.
+          ERROR_ONCE("Internal error: "
+                     "Found duplicate points with inconsistent EdgeInfo");
+        }
       }
     }
   }
@@ -252,14 +268,15 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
   // Make a reverse point index that maps unique point indexes to Piece(i)[j].
   // In pass 0, for each Piece(i)[j] segment (i.e. from point j to j+1), figure
   // out how many times that segment is used overall. Segments that are used
-  // just once are on the external boundary. For pass 1 and 2, make a mapping
-  // from UPIs to boundary Piece(i)[j] segments. Duplicate points that map to
-  // the same UPI happen if there are unmerged polygons with different material
-  // types, in which case a UPI could be mapped to multiple Piece(i)[j]
-  // segments, but we always select the one on the external boundary because
-  // the newly created mesh points will adopt the segment markers which are
-  // taken from this mapping, and we want those segment markers to indicate the
-  // correct boundary conditions.
+  // just once are on the external boundary. For pass 1 and 2, make an
+  // index_map mapping from UPIs (at the start of a segment) to boundary
+  // Piece(i)[j] vertices (at the start of the same segment). Duplicate points
+  // that map to the same UPI happen if there are unmerged polygons with
+  // different material types, in which case a UPI could be mapped to multiple
+  // Piece(i)[j] segments, but we always select the one on the external
+  // boundary because the newly created mesh points will adopt the segment
+  // markers which are taken from this mapping, and we want those segment
+  // markers to indicate the correct boundary conditions.
   std::map<std::pair<int, int>, int> seg_count;         // (UPI,UPI) --> count
   vector<std::pair<int, int>> index_map(num_unique_points);  // UPI -> i,j
   for (int i = 0; i < num_unique_points; i++) {
@@ -285,7 +302,8 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
               // external boundary segments, e.g. if different material's
               // polygons come together at a neck. This can not be represented
               // by index_map so we fail. @@@ Fix this?
-              ERROR_ONCE("Can not create mesh, polygons are necked");
+              ERROR_ONCE("Internal error: "
+                         "Can not create mesh, polygons are necked");
               return;
             }
             index_map[upi1] = std::make_pair(i, j);
@@ -436,7 +454,10 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
     EdgeInfo e;
     int marker = tout.pointmarkerlist[i];
     if (marker >= 2) {
-      // Output point was copied from input point. Copy EdgeInfo of input.
+      // Output point was copied from input point. Copy EdgeInfo of input. Here
+      // we rely on the fact, checked above, that duplicate points have
+      // consistent EdgeInfo, because we are copying the EdgeInfo from just one
+      // of those points.
       int upi = marker - 2;
       CHECK(upi < index_map.size());
       int piece = index_map[upi].first;

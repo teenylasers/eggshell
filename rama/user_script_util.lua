@@ -89,6 +89,14 @@ end
 -- transformations then calls s:RawPaint().
 function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
   assert(not dummy, "Too many arguments given to Paint.")
+  -- If q has ports they won't affect painting, but this might signify that
+  -- the user wants something that they are not going to get.
+  if q:HasPorts() and not rawget(_G,'allow_painting_with_ports') then
+    error('Painting using a shape "q" that has ports indicates a possible\n'..
+          'error, because those ports will not affect the result.\n'..
+          'If this is actually what you want, set allow_painting_with_ports=true\n'..
+          'to suppress this error.')
+  end
   -- In Exy cavities we scale sigma by 1/epsilon and set epsilon to 1, to
   -- achieve a discontinuous gradient across dielectric boundaries.
   if not config or type(config.type) ~= 'string' then

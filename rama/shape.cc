@@ -840,10 +840,24 @@ void Shape::SetToPiece(int n, const Shape &p) {
   new_polys_.swap(polys_);
 }
 
-bool Shape::AssignPort(int piece, int edge, EdgeKind kind) {
+bool Shape::AssignPort(int piece, int edge, EdgeKind kind, PointMap *pmap) {
   int n = polys_[piece].p.size();
-  return polys_[piece].p[ edge         ].e.SetUnused(kind, 1) &&
-         polys_[piece].p[(edge + 1) % n].e.SetUnused(kind, 0);
+  if (pmap) {
+    bool valid = true;
+    for (int i = 0; i < 2; i++) {
+      auto &p = polys_[piece].p[(edge + i) % n].p;      // i'th point of edge
+      auto & pivector = (*pmap)[std::make_pair(p[0], p[1])];
+      for (int j = 0; j < pivector.size(); j++) {
+        int piece_index = pivector[j].first;
+        int poly_index = pivector[j].second;
+        valid |= polys_[piece_index].p[poly_index].e.SetUnused(kind, 1-i);
+      }
+    }
+    return valid;
+  } else {
+    return polys_[piece].p[ edge         ].e.SetUnused(kind, 1) &&
+           polys_[piece].p[(edge + 1) % n].e.SetUnused(kind, 0);
+  }
 }
 
 JetNum Shape::Area(int n) const {
@@ -942,11 +956,16 @@ void Shape::Paint(const Shape &s, const Material &mat) {
   // since that would unrecoverably merge pieces with different materials
   // (since clipper doesn't understand anything about polygon materials).
   // Instead we group the pieces by material and then deal with these 'material
-  // shapes' separately, taking care to preserve the material of each piece. It
-  // is assumed that the individual shapes for each material are disjoint. Note
-  // that interior holes will have the same materials as the outer boundaries
-  // that they are holes for, or in other words, holes are specific to material
-  // shapes and are not holes for the entire shape.
+  // shapes' separately, taking care to preserve the material of each piece.
+  //
+  // The documentation insists that painting be the last step in model
+  // creation, because shape boolean operators will erase material types.
+  // Therefore we can assume that the individual shapes for each material are
+  // disjoint (because that's enforced here). We can also assume that the
+  // interior holes will have the same materials as the outer boundaries that
+  // they are holes for, or in other words, holes are specific to material
+  // shapes and are not holes for the entire shape (because that's also
+  // enforced here).
   std::map<Material, vector<int>> matmap;  // Material -> indexes into polys_
   for (int i = 0; i < polys_.size(); i++) {
     matmap[polys_[i].material].push_back(i);
@@ -1680,14 +1699,15 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
   // definitions) to come from c1. This is the behavior defined in the manual
   // for the boolean shape operators, and it also prevents painting from
   // accidentally erasing port definitons (because in painting, c2 is always
-  // the dielectric). Achieve this behavior by setting c2 EdgeInfo from c1
-  // where ever there are coincident vertices. We could have attempted to fix
-  // the behavior in clipper, but the snippet of code below is way simpler.
+  // the dielectric shape to paint, which shouldn't have ports). Achieve this
+  // behavior by setting c2 EdgeInfo from c1 where ever there are coincident
+  // vertices. We could have attempted to fix the behavior in clipper itself,
+  // but the snippet of code below is way simpler.
   //
   // If there are coincident vertices in c1 (e.g. because of multiple
-  // dielectrics or necked polygons) this will take the last at each point.
-  // However this is not an allowed case yet as boolean operations on
-  // dielectric-containing shapes are not implemented properly yet.
+  // dielectrics or necked polygons) this will take just one of them at each
+  // point. However this is not an allowed case yet as boolean operations on
+  // dielectric-containing shapes are not allowed.
   using ClipperLib::cInt;
   std::map<std::pair<cInt,cInt>, ClipperEdgeInfo> point_map;
   for (int i = 0; i < p1.size(); i++) {
@@ -1716,10 +1736,6 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
   }
   Paths result;
   clipper.Execute(clip_type, result, pftPositive, pftPositive);
-
-  // Sometimes the clipper leaves vertices that are very close together or
-  // duplicated. Clean these out because these shapes can not be meshed.
-  Clean();
 
   // Convert the result back into JetPoint coordinates.
   FromPaths(scale, offset_x, offset_y, result);
@@ -1799,6 +1815,8 @@ int Shape::Index(lua_State *L) {
       lua_getglobal(L, "__Paint__");       // calls RawPaint defined here.
     } else if (strcmp(s, "RawPaint") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaPaint>));
+    } else if (strcmp(s, "HasPorts") == 0) {
+      lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaHasPorts>));
     } else if (strcmp(s, "empty") == 0) {
       lua_pushboolean(L, IsEmpty());
     } else if (strcmp(s, "pieces") == 0) {
@@ -2105,7 +2123,8 @@ int Shape::LuaPort(lua_State *L) {
   while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
     lua_pop(L, 1);
   }
-  // This is called with the arguments:
+
+  // Check that this is called with the arguments:
   //   1: {p=#, e=#} table (piece and edge), or an array of such tables
   //   2: port number
   //   3: optional callback function
@@ -2138,6 +2157,21 @@ int Shape::LuaPort(lua_State *L) {
                   "of such tables");
     }
   }
+
+  // Map point coordinates to all piece,index values that have those
+  // coordinates.
+  std::map<std::pair<JetNum, JetNum>, vector<std::pair<int,int>>> point_map;
+  for (int i = 0; i < polys_.size(); i++) {
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      auto &p = polys_[i].p[j].p;
+      point_map[std::make_pair(p[0], p[1])].push_back(std::make_pair(i, j));
+    }
+  }
+
+  // Assign ports for all piece,edge values. It is possible to have coincident
+  // (duplicate) points where unmerged polygons with different material types
+  // come together. AssignPort() will make sure that all coincident vertices
+  // have the same EdgeInfo.
   for (int i = 0; i < piece.size(); i++) {
     if (piece[i] < 1 || piece[i] > polys_.size()) {
       LuaError(L, "Argument to Port() has p=%d but there are only %d pieces",
@@ -2150,7 +2184,7 @@ int Shape::LuaPort(lua_State *L) {
     }
     // By the definition of EdgeInfo, both vertices that bound the edge have to
     // be marked.
-    if (!AssignPort(piece[i] - 1, edge[i] - 1, edge_kind)) {
+    if (!AssignPort(piece[i] - 1, edge[i] - 1, edge_kind, &point_map)) {
       LuaError(L, "Piece %d edge %d already has a port number",
                piece[i], edge[i]);
     }
@@ -2264,6 +2298,19 @@ int Shape::LuaPaint(lua_State *L) {
   }
   Paint(*s2, mat);
   lua_settop(L, 1);
+  return 1;
+}
+
+int Shape::LuaHasPorts(lua_State *L) {
+  for (int i = 0; i < polys_.size(); i++) {
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      if (!polys_[i].p[j].e.IsDefault()) {
+        lua_pushboolean(L, 1);
+        return 1;
+      }
+    }
+  }
+  lua_pushboolean(L, 0);
   return 1;
 }
 

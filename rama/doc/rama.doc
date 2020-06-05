@@ -1263,6 +1263,10 @@ rotate @c{s} about (3,4) you could do this:
      The optional @c{endcap_style} is for the ends of polylines, and it can be
      @c{'square'}, @c{'round'}, or @c{'butt'}. Returns @c{s}.
 
+  @* @c{s:HasPorts()}
+  @| Return true if any ports (or ABC) have been set on this shape.
+     Return false otherwise.
+
   @* @c{s:MakePolyline()}
   @| Turn the last piece of this shape into a polyline by adding points
      @c{s[@#s-1]...s[2]} to the polygon. This makes a zero area polygon to
@@ -1811,4 +1815,7 @@ Here is what is added in each new version.
 @* Added the shape @c{s.material} property.
 @* Added the shape vertex @c{kind0,kind1,dist0,dist1} properties
 @* Added @c{util.Dump()}.
+@* Fixed a bug that sometimes caused ports to be defective when added after
+   dielectric painting (consistent @c{EdgeInfo} on coincident vertices).
+@* Added @c{s:HasPorts()}.
 }
