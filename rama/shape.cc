@@ -1671,6 +1671,39 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
     c2->ToPaths(scale, offset_x, offset_y, &p2);
   }
 
+  // When clipper runs on two shapes with coincident vertices, there doesn't
+  // seem to be any properly defined behavior for which of the vertex Z values
+  // will end up in the final shape. This is a problem when two shapes that
+  // both contain port definitions are combined.
+  //
+  // If c1 and c2 have coincident vertices then we want the EdgeInfo (e.g. port
+  // definitions) to come from c1. This is the behavior defined in the manual
+  // for the boolean shape operators, and it also prevents painting from
+  // accidentally erasing port definitons (because in painting, c2 is always
+  // the dielectric). Achieve this behavior by setting c2 EdgeInfo from c1
+  // where ever there are coincident vertices. We could have attempted to fix
+  // the behavior in clipper, but the snippet of code below is way simpler.
+  //
+  // If there are coincident vertices in c1 (e.g. because of multiple
+  // dielectrics or necked polygons) this will take the last at each point.
+  // However this is not an allowed case yet as boolean operations on
+  // dielectric-containing shapes are not implemented properly yet.
+  using ClipperLib::cInt;
+  std::map<std::pair<cInt,cInt>, ClipperEdgeInfo> point_map;
+  for (int i = 0; i < p1.size(); i++) {
+    for (int j = 0; j < p1[i].size(); j++) {
+      point_map[std::make_pair(p1[i][j].X, p1[i][j].Y)] = p1[i][j].Z;
+    }
+  }
+  for (int i = 0; i < p2.size(); i++) {
+    for (int j = 0; j < p2[i].size(); j++) {
+      auto it = point_map.find(std::make_pair(p2[i][j].X, p2[i][j].Y));
+      if (it != point_map.end()) {
+        p2[i][j].Z = it->second;
+      }
+    }
+  }
+
   // Run the clipper. Use the pftPositive fill type so that a polygon can have
   // external invisible holes (the Paint() function can generate these).
   Clipper clipper;
@@ -1793,6 +1826,20 @@ int Shape::Index(lua_State *L) {
       LuaRawSetField(L, -2, "max_x");
       lua_pushnumber(L, max_y);
       LuaRawSetField(L, -2, "max_y");
+    } else if (strcmp(s, "material") == 0) {
+      if (polys_.size() != 1) {
+        LuaError(L, "material requested for shape without exactly one piece");
+      }
+      lua_newtable(L);
+      lua_pushstring(L, "color");
+      lua_pushnumber(L, polys_[0].material.color);
+      lua_rawset(L, -3);
+      lua_pushstring(L, "epsilon");
+      lua_getglobal(L, "Complex");
+      lua_pushnumber(L, polys_[0].material.epsilon.real());
+      lua_pushnumber(L, polys_[0].material.epsilon.imag());
+      lua_call(L, 2, 1);
+      lua_rawset(L, -3);
     } else {
       LuaError(L, "Unknown shape field '%s'", s);
     }
@@ -1812,6 +1859,14 @@ int Shape::Index(lua_State *L) {
     LuaRawSetField(L, -2, "x");
     lua_pushnumber(L, polys_[0].p[i - 1].p[1]);
     LuaRawSetField(L, -2, "y");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.kind[0].IntegerForDebugging());
+    LuaRawSetField(L, -2, "kind0");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.kind[1].IntegerForDebugging());
+    LuaRawSetField(L, -2, "kind1");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.dist[0]);
+    LuaRawSetField(L, -2, "dist0");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.dist[1]);
+    LuaRawSetField(L, -2, "dist1");
   } else {
     LuaError(L, "Shape must be indexed with string not %s",
              luaL_typename(L, -1));

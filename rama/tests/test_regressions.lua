@@ -97,3 +97,63 @@ if FLAGS.test_number == '2' then
 
   config.cd = cd
 end
+
+-----------------------------------------------------------------------------
+-- Test that the coincident vertex rule allows dielectric painting without
+-- losing port information.
+
+if FLAGS.test_number == '3' then
+  coating = Parameter{label='Coating', min=1, max=2, default=2, integer=true}
+
+  config = {
+    type = 'Ez',
+    unit = 'mm',
+    mesh_edge_length = 0.8,
+    frequency = 60e9,
+    excited_port = 1,
+  }
+
+  W = 35
+  H = 20
+  S = 0.1
+  angle = -10 * math.pi/180
+  x_offset = math.tan(angle)*H/2
+  x1 = W/2 + x_offset
+  x2 = W/2 - x_offset
+
+  cd = Shape():AddPoint(0,0):AddPoint(x1, 0):AddPoint(W, -S):AddPoint(W, H+S)
+              :AddPoint(x2, H):AddPoint(0, H)
+
+  cd:Port(cd:Select(0,H/2), 1)
+  cd:Port(cd:Select(W,H/2), 2)
+  cd:Port(cd:Select(0.01,H), 3)
+  cd:Port(cd:Select(W-0.01,H+S), 4)
+  cd:Port(cd:Select(0.01,0), 5)
+  cd:Port(cd:Select(W-0.01,-S), 6)
+
+  local thickness = Parameter{label='Thickness', min=0, max=5, default=0.7}
+  local radome = Shape():AddPoint(x1,0):AddPoint(x2,H):AddPoint(x2,2*H)
+                        :AddPoint(2*W,2*H):AddPoint(2*W,-H):AddPoint(x1,-H):Reverse()
+  cd:Paint(radome, 0xffff00, 2)
+
+  config.cd = cd
+
+  expecting = [[
+Piece 1 has 4 vertices, color=0xe0e0ff, epsilon=1+0 i
+  Vertex 1 = 0, 20 (kind=2,4, dist=1,0)
+  Vertex 2 = 0, 0 (kind=2,6, dist=0,1)
+  Vertex 3 = 15.7367301930208, 0 (kind=6,7, dist=0,1)
+  Vertex 4 = 19.2632698069792, 20 (kind=4,5, dist=1,0)
+Piece 2 has 4 vertices, color=0xffff00, epsilon=2+0 i
+  Vertex 1 = 35, 20.1000000000931 (kind=3,5, dist=0,1)
+  Vertex 2 = 19.2632698069792, 20 (kind=4,5, dist=1,0)
+  Vertex 3 = 15.7367301930208, 0 (kind=6,7, dist=0,1)
+  Vertex 4 = 35, -0.100000000093132 (kind=3,7, dist=1,0)
+]]
+  output = ''
+  oldprint = print
+  print = function(s) output = output .. s .. '\n' end
+  util.Dump(cd)
+  oldprint(output)
+  assert(output == expecting)
+end

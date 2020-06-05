@@ -470,3 +470,19 @@ util.PaintCircularPML = function(S, cx, cy, r, npoints, T, attenuation)
     return epsilon + x*0, sxx2, syy2, sxy2
   end)
 end
+
+-----------------------------------------------------------------------------
+-- Other utilities.
+
+util.Dump = function(s)
+  for i = 1,s.pieces do
+    local m = s(i).material
+    print(string.format('Piece %d has %d vertices, color=0x%06x, epsilon=%g+%g i',
+          i, #s(i), m.color, m.epsilon.re, m.epsilon.im))
+    for j = 1,#s(i) do
+      local v = s(i)[j]
+      print(string.format('  Vertex %d = %.15g, %.15g (kind=%d,%d, dist=%g,%g)',
+           j, v.x, v.y, v.kind0, v.kind1, v.dist0, v.dist1))
+    end
+  end
+end

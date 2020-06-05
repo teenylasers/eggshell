@@ -1137,7 +1137,13 @@ referenced with the following syntax:
   @* @c{s[n]}
   @| The @c{n}'th vertex of a single piece shape, where n is in the range 1 to
      @c{@#s}. It is an error if @c{s} has more than once piece. The vertex is
-     returned as a table containing number fields @c{x} and @c{y}.
+     returned as a table containing number fields @c{x} and @c{y}, and also
+     the fields @c{kind0}, @c{kind1}, @c{dist0}, @c{dist0} which are used for
+     debugging.
+
+  @* @c{s.material}
+  @| The material table of a single piece shape. The table contains keys
+     @c{color}, @c{epsilon} (a complex number).
 }
 
 For example, the following program prints out all pieces and vertices in @c{s}:
@@ -1189,6 +1195,11 @@ If @c{A} and @c{B} are two shapes then a third shape can be created by:
   @| The xor of @c{A} and @c{B} (i.e. points in @c{A} or @c{B} but not both).
      This is rarely used.
 }
+
+The coincident vertex rule: If @c{A} and @c{B} have a coincident vertex, and
+that same vertex appears in the final shape, the port that will be attached to
+that vertex in the final shape will come from @c{A}, and whatever ports were
+attached to that vertex in @c{B} will be ignored.
 
 It is an error if @c{A} and @c{B} both contain port callback functions for the
 same port numbers.
@@ -1787,4 +1798,17 @@ However, to summarise:
 @* The authors of this software can not be held liable for any damages inflicted
    by the software.
 @* All copyrights are held by the respective authors.
+}
+
+#############################################################################
+@section{Change log}
+
+Here is what is added in each new version.
+
+@b{v0.36}
+@list{
+@* Added the ``coincident vertex rule'' for shape booleans.
+@* Added the shape @c{s.material} property.
+@* Added the shape vertex @c{kind0,kind1,dist0,dist1} properties
+@* Added @c{util.Dump()}.
 }
