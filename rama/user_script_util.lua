@@ -175,7 +175,7 @@ __Optimize3rdArg__ = {
 -- A dummy __Optimize3rdArg__ argument that allows trial execution of the
 -- optimizer function but that does not actually do any work.
 __DummyOptimize3rdArg__ = {
-  Complex = function() return 0,0 end,
+  Complex = function() return Complex(0,0) end,
   Magnitude = function() return 0 end,
   Phase = function() return 0 end,
   Poynting = function() return 0,0 end,

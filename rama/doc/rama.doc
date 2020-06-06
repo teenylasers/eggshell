@@ -1818,4 +1818,7 @@ Here is what is added in each new version.
 @* Fixed a bug that sometimes caused ports to be defective when added after
    dielectric painting (consistent @c{EdgeInfo} on coincident vertices).
 @* Added @c{s:HasPorts()}.
+@* Warn about NaN derivatives in port callback values.
+@* Fix @c{field.Complex()} dummy evaluation.
+@* Warn about nonfinite return values in @c{config.optimize()}.
 }

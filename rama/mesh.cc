@@ -901,6 +901,10 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
           Error("A NaN (not-a-number) was returned by a callback, "
                 "in position %d of return value %d", j+1, i+1);
           return;
+        } else if (isnan(vec[i][j].real()) || isnan(vec[i][j].imag())) {
+          Warning("A NaN (not-a-number) derivative was returned by a callback, "
+                  "in position %d of return value %d\n"
+                  "This will prevent the optimizer from working.", j+1, i+1);
         }
       }
     }
