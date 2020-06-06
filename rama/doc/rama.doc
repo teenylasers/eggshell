@@ -1820,5 +1820,5 @@ Here is what is added in each new version.
 @* Added @c{s:HasPorts()}.
 @* Warn about NaN derivatives in port callback values.
 @* Fix @c{field.Complex()} dummy evaluation.
-@* Warn about nonfinite return values in @c{config.optimize()}.
+@* Warn about nonfinite or non number return values in @c{config.optimize()}.
 }

@@ -848,6 +848,11 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
           num_optimize_outputs_ = lua_gettop(lua_->L()) - top + 1;
           for (int i = 0; i < num_optimize_outputs_; i++) {
             if (optimize_output) {
+              int type = lua_type(lua_->L(), top + i);
+              if (type != LUA_TNUMBER) {
+                Error("Non-number return value %d of config.optimize(), "
+                      "type is %s", i + 1, lua_typename(lua_->L(), type));
+              }
               JetNum out = lua_tonumber(lua_->L(), top + i);
               // If any infinities or NaNs are returned from config.optimize()
               // (either values or derivatives) we pass them directly to the
