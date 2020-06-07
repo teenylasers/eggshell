@@ -116,6 +116,7 @@ macdeploy2: $(APP) docs2
 	strip $(APP)
 	rm -rf Rama.app && cp -av ../release/Rama.app .
 	mkdir Rama.app/Contents/MacOS
+	sed -i '' "s/__VERSION__/$(VERSION)/" Rama.app/Contents/Info.plist
 	cp $(APP) Rama.app/Contents/MacOS
 	cp -av ../examples Rama.app
 	cp rama.html Rama.app/Contents/Resources
