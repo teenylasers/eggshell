@@ -1821,4 +1821,5 @@ Here is what is added in each new version.
 @* Warn about NaN derivatives in port callback values.
 @* Fix @c{field.Complex()} dummy evaluation.
 @* Warn about nonfinite or non number return values in @c{config.optimize()}.
+@* Fix @c{s:Grow} to work with two point polylines.
 }

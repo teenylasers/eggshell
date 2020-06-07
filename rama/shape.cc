@@ -1119,7 +1119,9 @@ void Shape::Grow(JetNum delta, CornerStyle style, JetNum limit,
   steps = std::min(steps, kMaxStepsAllowed);
   for (int i = 0; i < polys_.size(); i++) {
     const int n = polys_[i].p.size();
-    if (n < 3) {
+    // The following code will work even for just 2 points, which represents a
+    // two point polyline.
+    if (n < 2) {
       continue;
     }
     vector<RPoint> new_poly;

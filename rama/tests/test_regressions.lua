@@ -166,3 +166,35 @@ Piece 2 has 4 vertices, color=0xffff00, epsilon=2+0 i
   print(output)
   assert(output == expecting)
 end
+
+-----------------------------------------------------------------------------
+-- Test 5: Make sure two point polylines can be grown.
+
+if FLAGS.test_number == '5' then
+  config = {
+    type = 'Ez',
+    unit = 'mm',
+    mesh_edge_length = 0.8,
+    frequency = 60e9,
+    excited_port = 1,
+    test = function(port_power, port_phase, field)
+      print 'Pass test: two point polylines can be grown'
+    end
+  }
+
+  cd = Shape():AddPoint(0,0):AddPoint(2,1)
+
+  cd:MakePolyline()
+  Draw(cd)
+
+  a = cd:Clone():Grow(0.5, 'miter', 2)
+  assert(a.pieces == 1 and #a == 4)
+  a = cd:Clone():Grow(0.5, 'round', 0.01, 'square')
+  assert(a.pieces == 1 and #a == 4)
+  a = cd:Clone():Grow(0.5, 'round', 0.01, 'round')
+  assert(a.pieces == 1 and #a == 18)
+  a = cd:Clone():Grow(0.5, 'round', 0.01, 'butt')
+  assert(a.pieces == 1 and #a == 4)
+
+  config.cd = cd:Grow(0.5, 'miter', 2)
+end

@@ -96,6 +96,7 @@ script_test: all
 	./build/$(APP) -test tests/test_regressions.lua -test_number=2
 	./build/$(APP) -test tests/test_regressions.lua -test_number=3
 	./build/$(APP) -test tests/test_regressions.lua -test_number=4
+	./build/$(APP) -test tests/test_regressions.lua -test_number=5
 	@echo
 	@echo '*** Success ***'
 
