@@ -322,29 +322,26 @@ complex = {
 -- Utility functions and PML painting support.
 
 util = {}
-util.SpeedOfLight = 299792458           -- in m/s
+util.c = 299792458                      -- in m/s
+util.epsilon0 = 8.854187812813e-12      -- Permittivity of free space
+util.mu0 = 1.2566370621219e-6           -- Permeability of free space
 util.FAR_FIELD = 0x1000000              -- Special material color
 
--- Return the distance scale in 'meters per unit'. This is the length of one
--- 'config.unit' unit of distance in meters.
 util.DistanceScale = function()
   assert(config and config.unit, 'config.unit must be defined')
   return _DistanceScale(config.unit)
 end
 
--- Return the free space wavelength in meters.
 util.LambdaInM = function()
   assert(config and config.frequency, 'config.frequency must be defined')
-  return util.SpeedOfLight / config.frequency
+  return util.c / config.frequency
 end
 
--- Return the free space wavelength in 'config.unit' units.
 util.Lambda = function()
   assert(config and config.unit, 'config.unit must be defined')
   return util.LambdaInM() / _DistanceScale(config.unit)
 end
 
--- Compute K^2, in (radians per meter)^2.
 util.KSquaredInM = function()
   assert(config and config.unit and config.type, 'config.unit and config.type must be defined')
   local lambda = util.LambdaInM()
@@ -361,20 +358,14 @@ util.KSquaredInM = function()
   return k2
 end
 
--- Compute K, in radians per meter. If For Exy cavities if k^2 is negative then
--- k is imaginary and travelling waves will not propagate at this frequency,
--- and this function will fail.
-util.KinM = function()
+util.KInM = function()
   return math.sqrt(util.KSquaredInM())
 end
 
--- Compute K, in radians per config.unit.
 util.K = function()
-  return util.KinM() * _DistanceScale(config.unit)
+  return util.KInM() * _DistanceScale(config.unit)
 end
 
--- Rotate sigma values by the given angle (in radians). The angle argument can
--- also be a vector of angles, in which case vectors are returned.
 util.RotateSigmas = function(sxx, syy, sxy, angle)
   local sa, ca
   if vec.IsVector(angle) then
@@ -391,10 +382,6 @@ util.RotateSigmas = function(sxx, syy, sxy, angle)
   return SRxx*ca - SRyx*sa, SRxy*sa + SRyy*ca, SRxy*ca - SRyy*sa
 end
 
--- Paint a PML region P into the shape S, with normal incidence at the given
--- angle (in radians). The strength of the PML is given as how much attenuation
--- we want (as a fraction of full strength) over what distance. The distance
--- does not have to correspond to any dimension in P.
 util.PaintPML = function(S, P, angle, distance, attenuation, far_field_boundary)
   -- Compute alpha so that attenuation == exp(-alpha*distance)
   local unit = _DistanceScale(config.unit)
@@ -423,7 +410,6 @@ util.PaintPML = function(S, P, angle, distance, attenuation, far_field_boundary)
   S:RawPaint(P, color, epsilon, sxx, syy, sxy)
 end
 
--- Paint a rectangular PML to the given rectangle coordinates, of thickness T.
 util.PaintRectangularPML = function(S, x1, y1,x2, y2, T, attenuation, sides)
   sides = sides or 'tblr'
   local top    = string.find(sides, 't', 1, true)
@@ -458,7 +444,6 @@ util.PaintRectangularPML = function(S, x1, y1,x2, y2, T, attenuation, sides)
   end
 end
 
--- Paint a circular PML to the given circle coordinates, of thickness T.
 util.PaintCircularPML = function(S, cx, cy, r, npoints, T, attenuation)
   local paint = Rectangle(cx-r-2*T, cy-r-2*T, cx+r+2*T, cy+r+2*T)
                 - Circle(cx, cy, r-T, npoints)
@@ -477,6 +462,41 @@ util.PaintCircularPML = function(S, cx, cy, r, npoints, T, attenuation)
     local e = epsilon + x*0
     return epsilon + x*0, sxx2, syy2, sxy2
   end)
+end
+
+-----------------------------------------------------------------------------
+-- Utility to model the loss of good (not perfect) conductors.
+
+util.PaintMetal = function(s, q, color, conductivity, material_epsilon)
+  local ctype = config.type or error('config.type needs to be defined')
+  if ctype == 'Ez' then
+    material_epsilon = material_epsilon or 1
+    local d = config.depth or error('config.depth needs to be defined')
+    local f = config.frequency or error('config.frequency needs to be defined')
+    d = d * util.DistanceScale()
+    local ei = -math.sqrt(2 * material_epsilon) /
+      (d * math.sqrt(util.mu0 * conductivity * 2 * math.pi * f))
+    local epsilon = Complex(material_epsilon, ei)
+    s:Paint(q, color, epsilon)
+    return epsilon
+  else
+    error('util.PaintMetal only works for Ez cavities')
+  end
+end
+
+util.PortMetal = function(s, sel, n, conductivity, metal_epsilon, medium_epsilon)
+  metal_epsilon = metal_epsilon or 1
+  medium_epsilon = medium_epsilon or 1
+  local ctype = config.type or error('config.type needs to be defined')
+  if ctype == 'Ez' then
+    local f = config.frequency or error('config.frequency needs to be defined')
+    local alpha = Complex(0,1) / medium_epsilon *
+      Complex(metal_epsilon, -(util.mu0 * conductivity * 2 * math.pi * f)
+                             / util.KSquaredInM())^0.5
+    s:Port(sel, n, function(d,x,y) return alpha + d*0, d*0 end)
+  else
+    error('util.PortMetal only works for Ez cavities')
+  end
 end
 
 -----------------------------------------------------------------------------

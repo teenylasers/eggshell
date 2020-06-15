@@ -909,7 +909,7 @@ another function, so for example the following is a convenient idiom:
   shape:AddPoint(ParameterMarker{...})
 ]===@
 
-@subsection{@label{luafnvars} Functions and variables available to the script}
+@subsection{@label{luafnvars} Global functions and variables available to the script}
 
 The following @link{http://www.lua.org/manual/5.4/manual.html}{Lua standard libraries}
 can be used: base, table, string, utf8 and
@@ -1041,6 +1041,99 @@ a vector).
 Complex valued vectors in Rama are a @c{Complex} object where the real and
 imaginary parts are @c{Vector} objects (not the reverse, i.e. vectors where
 each value is complex).
+
+
+@subsection{Utilities}
+
+The @c{util} table contains a variety of helper functions.
+All of these are implemented in Lua in the @c{user_script_util.lua} source file.
+
+@table{
+  @* @c{c}         @| The speed of light in m/s.
+  @* @c{epsilon0}  @| The permittivity of free space, @m{\epsilon_0}.
+  @* @c{mu0}       @| The permeability of free space, @m{\mu_0}.
+  @* @c{FAR_FIELD} @| A special material color, see @c{config.antenna_pattern}.
+
+  @* @c{DistanceScale()}
+  @| Return the distance scale in ``meters per unit''. This is the length in
+     meters of one @c{config.unit} unit of distance.
+  @* @c{LambdaInM()}
+  @| Return the free space wavelength in meters.
+  @* @c{Lambda()}
+  @| Return the free space wavelength in @c{config.unit} units.
+  @* @c{KInM()}
+  @| Compute the cavity wave number @m{k}, in radians per meter.
+     In @c{Ez} cavities this is the free space wave number, in @c{Exy} cavities
+     this is the effective wave number that depends on the cavity depth. For
+     @c{Exy} cavities if @m{k^2} is negative then @m{k} is imaginary and
+     travelling waves will not propagate at this frequency, and this function
+     will fail.
+  @* @c{KSquaredInM()}
+  @| Compute the squared value of @c{KInM()}.
+  @* @c{K()}
+  @| Compute @m{k}, in radians per @c{config.unit}.
+
+  @* @c{RotateSigmas(@m{\sigma_{xx}}, @m{\sigma_{yy}}, @m{\sigma_{xy}}, @m{\theta})}
+  @| Given @m{\sigma} values that describe an anisotropic dielectric, rotate
+     them by the angle @m{\theta} (in radians) then return all three. The angle
+     argument can also be a vector of angles, in which case vectors are
+     returned.
+
+  @* @c{PaintPML(S, P, @m{\theta}, d, a, far_field_boundary)}
+  @| Paint a PML region @c{P} into the shape @c{S}, with normal incidence at
+     angle @m{\theta} (in radians). The strength of the PML is given as how
+     much attenuation @c{a} we want (as a fraction of full strength) over
+     distance @c{d} (in @c{config.unit}). The distance @c{d} does not have to
+     correspond to any dimension in P. Typical values would be @c{a=0.01} and
+     @c{d=util.Lambda()}, indicating that the field should die to 1% of its
+     value over one wavelength.
+     If @c{far_field_boundary} is true then use the @c{util.FAR_FIELD} color
+     bit to indicate that the antenna pattern should be measured at the PML
+     boundary.
+
+  @* @c{PaintRectangularPML(S, x1, y1,x2, y2, T, a, sides)}
+  @| Paint a rectangular PML to @c{S}. The given rectangle coordinates are the
+     exterior of the PML boundary, and the PML thickness is @c{T}. The
+     attenuation parameter is @c{a}, as per @c{PaintPML()}. The @c{sides}
+     argument is a string that contains one or more of the characters @c{t},
+     @c{b}, @c{l}, @c{r}, which indicate that the PML should have absorbing
+     regions on the top, bottom, left, or right of the rectangle. To get all
+     four sides specify @c{'tblr'}.
+
+  @* @c{PaintCircularPML(S, cx, cy, r, npoints, T, a)}
+  @| Paint a circular PML to @c{S}. The exterior of the PML boundary is
+     @c{Circle(cx,cy,r,npoints)}, and the PML thickness is @c{T}.
+     The attenuation parameter is @c{a} as per @c{PaintPML()}.
+
+  @* @c{PaintMetal(s, q, color, @m{\sigma}, @m{\epsilon_r})}
+  @| Paint the shape @c{q} into the shape @c{s}, with the given color, to
+     model a slightly lossy (but still good) conductor with conductivity
+     @m{\sigma}. This models the power loss in the floor and ceiling of the
+     cavity, but does not model power loss in the walls. The @m{\epsilon_r}
+     (which defaults to 1 if it is omitted) is the relative dielectric
+     constant of the interior of the cavity after the region is painted.
+     The complex epsilon value used for the medium is returned.
+
+  @* @c{PortMetal(s, sel_table, n, @m{\sigma}, @m{\epsilon\mbox{metal}}, @m{\epsilon\mbox{medium}})}
+  @| Similar to @c{Port()}, given a selection table @c{sel_table} specifying
+     one or more shape edges in @c{s}, mark all those edges as belonging to
+     port @c{n}. Adjust the boundary properties to model a slightly lossy (but
+     still good) conductor with conductivity @m{\sigma}. This models the power
+     loss in the walls of the cavity but does not model power loss in the floor
+     and ceiling.
+     @m{\epsilon\mbox{metal}} is the relative dielectric constant of the
+     metal, it defaults to 1 if it is omitted. @m{\epsilon\mbox{medium}} is
+     the relative dielectric constant of the medium next to the boundary, it
+     defaults to 1 if it is omitted.
+     The epsilon returned by @c{PaintMetal} can be passed to @c{PortMetal} as
+     @m{\epsilon\mbox{medium}}, however for good conductors this value is very
+     close to 1 so it makes little difference. Using the default 1 as the
+     @m{\epsilon\mbox{medium}} argument will work just as well.
+
+  @* @c{Dump(s)}
+  @| Print out internal information about the shape @c{s}. This is mostly for
+     debugging.
+}
 
 #############################################################################
 @section{@label{shapes} Shape objects}
@@ -1333,9 +1426,10 @@ functions:
      @m{\alpha} and @m{\beta} values. The return vectors can be complex. Each
      edge has distance @c{d} going from 0 to 1 as we traverse the polygon
      counter clockwise. This feature allows arbitrary boundary constraints and
-     boundary excitations. For convenience, the @m{\alpha} and @m{\beta} values
-     are multiplied by the wavenumber @m{k} before being used in the
-     simulation.
+     boundary excitations. For convenience, before being used in the simulation
+     the @m{\alpha} and @m{\beta} values are multiplied by the wavenumber @m{k}
+     of the material attached to the port (noting that @m{k^2=k_0^2 \epsilon_r}
+     where @m{\epsilon_r} is the relative dielectric constant).
 }
 
 @subsection{@label{dielectrics} Dielectrics}
@@ -1822,4 +1916,7 @@ Here is what is added in each new version.
 @* Fix @c{field.Complex()} dummy evaluation.
 @* Warn about nonfinite or non number return values in @c{config.optimize()}.
 @* Fix @c{s:Grow} to work with two point polylines.
+@* Documented the @c{util} table.
+@* Added utilities for modeling the loss from good conductors (@c{PaintMetal}
+   and @c{PortMetal}).
 }
