@@ -332,19 +332,27 @@ util.DistanceScale = function()
   return _DistanceScale(config.unit)
 end
 
-util.LambdaInM = function()
+util.Lambda0InM = function()
   assert(config and config.frequency, 'config.frequency must be defined')
   return util.c / config.frequency
 end
 
-util.Lambda = function()
+util.Lambda0 = function()
   assert(config and config.unit, 'config.unit must be defined')
-  return util.LambdaInM() / _DistanceScale(config.unit)
+  return util.Lambda0InM() / _DistanceScale(config.unit)
+end
+
+util.K0InM = function()
+  return 2 * math.pi / util.Lambda0InM()
+end
+
+util.K0 = function()
+  return 2 * math.pi / util.Lambda0()
 end
 
 util.KSquaredInM = function()
   assert(config and config.unit and config.type, 'config.unit and config.type must be defined')
-  local lambda = util.LambdaInM()
+  local lambda = util.Lambda0InM()
   local k2 = 0
   if config.type == 'Exy' then
     local unit = _DistanceScale(config.unit)
@@ -466,36 +474,63 @@ end
 
 -----------------------------------------------------------------------------
 -- Utility to model the loss of good (not perfect) conductors.
+-- See 'Cavity Metallic Loss.nb'.
 
 util.PaintMetal = function(s, q, color, conductivity, material_epsilon)
+  material_epsilon = material_epsilon or 1
   local ctype = config.type or error('config.type needs to be defined')
+  local d = config.depth or error('config.depth needs to be defined')
+  local f = config.frequency or error('config.frequency needs to be defined')
+  d = d * util.DistanceScale()
+  -- Imaginary part of dielectric constant for Ez cavity.
+  local ei = -math.sqrt(2 * material_epsilon) /
+              (d * math.sqrt(util.mu0 * conductivity * 2 * math.pi * f))
   if ctype == 'Ez' then
-    material_epsilon = material_epsilon or 1
-    local d = config.depth or error('config.depth needs to be defined')
-    local f = config.frequency or error('config.frequency needs to be defined')
-    d = d * util.DistanceScale()
-    local ei = -math.sqrt(2 * material_epsilon) /
-      (d * math.sqrt(util.mu0 * conductivity * 2 * math.pi * f))
-    local epsilon = Complex(material_epsilon, ei)
-    s:Paint(q, color, epsilon)
-    return epsilon
+    -- Ok, already computed
+  elseif ctype == 'Exy' then
+    ei = ei * 2 * math.pi^2 / (d^2 * util.KSquaredInM())
   else
-    error('util.PaintMetal only works for Ez cavities')
+    error('util.PaintMetal only works for Ez and Exy cavities')
   end
+  local epsilon = Complex(material_epsilon, ei)
+  local old = rawget(_G,'allow_painting_in_finite_depth_Exy')
+  allow_painting_in_finite_depth_Exy = true
+  s:RawPaint(q, color, epsilon)
+  allow_painting_in_finite_depth_Exy = old
+  return epsilon
 end
 
 util.PortMetal = function(s, sel, n, conductivity, metal_epsilon, medium_epsilon)
   metal_epsilon = metal_epsilon or 1
   medium_epsilon = medium_epsilon or 1
   local ctype = config.type or error('config.type needs to be defined')
+  local f = config.frequency or error('config.frequency needs to be defined')
   if ctype == 'Ez' then
-    local f = config.frequency or error('config.frequency needs to be defined')
     local alpha = Complex(0,1) / medium_epsilon *
       Complex(metal_epsilon, -(util.mu0 * conductivity * 2 * math.pi * f)
                              / util.KSquaredInM())^0.5
     s:Port(sel, n, function(d,x,y) return alpha + d*0, d*0 end)
+  elseif ctype == 'Exy' then
+    local d = config.depth or error('config.depth needs to be defined')
+    d = d * util.DistanceScale()
+    local k1_squared = util.K0InM()^2 * medium_epsilon
+    local eff_k1 = (k1_squared - math.pi^2 / d^2)^0.5
+    local alpha
+    if false then
+      -- This is correct for end caps:
+      metal_epsilon = Complex(metal_epsilon, -conductivity / (util.epsilon0 * 2 * math.pi * f))
+      local k2_squared = util.K0InM()^2 * metal_epsilon
+      local eff_k2 = (k2_squared - math.pi^2 / d^2)^0.5
+      alpha = Complex(0,1) * eff_k1^2 / eff_k2
+    else
+      -- This works for side walls:
+      alpha = Complex(0,1) * (eff_k1^2 + math.pi^2 / d^2)
+              / math.sqrt(2 * util.mu0 * conductivity * 2 * math.pi * f)
+    end
+    alpha = alpha / eff_k1      -- Adjust for scaling done by solver
+    s:Port(sel, n, function(d,x,y) return alpha + d*0, d*0 end)
   else
-    error('util.PortMetal only works for Ez cavities')
+    error('util.PortMetal only works for Ez or Exy cavities')
   end
 end
 

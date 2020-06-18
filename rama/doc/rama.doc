@@ -1057,10 +1057,14 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
   @* @c{DistanceScale()}
   @| Return the distance scale in ``meters per unit''. This is the length in
      meters of one @c{config.unit} unit of distance.
-  @* @c{LambdaInM()}
-  @| Return the free space wavelength in meters.
-  @* @c{Lambda()}
-  @| Return the free space wavelength in @c{config.unit} units.
+  @* @c{Lambda0InM()}
+  @| Return the free space wavelength @m{\lambda_0} in meters.
+  @* @c{Lambda0()}
+  @| Return the free space wavelength @m{\lambda_0} in @c{config.unit} units.
+  @* @c{K0InM()}
+  @| Return the free space wave number @m{k_0} in radians per meter.
+  @* @c{K0()}
+  @| Return the free space wave number @m{k_0} in radians per @c{config.unit}.
   @* @c{KInM()}
   @| Compute the cavity wave number @m{k}, in radians per meter.
      In @c{Ez} cavities this is the free space wave number, in @c{Exy} cavities
@@ -1071,7 +1075,7 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
   @* @c{KSquaredInM()}
   @| Compute the squared value of @c{KInM()}.
   @* @c{K()}
-  @| Compute @m{k}, in radians per @c{config.unit}.
+  @| Compute the cavity wave number @m{k}, in radians per @c{config.unit}.
 
   @* @c{RotateSigmas(@m{\sigma_{xx}}, @m{\sigma_{yy}}, @m{\sigma_{xy}}, @m{\theta})}
   @| Given @m{\sigma} values that describe an anisotropic dielectric, rotate
@@ -1085,7 +1089,7 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
      much attenuation @c{a} we want (as a fraction of full strength) over
      distance @c{d} (in @c{config.unit}). The distance @c{d} does not have to
      correspond to any dimension in P. Typical values would be @c{a=0.01} and
-     @c{d=util.Lambda()}, indicating that the field should die to 1% of its
+     @c{d=util.Lambda0()}, indicating that the field should die to 1% of its
      value over one wavelength.
      If @c{far_field_boundary} is true then use the @c{util.FAR_FIELD} color
      bit to indicate that the antenna pattern should be measured at the PML
@@ -1129,6 +1133,14 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
      @m{\epsilon\mbox{medium}}, however for good conductors this value is very
      close to 1 so it makes little difference. Using the default 1 as the
      @m{\epsilon\mbox{medium}} argument will work just as well.
+
+     For @c{Exy} cavities the wall loss has an angle dependence that can not be
+     reproduced here. The boundary is set to produce the correct loss for a
+     wave travelling parallel to the wall. The loss for a normally incident
+     wave will be lower, by the ratio of the effective wave number to the free
+     space wave number. For @c{Exy} cavities near cutoff this ratio becomes
+     very high, but for rectangular waveguide in the middle of the useful
+     @m{TE_{10}} frequency band the ratio is about 1.7.
 
   @* @c{Dump(s)}
   @| Print out internal information about the shape @c{s}. This is mostly for
@@ -1427,9 +1439,10 @@ functions:
      edge has distance @c{d} going from 0 to 1 as we traverse the polygon
      counter clockwise. This feature allows arbitrary boundary constraints and
      boundary excitations. For convenience, before being used in the simulation
-     the @m{\alpha} and @m{\beta} values are multiplied by the wavenumber @m{k}
-     of the material attached to the port (noting that @m{k^2=k_0^2 \epsilon_r}
-     where @m{\epsilon_r} is the relative dielectric constant).
+     the @m{\alpha} and @m{\beta} values are multiplied by the effective
+     wavenumber @m{k} of the material attached to the port (noting that @m{k}
+     is affected by the relative dielectric constant, and for @c{Exy} cavities
+     the depth).
 }
 
 @subsection{@label{dielectrics} Dielectrics}
