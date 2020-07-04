@@ -366,6 +366,11 @@ class Shape : public LuaUserClass {
   void SaveBoundaryAsDXF(const char *filename);
   void SaveBoundaryAsXY(const char *filename);
 
+  // Load a binary STL file and convert it to a Shape that traces the edges of
+  // all the triangles in the Z=0 plane. If there is an error then this shape
+  // will be empty, false will be returned, and an error will be generated.
+  bool LoadSTL(const char *filename);
+
   // Access port callbacks.
   const std::map<int, LuaCallback> & PortCallbacks() const {
     return port_callbacks_;
@@ -401,6 +406,7 @@ class Shape : public LuaUserClass {
   int LuaChamferVertex(lua_State *L);
   int LuaPaint(lua_State *L);
   int LuaHasPorts(lua_State *L);
+  int LuaLoadSTL(lua_State *L);
   int LuaClean(lua_State *L);
 
  private:

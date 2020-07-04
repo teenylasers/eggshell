@@ -283,6 +283,8 @@ __complex_metatable__.__index = function(T, key)  -- The indexing operation T[ke
     return T.fn.sqrt(T[1]*T[1] + T[2]*T[2])
   elseif key == 'angle' then
     return T.fn.atan(T[2], T[1])
+  elseif key == 'conj' then
+    return setmetatable({T[1],-T[2], fn=T.fn}, __complex_metatable__)
   else
     error 'Unknown complex number operation'
   end
@@ -548,4 +550,8 @@ util.Dump = function(s)
            j, v.x, v.y, v.kind0, v.kind1, v.dist0, v.dist1))
     end
   end
+end
+
+util.LoadSTL = function(filename)
+  return Shape():LoadSTL(filename):Scale(0.001 / util.DistanceScale())
 end

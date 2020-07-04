@@ -360,7 +360,13 @@ void AnyPointInPoly(const vector<RPoint> &poly,
       best_ia = ia;
     }
   }
-  CHECK(best_ia >= 0);        // If can't find convex vertex (never happens)
+  if (best_ia < 0) {
+    // If we can't find a convex vertex the polygon is probably zero area. In
+    // this case there is no vertex inside the polygon so we just return the
+    // first vertex, which is as good as any other.
+    *point = poly[0].p;
+    return;
+  }
   int ia = best_ia;
   int iv = (ia + 1) % poly_size;
   int ib = (ia + 2) % poly_size;
@@ -1568,6 +1574,101 @@ void Shape::SaveBoundaryAsXY(const char *filename) {
   fclose(fout);
 }
 
+bool Shape::LoadSTL(const char *filename) {
+  // STL file parameters.
+  const int kHeaderSize = 80;
+  const int kVertexSize = 50;
+  const double kTolerance = 1e-6;
+
+  Clear();
+
+  // Load the STL file data into 'v'. Each group of three vertices in 'v' is a
+  // single triangle. The right hand rule defines the triangle normal that
+  // points out of the solid. The vertices are ordered by just the X,Y part.
+  struct STLPoint : public Vector3f {
+    bool operator<(const STLPoint &p) const {
+      return (*this)[0] < p[0] || ((*this)[0] == p[0] && (*this)[1] < p[1]);
+    }
+  };
+  std::vector<STLPoint> v;
+  {
+    FILE *fin = fopen(filename, "rb");
+    if (!fin) {
+      Error("Can't open STL file '%s' (%s)", filename, strerror(errno));
+      return false;
+    }
+    // Get file size, read header.
+    fseek(fin, 0, SEEK_END);
+    long size = ftell(fin);
+    fseek(fin, kHeaderSize, SEEK_SET);      // Unused header
+    uint32_t num_triangles = 0;
+    fread(&num_triangles, sizeof(num_triangles), 1, fin);
+    // Check that the file size matches 'num_triangles'.
+    if (size < 84 || size != (84 + num_triangles * kVertexSize)) {
+      Error("STL file '%s' has unexpected size", filename);
+      return false;
+    }
+    // Read just the vertex part of the file data, discard the normals.
+    vector<uint8_t> bytes(num_triangles * kVertexSize);
+    fread(bytes.data(), num_triangles, kVertexSize, fin);
+    if (ferror(fin)) {
+      Error("Error reading STL file '%s'", filename);
+      return false;
+    }
+    v.resize(num_triangles * 3);
+    for (int i = 0; i < num_triangles; i++) {
+      for (int j = 0; j < 3; j++) {
+        v[i*3+j] = *reinterpret_cast<STLPoint*>(bytes.data() + i * kVertexSize +
+                                                (j+1) * 3 * sizeof(float));
+      }
+    }
+    fclose(fin);
+  }
+
+  // Identify the edges that are referenced by just one of the triangles in the
+  // z=0 plane. This is the boundary of the polygons we will create.
+  std::map<std::pair<STLPoint, STLPoint>, int> edge_map;
+  for (int i = 0; i < v.size() / 3; i++) {
+    if (fabs(v[i*3+0][2]) < kTolerance && fabs(v[i*3+1][2]) < kTolerance &&
+        fabs(v[i*3+2][2]) < kTolerance) {
+      // Triangle is in the z=0 plane, add its edges to edge_map.
+      for (int j = 0; j < 3; j++) {
+        int j2 = (j + 1) % 3;
+        std::pair<STLPoint, STLPoint> key2(v[i*3+j2], v[i*3+j]);
+        if (edge_map.count(key2) > 0) {
+          edge_map[key2]++;
+        } else  {
+          std::pair<STLPoint, STLPoint> key1(v[i*3+j], v[i*3+j2]);
+          edge_map[key1]++;
+        }
+      }
+    }
+  }
+
+  // Map all exterior vertices to the next vertex in the polygon.
+  std::map<STLPoint, STLPoint> next_vertex;
+  for (auto it : edge_map) {
+    if (it.second == 1) {
+      next_vertex[it.first.second] = it.first.first;
+    }
+  }
+
+  // Emit all exterior vertices to polygons.
+  while (!next_vertex.empty()) {
+    polys_.resize(polys_.size() + 1);
+    STLPoint first_vertex = next_vertex.begin()->first;
+    STLPoint v = first_vertex;
+    do {
+      polys_.back().p.push_back(RPoint(v[0], v[1]));
+      assert(next_vertex[v].count() == 1);
+      STLPoint next_v = next_vertex[v];
+      next_vertex.erase(v);
+      v = next_v;
+    } while (v != first_vertex);
+  }
+  return true;
+}
+
 // Update coordinate bounds. Return the number of coordinates processed.
 
 int Shape::UpdateBounds(JetNum *min_x, JetNum *min_y,
@@ -1819,6 +1920,8 @@ int Shape::Index(lua_State *L) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaPaint>));
     } else if (strcmp(s, "HasPorts") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaHasPorts>));
+    } else if (strcmp(s, "LoadSTL") == 0) {
+      lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaLoadSTL>));
     } else if (strcmp(s, "empty") == 0) {
       lua_pushboolean(L, IsEmpty());
     } else if (strcmp(s, "pieces") == 0) {
@@ -2313,6 +2416,16 @@ int Shape::LuaHasPorts(lua_State *L) {
     }
   }
   lua_pushboolean(L, 0);
+  return 1;
+}
+
+int Shape::LuaLoadSTL(lua_State *L) {
+  if (lua_gettop(L) != 2) {
+    LuaError(L, "Expecting shape:LoadSTL(filename)");
+  }
+  const char *filename = lua_tostring(L, -1);
+  LoadSTL(filename);
+  lua_settop(L, 1);
   return 1;
 }
 

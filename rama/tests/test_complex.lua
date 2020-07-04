@@ -75,6 +75,11 @@ function TestComplex()
          math.abs(c.im + 67.457050438711) < 1e-9)
   c = IsComplex(-a)
   assert(c.re == -3 and c.im == -4)
+  assert(a.conj.re == 3)
+  assert(a.conj.im == -4)
+  c = a * a.conj
+  assert(c.re == 9+16)
+  assert(c.im == 0)
 
   -- Check combining scalar and complex arguments.
   c = IsComplex(a + 2)
@@ -125,6 +130,10 @@ function TestComplex()
   c = IsComplex(-a)
   CheckVec(c.re, -3, -1)
   CheckVec(c.im, -4, -2)
+  CheckVec(a.conj.re, 3, 1)
+  CheckVec(a.conj.im, -4, -2)
+  CheckVec((a * a.conj).re, 9+16, 1+4)
+  CheckVec((a * a.conj).im, 0, 0)
 
   -- Check combining vector and complex arguments.
   c = IsComplex(a + 2)
