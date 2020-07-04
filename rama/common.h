@@ -109,12 +109,13 @@ bool ToJetComplex(lua_State *L, int index, JetComplex *value);
 bool ToJetComplexVector(lua_State *L, int index,
                         std::vector<JetComplex> *value);
 
-// Check that any numbers in a Lua function argument list are not NaNs. These
-// likely indicate a problem building the model, and will make a mess of our
-// algorithms if stored in shapes or materials because they violate the
-// assumption that if A is copied to B then A==B. Basic Lua numbers are
-// checked, alse Vector and Complex arguments are checked.
-void LuaErrorIfNaNs(lua_State *L);
+// Check that any numbers in a Lua function argument list are not NaNs or
+// infinity. These likely indicate a problem building the model, and will make
+// a mess of our algorithms if stored in shapes or materials because they
+// violate various assumptions, e.g. (for NaNs) that if A is copied to B then
+// A==B. Basic Lua numbers are checked, alse Vector and Complex arguments are
+// checked.
+void LuaErrorIfNaNOrInfs(lua_State *L);
 
 //***************************************************************************
 // Common fonts.

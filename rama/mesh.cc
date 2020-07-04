@@ -182,6 +182,10 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
       ERROR_ONCE("Can not create mesh: %s", geometry_error);
       return;
     }
+    if (s.TotalArea() <= 0 || s.IsEmpty()) {
+      ERROR_ONCE("Can not create mesh from empty or zero area polygon");
+      return;
+    }
   }
   frexp(longest_edge_permitted, &cell_size_);
   cell_size_ -= 2;

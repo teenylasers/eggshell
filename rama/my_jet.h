@@ -1111,6 +1111,9 @@ inline std::complex<double> ToComplex(const JetComplex &c) {
 inline bool IsNaNValue(const JetNum &f) {
   return std::isnan(f.a);
 }
+inline bool IsNaNOrInfValue(const JetNum &f) {
+  return std::isnan(f.a) || std::isinf(f.a);
+}
 
 // Calling these likely means a bug, so declare but don't define them to ensure
 // they cause a linker error.

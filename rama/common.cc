@@ -125,20 +125,22 @@ bool ToJetComplexVector(lua_State *L, int index,
   return false;
 }
 
-void LuaErrorIfNaNs(lua_State *L) {
+void LuaErrorIfNaNOrInfs(lua_State *L) {
   int n = lua_gettop(L);
   for (int i = 1; i <= n; i++) {
     JetComplex value;
     std::vector<JetComplex> vvalue;
     if (ToJetComplex(L, i, &value)) {
-      if (IsNaNValue(value.real()) || IsNaNValue(value.imag())) {
-        LuaError(L, "A NaN (not-a-number) was passed to a function.");
+      if (IsNaNOrInfValue(value.real()) || IsNaNOrInfValue(value.imag())) {
+        LuaError(L, "A NaN (not-a-number) or infinity was passed to a "
+                    "function.");
       }
     } else if (ToJetComplexVector(L, i, &vvalue)) {
       for (int j = 0; j < vvalue.size(); j++) {
-        if (IsNaNValue(vvalue[j].real()) || IsNaNValue(vvalue[j].imag())) {
-          LuaError(L, "A NaN (not-a-number) was passed to a function "
-                      "in a vector.");
+        if (IsNaNOrInfValue(vvalue[j].real()) ||
+            IsNaNOrInfValue(vvalue[j].imag())) {
+          LuaError(L, "A NaN (not-a-number) or infinity was passed to a "
+                      "function in a vector.");
         }
       }
     }

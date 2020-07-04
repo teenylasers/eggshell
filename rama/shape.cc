@@ -2066,7 +2066,7 @@ int Shape::LuaClone(lua_State *L) {
 }
 
 int Shape::LuaAddPoint(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 3, "AddPoint");
   AddPoint(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
   lua_settop(L, 1);
@@ -2081,14 +2081,14 @@ int Shape::LuaMakePolyline(lua_State *L) {
 }
 
 int Shape::LuaClean(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "Clean");
   Clean(luaL_checknumber(L, 2));
   return 1;
 }
 
 int Shape::LuaContains(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 3, "Contains");
   lua_pushboolean(L,
       Contains(luaL_checknumber(L, 2), luaL_checknumber(L, 3)) != 0);
@@ -2096,7 +2096,7 @@ int Shape::LuaContains(lua_State *L) {
 }
 
 int Shape::LuaOffset(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 3, "Offset");
   Offset(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
   lua_settop(L, 1);
@@ -2104,7 +2104,7 @@ int Shape::LuaOffset(lua_State *L) {
 }
 
 int Shape::LuaScale(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   if (lua_gettop(L) == 2) {
     Scale(luaL_checknumber(L, 2), luaL_checknumber(L, 2));
   } else if (lua_gettop(L) == 3) {
@@ -2117,7 +2117,7 @@ int Shape::LuaScale(lua_State *L) {
 }
 
 int Shape::LuaRotate(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "Rotate");
   Rotate(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -2125,7 +2125,7 @@ int Shape::LuaRotate(lua_State *L) {
 }
 
 int Shape::LuaMirrorX(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "MirrorX");
   MirrorX(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -2133,7 +2133,7 @@ int Shape::LuaMirrorX(lua_State *L) {
 }
 
 int Shape::LuaMirrorY(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "MirrorY");
   MirrorY(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -2148,7 +2148,7 @@ int Shape::LuaReverse(lua_State *L) {
 }
 
 int Shape::LuaGrow(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   CornerStyle endcap_style = BUTT;
   if (lua_gettop(L) == 5) {
     endcap_style = CheckStyle(L, 5, true, "Grow");
@@ -2166,7 +2166,7 @@ int Shape::LuaGrow(lua_State *L) {
 }
 
 int Shape::LuaSelect(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   if (lua_gettop(L) != 3 && lua_gettop(L) != 5) {
     LuaError(L, "Shape:Select() expecting 2 or 4 arguments");
   }
@@ -2226,7 +2226,7 @@ enum { MAGIC_ABC_PORT = -15485863 };
 
 int Shape::LuaPort(lua_State *L) {
   // Trim off nils at the end before we start counting arguments.
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
     lua_pop(L, 1);
   }
@@ -2302,14 +2302,14 @@ int Shape::LuaPort(lua_State *L) {
 
 int Shape::LuaABC(lua_State *L) {
   // Like LuaPort(), but use the special port number that designates an ABC.
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "ABC");
   lua_pushnumber(L, MAGIC_ABC_PORT);
   return LuaPort(L);
 }
 
 int Shape::LuaAPointInside(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 1, "APointInside");
   double x, y;
   if (!APointInside(-1, &x, &y)) {
@@ -2323,7 +2323,7 @@ int Shape::LuaAPointInside(lua_State *L) {
 }
 
 int Shape::LuaFilletVertex(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 5, "FilletVertex");
   if (IsEmpty()) {
     LuaError(L, "FilletVertex() requires a nonempty shape");
@@ -2335,7 +2335,7 @@ int Shape::LuaFilletVertex(lua_State *L) {
 }
 
 int Shape::LuaChamferVertex(lua_State *L) {
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 5, "ChamferVertex");
   if (IsEmpty()) {
     LuaError(L, "ChamferVertex() requires a nonempty shape");
@@ -2348,7 +2348,7 @@ int Shape::LuaChamferVertex(lua_State *L) {
 
 int Shape::LuaPaint(lua_State *L) {
   // Trim off nils at the end before we start counting arguments.
-  LuaErrorIfNaNs(L);
+  LuaErrorIfNaNOrInfs(L);
   while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
     lua_pop(L, 1);
   }
