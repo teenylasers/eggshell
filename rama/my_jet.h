@@ -766,11 +766,11 @@ bool IsInfinite(const Jet<T, N>& f) {
 // The jet is NaN if any part of the jet is NaN.
 template <typename T, int N> inline
 bool IsNaN(const Jet<T, N>& f) {
-  if (isnan(f.a)) {
+  if (std::isnan(f.a)) {
     return true;
   }
   for (int i = 0; i < N; ++i) {
-    if (isnan(f.v[i])) {
+    if (std::isnan(f.v[i])) {
       return true;
     }
   }

@@ -1602,16 +1602,16 @@ bool Shape::LoadSTL(const char *filename) {
     long size = ftell(fin);
     fseek(fin, kHeaderSize, SEEK_SET);      // Unused header
     uint32_t num_triangles = 0;
-    fread(&num_triangles, sizeof(num_triangles), 1, fin);
+    size_t nr = fread(&num_triangles, sizeof(num_triangles), 1, fin);
     // Check that the file size matches 'num_triangles'.
-    if (size < 84 || size != (84 + num_triangles * kVertexSize)) {
+    if (nr != 1 || size < 84 || size != (84 + num_triangles * kVertexSize)) {
       Error("STL file '%s' has unexpected size", filename);
       return false;
     }
     // Read just the vertex part of the file data, discard the normals.
     vector<uint8_t> bytes(num_triangles * kVertexSize);
-    fread(bytes.data(), num_triangles, kVertexSize, fin);
-    if (ferror(fin)) {
+    nr = fread(bytes.data(), kVertexSize, num_triangles, fin);
+    if (nr != num_triangles || ferror(fin)) {
       Error("Error reading STL file '%s'", filename);
       return false;
     }
