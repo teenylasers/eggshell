@@ -1303,12 +1303,12 @@ void Shape::SplitPolygonsAtNecks() {
 
     // This piece will have necks if there are shared points. Multiple shared
     // points could require that the piece be split into an arbitrary number of
-    // pieces. Creating all the splits requires a lot of book keeping. Instead
-    // we solve the much simpler problem of identifying just *one* split, and
-    // then adding the two resulting pieces to the stack for further analysis.
-    // Since the common case is just one split, this algorithm does not
-    // sacrifice much speed. So, first make an index of all the points,
-    // stopping when we have found a duplicate.
+    // pieces. Creating all the splits in one go requires a lot of book
+    // keeping. Instead we solve the much simpler problem of identifying just
+    // *one* split, and then adding the two resulting pieces to the stack for
+    // further analysis. Since the common case is just one split, this
+    // algorithm does not sacrifice much speed. So, first make an index of all
+    // the points, stopping when we have found a duplicate.
     std::map<std::pair<JetNum, JetNum>, int> point_map;  // x,y --> one index
     int dup1 = -1, dup2 = -1;   // Indexes of two duplicated points
     {
@@ -1330,28 +1330,30 @@ void Shape::SplitPolygonsAtNecks() {
     // Make two polygons from dup1 -> dup2 and dup2 -> dup1. But zero-area
     // slivers (where two edges are coincident) are discarded and not created
     // as separate pieces.
-    polys_.resize(polys_.size() + 1);
     auto &p = polys_[i].p;
-    polys_.back().material = polys_[i].material;
-    for (int j = dup1; j != dup2; j = (j + 1) % p.size()) {
-      polys_.back().p.push_back(p[j]);
-    }
-    if (polys_.back().p.size() <= 2) {
-      polys_.pop_back();        // Discard sliver
-    }
-    vector<RPoint> newp;
+    vector<RPoint> newp1,newp2;
     for (int j = dup2; j != dup1; j = (j + 1) % p.size()) {
-      newp.push_back(p[j]);
+      newp1.push_back(p[j]);
     }
-    if (newp.size() > 2) {
-      polys_[i].p.swap(newp);
+    for (int j = dup1; j != dup2; j = (j + 1) % p.size()) {
+      newp2.push_back(p[j]);
+    }
+    if (newp1.size() > 2 && newp2.size() > 2) {
+      polys_.resize(polys_.size() + 1);
+      polys_.back().material = polys_[i].material;
+      polys_[i].p.swap(newp1);
+      polys_.back().p.swap(newp2);
+      stack.push_back(i);
+      stack.push_back(polys_.size() - 1);
+    } else if (newp1.size() > 2) {
+      polys_[i].p.swap(newp1);
+      stack.push_back(i);
+    } else if (newp2.size() > 2) {
+      polys_[i].p.swap(newp2);
+      stack.push_back(i);
     } else {
-      polys_.erase(polys_.begin() + i, polys_.begin() + i+1);  // Discard sliver
+      polys_.erase(polys_.begin() + i);
     }
-
-    // Further process both split polygons.
-    stack.push_back(i);
-    stack.push_back(polys_.size() - 1);
   }
 }
 
@@ -2488,6 +2490,16 @@ static void RandomShape2(Shape *s, int H) {
   }
 }
 
+// Check if the centroid of piece 'i' is the expected value
+static bool CentroidIs(const Shape &s, int i, double x, double y) {
+  JetPoint c(0, 0);
+  for (int j = 0; j < s.Piece(i).size(); j++) {
+    c += s.Piece(i)[j].p;
+  }
+  c /= double(s.Piece(i).size());
+  return c[0] == x && c[1] == y;
+}
+
 TEST_FUNCTION(Area) {
   {
     Shape s;
@@ -2679,6 +2691,8 @@ TEST_FUNCTION(SplitPolygonsAtNecks) {
     CHECK(s.NumPieces() == 2);
     CHECK(s.Area(0) == 1);
     CHECK(s.Area(1) == 1);
+    CHECK(CentroidIs(s, 0, 0.5, 0.5));
+    CHECK(CentroidIs(s, 1, 1.5, 1.5));
   }
   {
     // Three squares in a row.
@@ -2700,6 +2714,9 @@ TEST_FUNCTION(SplitPolygonsAtNecks) {
     CHECK(s.Area(0) == 1);
     CHECK(s.Area(1) == 1);
     CHECK(s.Area(2) == 1);
+    CHECK(CentroidIs(s, 0, 1.5, 1.5));
+    CHECK(CentroidIs(s, 1, 2.5, 2.5));
+    CHECK(CentroidIs(s, 2, 0.5, 0.5));
   }
   {
     // Three squares in a star.
@@ -2720,6 +2737,9 @@ TEST_FUNCTION(SplitPolygonsAtNecks) {
     CHECK(s.Area(0) == 1);
     CHECK(s.Area(1) == 1);
     CHECK(s.Area(2) == 0.375);
+    CHECK(CentroidIs(s, 0, 0.5, 0.5));
+    CHECK(CentroidIs(s, 1, 1.5, 1.5));
+    CHECK(CentroidIs(s, 2, 1.5, 0.5));
   }
   {
     // Square with sliver.
@@ -2735,5 +2755,6 @@ TEST_FUNCTION(SplitPolygonsAtNecks) {
     CHECK(s.NumPieces() == 1);
     CHECK(s.Piece(0).size() == 4);
     CHECK(s.Area(0) == 1);
+    CHECK(CentroidIs(s, 0, 0.5, 0.5));
   }
 }
