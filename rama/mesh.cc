@@ -204,6 +204,14 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
     return;
   }
 
+  // Save the shape width and height.
+  {
+    JetNum min_x, min_y, max_x, max_y;
+    s.GetBounds(&min_x, &min_y, &max_x, &max_y);
+    cd_width_ = ToDouble(max_x - min_x);
+    cd_height_ = ToDouble(max_y - min_y);
+  }
+
   // Identify negative area pieces that will become holes. For each hole pick
   // an x,y point that is guaranteed to be in the hole so that we can identify
   // it to the triangle library. This cumbersome way to identify holes (and

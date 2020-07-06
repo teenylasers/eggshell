@@ -55,6 +55,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
   // Default shows and hidden controls.
   ui->display_style_Exy->hide();
+  ui->display_style_ES->hide();
   ui->display_style_TE->hide();
   ui->display_style_TM->hide();
   ui->mode_label->hide();
@@ -159,6 +160,7 @@ bool MainWindow::ReloadScript(bool rerun_even_if_same) {
   // Show the correct controls based on the cavity type.
   ui->display_style_Ez->setVisible(ui->model->IsEzCavity());
   ui->display_style_Exy->setVisible(ui->model->IsExyCavity());
+  ui->display_style_ES->setVisible(ui->model->IsESCavity());
   ui->display_style_TE->setVisible(ui->model->IsTEMode());
   ui->display_style_TM->setVisible(ui->model->IsTMMode());
   ui->animate->setVisible(ui->model->NumWaveguideModes() == 0);
@@ -442,6 +444,10 @@ void MainWindow::on_display_style_Exy_currentIndexChanged(int index) {
   UpdateDisplayStyle(index);
 }
 
+void MainWindow::on_display_style_ES_currentIndexChanged(int index) {
+  UpdateDisplayStyle(index);
+}
+
 void MainWindow::on_display_style_TM_currentIndexChanged(int index) {
   UpdateDisplayStyle(index);
 }
@@ -456,6 +462,7 @@ void MainWindow::UpdateDisplayStyle(int index) {
   // @@@ Do we need to sync the TM and TE display styles too? they only have 5 entries.
   // @@@ Does TM/TE display style sync when a mode model is loaded?
   ui->display_style_Exy->setCurrentIndex(index);
+  ui->display_style_ES->setCurrentIndex(index);
   ui->display_style_Ez->setCurrentIndex(index);
   ui->model->SetDisplayStyle(index);
 }

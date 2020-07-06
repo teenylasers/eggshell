@@ -305,7 +305,7 @@
            <enum>QLayout::SetDefaultConstraint</enum>
           </property>
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0,0,0,0,0,0,0,0">
+           <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0,0,0,0,0,0,0,0,0">
             <property name="spacing">
              <number>10</number>
             </property>
@@ -431,6 +431,46 @@
               <item>
                <property name="text">
                 <string>Poynting vector</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="display_style_ES">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
+              <property name="frame">
+               <bool>true</bool>
+              </property>
+              <item>
+               <property name="text">
+                <string>Voltage</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Absolute voltage</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>E magnitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vector E</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vector isovoltage</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>n/a</string>
                </property>
               </item>
              </widget>

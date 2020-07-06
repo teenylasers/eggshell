@@ -20,12 +20,12 @@
 
 class Mesh {
  public:
-  // Triangulate the shape to create a mesh. IsValid() will be false on failure
-  // (in which an Error() will have been emitted). If longest_edge_permitted is
-  // > 0 then triangles will be subdivided to satisfy this constraint,
-  // otherwise a triangulation with a small number of triangles will be
-  // produced. If 'lua' is provided the dielectric callback functions can be
-  // called.
+  // Triangulate the shape to create a mesh. The shape coordinates are in
+  // config units not meters. IsValid() will be false on failure (in which an
+  // Error() will have been emitted). If longest_edge_permitted is > 0 then
+  // triangles will be subdivided to satisfy this constraint, otherwise a
+  // triangulation with a small number of triangles will be produced. If 'lua'
+  // is provided the dielectric callback functions can be called.
   explicit Mesh(const Shape &s, double longest_edge_permitted, Lua *lua);
 
   // Did mesh creation succeed?
@@ -71,6 +71,7 @@ class Mesh {
   vector<Triangle> triangles_;
   vector<Material> materials_;          // Copies of shape piece materials
   std::map<int, LuaCallback> port_callbacks_;  // Copied from shape
+  double cd_width_=0, cd_height_=0;     // CD dimensions (in config units)
   friend class BoundaryIterator;
   // Optional, material parameters at each point (size = 0 or points_.size()).
   vector<MaterialParameters> mat_params_;

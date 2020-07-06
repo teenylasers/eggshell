@@ -87,6 +87,18 @@ end
 
 -- This is the function called by s:Paint(). It does some parameter
 -- transformations then calls s:RawPaint().
+--
+-- In infinite depth Exy cavities, the boundary condition for x=0 boundary is:
+--   Ey1 == Ey2 (see Cavity Electromagnetics.nb)
+--   1/epsilon1 dHz1/dx == 1/epsilon2 dHz2/dx
+-- Sigma painting gives us: dHz1/dx sigma1 == dHz2/dx sigma2
+-- So sigma = 1/epsilon.
+--
+-- In electrostatic cavities we have
+--   epsilon1 E1 = epsilon2 E2
+--   epsilon1 dpsi1/dx = epsilon2 dpsi2/dx
+-- So sigma = epsilon
+
 function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
   assert(not dummy, "Too many arguments given to Paint.")
   -- If q has ports they won't affect painting, but this might signify that
@@ -97,12 +109,12 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
           'If this is actually what you want, set allow_painting_with_ports=true\n'..
           'to suppress this error.')
   end
-  -- In Exy cavities we scale sigma by 1/epsilon and set epsilon to 1, to
-  -- achieve a discontinuous gradient across dielectric boundaries.
+  -- In Exy and ES cavities we scale sigma by 1/epsilon and set epsilon to 1,
+  -- to achieve a discontinuous gradient across dielectric boundaries.
   if not config or type(config.type) ~= 'string' then
     error('config table should be set before Paint() is called')
   end
-  if config.type == 'Exy' then
+  if config.type == 'Exy' or config.type == 'ES' then
     if not rawget(_G,'allow_painting_in_finite_depth_Exy') and config.depth and config.depth < Infinity then
       error('Painting in finite depth Exy cavities does not yet generate physically sensible results.\n'..
             'Set allow_painting_in_finite_depth_Exy=true to suppress this error,\n'..
@@ -117,6 +129,9 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
         sxx = sxx or (x*0+1)
         syy = syy or (x*0+1)
         sxy = sxy or (x*0)
+        if config.type == 'ES' then
+          epsilon = 1 / epsilon
+        end
         sxx = sxx / e
         syy = syy / e
         sxy = sxy / e
@@ -128,6 +143,9 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
       sxx = sxx or 1
       syy = syy or 1
       sxy = sxy or 0
+      if config.type == 'ES' then
+        epsilon = 1 / epsilon
+      end
       sxx = sxx / epsilon
       syy = syy / epsilon
       sxy = sxy / epsilon
@@ -135,7 +153,7 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
       s:RawPaint(q, color, epsilon, sxx, syy, sxy, excitation)
     end
   else
-    -- Not an Exy cavity, pass on original arguments.
+    -- Not an Exy or ES cavity, pass on original arguments.
     s:RawPaint(q, color, epsilon, sxx, syy, sxy, excitation)
   end
 end
@@ -329,14 +347,22 @@ util.epsilon0 = 8.854187812813e-12      -- Permittivity of free space
 util.mu0 = 1.2566370621219e-6           -- Permeability of free space
 util.FAR_FIELD = 0x1000000              -- Special material color
 
+local function Frequency()
+  if type(config.frequency) == 'table' then
+    return config.frequency[1]
+  else
+    return config.frequency
+  end
+end
+
 util.DistanceScale = function()
   assert(config and config.unit, 'config.unit must be defined')
   return _DistanceScale(config.unit)
 end
 
 util.Lambda0InM = function()
-  assert(config and config.frequency, 'config.frequency must be defined')
-  return util.c / config.frequency
+  assert(config and Frequency(), 'config.frequency must be defined')
+  return util.c / Frequency()
 end
 
 util.Lambda0 = function()
@@ -482,7 +508,7 @@ util.PaintMetal = function(s, q, color, conductivity, material_epsilon)
   material_epsilon = material_epsilon or 1
   local ctype = config.type or error('config.type needs to be defined')
   local d = config.depth or error('config.depth needs to be defined')
-  local f = config.frequency or error('config.frequency needs to be defined')
+  local f = Frequency() or error('config.frequency needs to be defined')
   d = d * util.DistanceScale()
   -- Imaginary part of dielectric constant for Ez cavity.
   local ei = -math.sqrt(2 * material_epsilon) /
@@ -506,7 +532,7 @@ util.PortMetal = function(s, sel, n, conductivity, metal_epsilon, medium_epsilon
   metal_epsilon = metal_epsilon or 1
   medium_epsilon = medium_epsilon or 1
   local ctype = config.type or error('config.type needs to be defined')
-  local f = config.frequency or error('config.frequency needs to be defined')
+  local f = Frequency() or error('config.frequency needs to be defined')
   if ctype == 'Ez' then
     local alpha = Complex(0,1) / medium_epsilon *
       Complex(metal_epsilon, -(util.mu0 * conductivity * 2 * math.pi * f)
@@ -534,6 +560,19 @@ util.PortMetal = function(s, sel, n, conductivity, metal_epsilon, medium_epsilon
   else
     error('util.PortMetal only works for Ez or Exy cavities')
   end
+end
+
+-----------------------------------------------------------------------------
+-- Model boundary charge in ES cavities.
+
+util.PortCharge = function(s, sel_table, n, charge)
+  s:Port(sel_table, n, function(d, x, y)
+    -- Alpha and beta values are multiplied by k before being used. Undo that
+    -- here, and return an alpha,beta that forces the boundary value to
+    -- 'charge'.
+    local s = 1e6 / util.K0InM()
+    return Complex(s,0) + d*0, d*0 - charge*s
+  end)
 end
 
 -----------------------------------------------------------------------------

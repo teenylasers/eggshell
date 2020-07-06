@@ -81,6 +81,7 @@ private slots:
   void on_mode_number_valueChanged(int arg1);
   void on_display_style_Ez_currentIndexChanged(int index);
   void on_display_style_Exy_currentIndexChanged(int index);
+  void on_display_style_ES_currentIndexChanged(int index);
   void on_display_style_TM_currentIndexChanged(int index);
   void on_display_style_TE_currentIndexChanged(int index);
   void on_copy_to_clipboard_clicked();

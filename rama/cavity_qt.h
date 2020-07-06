@@ -62,6 +62,7 @@ class Cavity : public LuaModelViewer {
   void SetDisplayStyle(int style);
   bool IsEzCavity() const { return config_.type == ScriptConfig::EZ; }
   bool IsExyCavity() const { return config_.type == ScriptConfig::EXY; }
+  bool IsESCavity() const { return config_.type == ScriptConfig::ELECTROSTATICS; }
   bool IsTEMode() const { return config_.type == ScriptConfig::TE; }
   bool IsTMMode() const { return config_.type == ScriptConfig::TM; }
   int NumWaveguideModes() const {

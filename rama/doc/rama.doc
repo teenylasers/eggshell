@@ -40,6 +40,7 @@
 @spelling{refactoring} @spelling{antialiasing} @spelling{constant-Z}
 @spelling{Atacama} @spelling{utf} @spelling{false} @spelling{JetComplex}
 @spelling{ZFillCallback} @spelling{PNG} @spelling{linux} @spelling{matlab}
+@spelling{Poisson's} @spelling{quasi-static} @spelling{isovoltage}
 
 
 @title{Rama}
@@ -150,7 +151,7 @@ milled out of metal blocks using ``split block construction'' like so:
 
 @figure{images/splitblock.jpg}{(image from @link{https://www.techbriefs.com/component/content/article/tb/techbriefs/physical-sciences/14855}{here})}
 
-Under the hood, rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+Under the hood, Rama computes a 2D field @m{\phi(x,y)} such that the full 3D
 electric and magnetic phasor fields are
 
 @M{
@@ -181,7 +182,7 @@ A depth of infinity models free space propagation.
 As with @b{@c{Ez}} cavities, the interior can be free space or can contain
 dielectrics, and the boundary can be metal, @m{TE_{10}} ports, or absorbers.
 
-Under the hood, rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+Under the hood, Rama computes a 2D field @m{\phi(x,y)} such that the full 3D
 electric and magnetic phasor fields are
 
 @M{
@@ -197,6 +198,30 @@ electric and magnetic phasor fields are
 where @m{d} is the depth of the cavity and @m{\phi} satisfies the 2D
 @link{https://en.wikipedia.org/wiki/Helmholtz_equation}{Helmholtz equation}
 with wave number @m{k = \sqrt{\omega^2 \mu \epsilon - \pi^2/d^2}}.
+
+
+@subsection{Electrostatic cavities}
+
+Rama can solve for the electric field in @b{@c{ES}} cavities, which are static
+or quasi-static situations where the frequency is very low and where all
+electric fields are in the XY plane. This is a special case of Maxwell's
+equations.
+The solution is independent of cavity depth. The interior of the cavity can be
+free space or can contain dielectrics. The boundaries of the cavity are (by
+default) dielectrics with @m{\epsilon \rightarrow \infty}, or metal
+containing specified amounts of charge can also be specified.
+
+Under the hood, Rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+electric field is
+
+@M{
+  \mathbf{E} &= \left[ {\del \phi(x,y) \by \del x}, {\del \phi(x,y) \by \del y}, 0 \right]
+}
+
+and the magnetic field is zero.
+@m{\phi} satisfies
+@link{https://en.wikipedia.org/wiki/Poisson%27s_equation}{Poisson's equation},
+@m{\nabla^2 \phi = \rho / \epsilon}.
 
 
 @subsection{Waveguide modes}
@@ -328,7 +353,19 @@ type) are:
 @* @b{Poynting vector}. Display the Poynting power flow vector.
 }
 
-For waveguide mode display the following options are available:
+For @b{@c{ES}} cavity display the following options are available:
+@list{
+@* @b{Voltage}. Display the voltage.
+@* @b{Absolute voltage}. Display the magnitude of the voltage. This is not so
+   useful since nothing physical is changed when a constant is added to the
+   voltage everywhere.
+@* @b{E magnitude}. Display the magnitude of the (Ex,Ey) electric field.
+@* @b{Vector E}. Display the (Ex,Ey) vector.
+@* @b{Vector isovoltage}. Display contours along which the voltage is constant.
+}
+
+For @b{@c{TE}} or @b{@c{TM}} waveguide mode display the following options are
+available:
 @list{
 @* @b{Ez} or @b{Hz} to view the Z component of the field.
 @* @b{Ez amplitude} or @b{Hz amplitude} to view the absolute value of the Z
@@ -672,8 +709,8 @@ the following fields:
 @table{
 
   @* @c{type}
-  @| The type of cavity to simulate: @c{'S'}, @c{'Exy'}, @c{'Ez'}, @c{'TE'} or
-     @c{'TM'}.
+  @| The type of cavity to simulate: @c{'S'}, @c{'Exy'}, @c{'Ez'}, @c{'ES'},
+     @c{'TE'} or @c{'TM'}.
 
   @* @c{unit}
   @| The distance unit to use for all geometry numbers. Options are @c{'nm'},
@@ -690,7 +727,7 @@ the following fields:
   @* @c{frequency}
   @| The frequency in Hz to run the simulation at. This is a single number for
      a single frequency simulation. For a multi-frequency simulation this is
-     an array of frequencies.
+     an array of frequencies. For @c{'ES'} cavities this can be set to 1.
 
   @* @c{mesh_edge_length}
   @| The maximum edge length of the mesh (in the above units). This should
@@ -1143,6 +1180,11 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
      space wave number. For @c{Exy} cavities near cutoff this ratio becomes
      very high, but for rectangular waveguide in the middle of the useful
      @m{TE_{10}} frequency band the ratio is about 1.7.
+
+  @* @c{PortCharge(s, sel_table, n, charge)}
+  @| Similar to @c{Port()} but for @c{ES} cavities. Given a selection table
+     @c{sel_table} specifying one or more shape edges in @c{s}, mark all those
+     edges as belonging to port @c{n}, which will have the given charge.
 
   @* @c{Dump(s)}
   @| Print out internal information about the shape @c{s}. This is mostly for
@@ -1950,9 +1992,12 @@ Here is what is added in each new version.
 
 @b{v0.37}
 @list{
+@* Support for @b{@c{ES}} cavities, for electrostatics.
 @* Added the @c{conj} field to complex numbers.
 @* Added @c{LoadSTL} functions to shape and @c{util}.
 @* Fix crashing bug for necked zero area polygons (in @c{SplitPolygonsAtNecks}).
 @* It's now an error if infinity is passed as a numerical arguments to a shape
    function.
+@* Slightly improved display scaling of vector fields.
+@* Added examples: @c{capacitor_electrostatics.lua}, @c{photonic_nanojet.lua}
 }

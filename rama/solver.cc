@@ -165,7 +165,8 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
       // The Robin condition at the port is: (grad u) . n + alpha*u = beta
       // The value of beta is nonzero for the excited port only.
       JetComplex excitation = s->config_.PortExcitation(port_number);
-      if (s->config_.type == ScriptConfig::EXY) {
+      if (s->config_.type == ScriptConfig::EXY ||
+          s->config_.type == ScriptConfig::ELECTROSTATICS) {
         *alpha = JetComplex(0, 1) * k;          // Works for all ports and ABC
         *beta = JetComplex(0, 2.0) * excitation * k;
       } else if (s->config_.type == ScriptConfig::EZ) {
@@ -367,6 +368,8 @@ ScriptConfig::Type ScriptConfig::StringToType(const char *name) {
     return TE;
   if (strcmp(name, "TM") == 0)
     return TM;
+  if (strcmp(name, "ES") == 0)
+    return ELECTROSTATICS;
   return UNKNOWN;
 }
 
@@ -567,18 +570,32 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
     const auto &Mgradient = solvers ? multi_Mgradient : Mgradient_;
 
   // For electrodynamic cavities we scale the gradient so it is similar to the
-  // scalar field. Assuming the scalar field has a form sin(2*pi*x/lambda_g),
-  // the maximum gradient is 2*pi/lambda_g. In a rectangular waveguide
-  // operating at 1.5 times the cutoff frequency we have
-  // lambda_g=(3*c)/(sqrt(5)*f).
-  // @@@ NOTE: This rescaling is frequency dependent, so colors can not be
-  // directly compared across different frequencies.
-  double gscale = 1;
+  // scalar field. There are two cases to consider:
+  //   * In high frequency simulations where one or multiple wavelengths fit
+  //     into the cavity, assuming the scalar field has a form
+  //     sin(2*pi*x/lambda_g), the maximum gradient is 2*pi/lambda_g. In a
+  //     rectangular waveguide operating at 1.5 times the cutoff frequency we
+  //     have lambda_g=(3*c)/(sqrt(5)*f). Scale so this case looks nice.
+  //     @@@ NOTE: This rescaling is frequency dependent, so colors can not be
+  //     directly compared across different frequencies.
+  //   * In electrostatics (f almost zero) the wavelength is much larger than
+  //     the cavity so the above scaling is wrong. Scale by a "typical" field
+  //     strength in the cavity.
+  double est_max_gradient = 0;  // Estimated max gradient, in 1/meters
+  double min_dimension = std::min(cd_width_, cd_height_);  // In config units
   if (config_.TypeIsElectrodynamic()) {
-    double max_gradient = (2 * sqrt(5) * M_PI * frequency_) /
-                          (3*kSpeedOfLight);
-    gscale = 1.0 / max_gradient;
+    if (config_.type == ScriptConfig::ELECTROSTATICS) {
+      est_max_gradient = 1.0 / (min_dimension * config_.unit);
+      // Completely arbitrary fudge factor to compensate for field strength
+      // enhancements at any corners we might have:
+      est_max_gradient *= 5;
+    } else {
+      est_max_gradient = (2 * sqrt(5) * M_PI * frequency_) / (3*kSpeedOfLight);
+    }
   }
+  // Scale the gradient so that the longest gradient vectors are about 1/20th
+  // of the minimum dimension.
+  double gscale = min_dimension / 20.0 / est_max_gradient;
 
   // See if we're drawing vectors. If not we're drawing colored triangles.
   if (draw_mode == DRAW_GRADIENT_VECTORS ||
@@ -587,8 +604,7 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
       draw_mode == DRAW_POYNTING_VECTORS_TA) {
     CREATE_SPATIAL_GRADIENT
     // Compute scale.
-    double arbitrary_scale = pow((brightness + 1) / 250.0, 3);
-
+    double arbitrary_scale = pow(100, (brightness - 500.0) / 500.0);
     gscale *= arbitrary_scale;
     // Draw the gradient vector from all mesh triangle vertices.
     gl::SetUniform("color", 0, 0, 1);
@@ -663,11 +679,11 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
       DRAWLOOP(fabs(phasor.real() * solution[k].real() -
                     phasor.imag() * solution[k].imag()), 0.0, scale)
     } else if (draw_mode == DRAW_GRADIENT_AMPLITUDE) {
-      scale /= gscale;
+      scale *= est_max_gradient;
       CREATE_SPATIAL_GRADIENT_MAX_AMPLITUDE
       DRAWLOOP( Mgradient[k], 0.0, scale)
     } else if (draw_mode == DRAW_GRADIENT_AMPLITUDE_REAL) {
-      scale /= gscale;
+      scale *= est_max_gradient;
       CREATE_SPATIAL_GRADIENT
       DRAWLOOP( sqrt(sqr(phasor.real() * Pgradient(k, 0).real() -
                          phasor.imag() * Pgradient(k, 0).imag()) +
@@ -1297,7 +1313,8 @@ double Solver::ComputeKSquared() {
     // of the depth. If k^2 is negative then k is imaginary and travelling
     // waves will not propagate at this frequency.
     k2 = sqr(2.0 * M_PI / lambda) - sqr(M_PI / (config_.depth * config_.unit));
-  } else if (config_.type == ScriptConfig::EZ) {
+  } else if (config_.type == ScriptConfig::EZ ||
+             config_.type == ScriptConfig::ELECTROSTATICS) {
     k2 = sqr(2.0 * M_PI / lambda);
   } else {
     Panic("Unsupported type");

@@ -45,9 +45,12 @@ struct ScriptConfig {
     UNKNOWN = -1,               // This value is assumed by some code
     EZ,                         // Electrodynamic, E field in Z direction
     EXY,                        // Electrodynamic, E field in XY direction
+    ELECTROSTATICS,             // Electrodynamic low f, E field in XY direction
     TE,                         // Waveguide TE modes
     TM,                         // Waveguide TM modes
-    SCHRODINGER,                // Returned by StringToType but changed to EZ
+    // Returned by StringToType but changed to EZ in
+    // Cavity::SetConfigFromTable():
+    SCHRODINGER,
   };
 
   // Values for wideband_window.
@@ -98,9 +101,11 @@ struct ScriptConfig {
   // Convert a cavity type name into a type constant, or UNKNOWN if none.
   static Type StringToType(const char *name);
 
-  // Convenience functions to test the type.
+  // Convenience functions to test the type. Note that electrostatics is
+  // regarded as electrodynamics with very low frequency, so that we can easily
+  // reuse the computational machinery of electrodynamics.
   bool TypeIsElectrodynamic() const { return type == EZ || type == EXY ||
-                                             type == SCHRODINGER; }
+                               type == SCHRODINGER || type == ELECTROSTATICS; }
   bool TypeIsWaveguideMode() const { return type == TE || type == TM; }
 
   // Return the excitation magnitude and phase for a particular port number.
