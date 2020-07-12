@@ -1,6 +1,17 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 // Draw 2D graphs. This is a generic mechanism that can be used to draw to
-// OpenGL, wxWidgets etc. The rendering style, choice of label positions etc is
+// OpenGL, Qt, etc. The rendering style, choice of label positions etc is
 // somewhat in the style of Matlab.
 
 #ifndef __TOOLKIT_PLOT_H__
@@ -173,7 +184,7 @@ class Plot2D {
   }
 
   // Add a label for the most recently added trace (this will go in the plot
-  // legend).
+  // legend). If there are no traces this will do nothing.
   void AddTraceLabel(const char *label);
 
   // Add an image. RGB data is in CreateImage() format. Currently there can be

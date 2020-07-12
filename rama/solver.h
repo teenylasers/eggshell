@@ -1,3 +1,14 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 // The computational domain.
 
@@ -34,23 +45,29 @@ struct ScriptConfig {
     UNKNOWN = -1,               // This value is assumed by some code
     EZ,                         // Electrodynamic, E field in Z direction
     EXY,                        // Electrodynamic, E field in XY direction
+    ELECTROSTATICS,             // Electrodynamic low f, E field in XY direction
     TE,                         // Waveguide TE modes
     TM,                         // Waveguide TM modes
-    SCHRODINGER,                // Returned by StringToType but changed to EZ
+    // Returned by StringToType but changed to EZ in
+    // Cavity::SetConfigFromTable():
+    SCHRODINGER,
   };
 
   // Values for wideband_window.
   enum Window { RECTANGLE, HAMMING };
 
+  // Values for antenna_pattern.
+  enum AntennaPattern { AT_ABC, AT_FF_MATERIAL, AT_BOUNDARY };
+
   Type type;                    // Cavity type: EZ, EXY etc.
   bool schrodinger;             // EZ cavities for Schrodinger simulation
   double unit;                  // One script-distance-unit is this many meters
   double mesh_edge_length;      // In units of 'unit'
-  int mesh_refines;
   vector<JetNum> port_excitation;  // Magnitudes and phases of port excitations
   vector<double> frequencies;   // All frequencies to simulate
   double depth;                 // In units of 'unit'
   double boresight;             // Boresight angle for plotting antenna patterns
+  AntennaPattern antenna_pattern;  // How antenna pattern computed
   int max_modes;                // TE or TM: Number of modes to compute
   Window wideband_window;       // A WINDOW_nnn constant
 
@@ -59,9 +76,9 @@ struct ScriptConfig {
     schrodinger = false;
     unit = -1;
     mesh_edge_length = -1;
-    mesh_refines = -1;
     depth = -1;
     boresight = 0;
+    antenna_pattern = AT_ABC;
     max_modes = 1;
     wideband_window = RECTANGLE;
   }
@@ -71,11 +88,11 @@ struct ScriptConfig {
         && schrodinger      == c.schrodinger
         && unit             == c.unit
         && mesh_edge_length == c.mesh_edge_length
-        && mesh_refines     == c.mesh_refines
         && port_excitation  == c.port_excitation
         && frequencies      == c.frequencies
         && depth            == c.depth
         && boresight        == c.boresight
+        && antenna_pattern  == c.antenna_pattern
         && max_modes        == c.max_modes
         && wideband_window  == c.wideband_window;
   }
@@ -84,9 +101,11 @@ struct ScriptConfig {
   // Convert a cavity type name into a type constant, or UNKNOWN if none.
   static Type StringToType(const char *name);
 
-  // Convenience functions to test the type.
+  // Convenience functions to test the type. Note that electrostatics is
+  // regarded as electrodynamics with very low frequency, so that we can easily
+  // reuse the computational machinery of electrodynamics.
   bool TypeIsElectrodynamic() const { return type == EZ || type == EXY ||
-                                             type == SCHRODINGER; }
+                               type == SCHRODINGER || type == ELECTROSTATICS; }
   bool TypeIsWaveguideMode() const { return type == TE || type == TM; }
 
   // Return the excitation magnitude and phase for a particular port number.
@@ -109,8 +128,8 @@ class Solver : public Mesh {
  public:
   // The constructor creates the mesh for the shape and computes some auxiliary
   // data but does not yet compute the full solution. That's done on demand by
-  // other functions. If 'lua' is provided the dielectric callback functions
-  // can be called.
+  // other functions. If 'lua' is provided the dielectric and port callback
+  // functions can be called.
   Solver(const Shape &s, const ScriptConfig &config, Lua *lua,
          int frequencies_index);
   ~Solver();
@@ -124,8 +143,9 @@ class Solver : public Mesh {
 
   // Return true if this solver is compatible with (i.e. will compute the same
   // solution as) another shape and config. This does not consider if any
-  // derivatives are the same. This considers if dielectric callback functions
-  // are the same and if the values returned by those functions are the same.
+  // derivatives are the same. This considers if dielectric and port callback
+  // functions are the same and if the values returned by those functions are
+  // the same.
   bool SameAs(const Shape &s, const ScriptConfig &config, Lua *lua);
 
   // Update the derivatives from the new derivatives of points in 's'. This
@@ -178,10 +198,16 @@ class Solver : public Mesh {
   void GetFieldPoynting(JetNum x, JetNum y, JetPoint *poynting);
 
   // Compute the radiation pattern at the ABC. Return arrays of azimuth (in
-  // radians) and associated field magnitude. The azimuth angles will be
-  // monotonically increasing and in the range -pi..pi.
+  // radians) and associated complex field. Field phase is computed relative to
+  // a phase center at the origin. The azimuth angles will be monotonically
+  // increasing and in the range -pi..pi.
   bool ComputeAntennaPattern(vector<double> *azimuth,
-                             vector<JetNum> *magnitude) MUST_USE_RESULT;
+                             vector<JetComplex> *field) MUST_USE_RESULT;
+
+  // Adjust a previously computed antenna pattern for the given phase center.
+  void AdjustAntennaPhaseCenter(JetPoint phase_center,
+                                const vector<double> &azimuth,
+                                vector<JetComplex> *field);
 
   // Look up the radiation pattern for a particular azimuth 'theta' (in
   // radians). This will interpolate the results computed by
@@ -222,7 +248,7 @@ class Solver : public Mesh {
   ModeSolverType *mode_solver_;         // Eigenmode solver
   Eigen::VectorXcd *solver_solution_;   // Solution vector to display
   vector<double> antenna_azimuth_;      // Cached antenna pattern
-  vector<JetNum> antenna_magnitude_;    // Cached antenna pattern
+  vector<JetComplex> antenna_field_;    // Cached antenna pattern
 
   // **********
   // The following variables are computed on demand, and have value (or size) 0

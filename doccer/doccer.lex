@@ -53,6 +53,7 @@ static char *Escape(const char *s, bool math_context = false);
 "{"                                     { TOKEN(STARTBLOCK); }
 "}"                                     { TOKEN(ENDBLOCK); }
 "@m{"                                   { ReadTeXMath(yylval); TOKEN(INLINE_MATH); }
+"@M*{"                                  { ReadTeXMath(yylval); TOKEN(DISPLAY_MATH_NONUM); }
 "@M{"                                   { ReadTeXMath(yylval); TOKEN(DISPLAY_MATH); }
 "@eqref{"                               { TOKEN(EQREF); }
 "@emph{"                                { TOKEN(EMPH); }
@@ -73,6 +74,8 @@ static char *Escape(const char *s, bool math_context = false);
 "@newcommands{"                         { ReadTeXMath(yylval); TOKEN(NEWCOMMANDS); }
 "@table{"                               { TOKEN(TABLE); }
 "@arg{"                                 { TOKEN(ARG); }
+"@html{"                                { TOKEN(HTML); }
+"@spelling{"                            { TOKEN(SPELLING); }
 "@_"                                    { TOKEN(LINE_BREAK); }
 "@*"                                    { TOKEN(ITEM); }
 "@|"                                    { TOKEN(SEPARATOR); }
@@ -83,7 +86,7 @@ static char *Escape(const char *s, bool math_context = false);
 "@#"                                    { TOKEN('#'); }
 "@{"                                    { TOKEN('{'); }
 "@}"                                    { TOKEN('}'); }
-([!-\377]{-}[@#{}])+                    { *yylval = Escape(yytext); TOKEN(WORD); }
+([!-\377]{-}[@#{}])+                    { CheckSpelling(yytext); *yylval = Escape(yytext); TOKEN(WORD); }
 
 "\r"                                    { doccer_parser_error("CR characters found at end of line"); }
 .                                       { if (yytext[0]) BadChar(yytext[0]); }

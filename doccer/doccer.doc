@@ -21,14 +21,17 @@ entirely deleted, e.g. so a comment line is not treated as a paragraph break.
       @[ ... @]               Verbatim text (e.g. source code)
       @m{...}                 LaTeX math (inline)
       @M{...}                 LaTeX math (display)
+      @M*{...}                LaTeX math (display, no equation numbers)
       @newcommands{...}       Define new LaTeX math commands
       @title{...}             Set the title of the document
       @author{...}            Set the author of the document, used within @title{}
       @contents{}             Add a table of contents here
-      @figure{filename}{parameters}  Add inline figure
+      @figure{filename}{caption}  Add inline figure
       @eqref{...}             Reference to the named equation
       @table{...}             Table
       @arg{name}              Value of the -Dname=value command line argument
+      @html{@[...@]}          Embedded verbatim HTML (html output only)
+      @spelling{word}         Add a word to the spell check dictionary
 ]===@
 
 @subsection{@label{nestable} Nestable formatting commands}

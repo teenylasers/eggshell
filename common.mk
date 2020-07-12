@@ -1,3 +1,15 @@
+# Copyright (C) 2014-2020 Russell Smith.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
+
 # Common environment configuration, mostly directories to libraries and
 # related flags. This in intended to support both simple command line programs
 # and large GUI appications, so it should be quick to execute and general
@@ -30,8 +42,6 @@ show_configuration:
 	@echo "CFLAGS      = $(CFLAGS)"
 	@echo "CCFLAGS     = $(CCFLAGS)"
 	@echo "LDFLAGS     = $(LDFLAGS)"
-	# Path to the wxWidgets wxconfig tool, e.g. '/foo/bar/wx-config' :
-	@echo "WXCONFIG    = $(WXCONFIG)"
 	# Path to the Qt distribution.
 	@echo "QT_DIR      = $(QT_DIR)"
 	# Eigen include directory:
@@ -63,8 +73,6 @@ show_configuration:
 	@echo "LAPACK_DIR  = $(LAPACK_DIR)"
 	# Path to the documentation system
 	@echo "DOCCER      = $(DOCCER)"
-	# sed command to fix the output of wx-config --libs as necessary:
-	@echo "WX_LIBS_SED = $(WX_LIBS_SED)"
 	# Includes and link for a good version of readline.
 	@echo "READLINE_INC = $(READLINE_INC)"
 	@echo "READLINE_LIB = $(READLINE_LIB)"
@@ -78,7 +86,7 @@ show_configuration:
 # Determine the OS we're building on.
 
 ifeq ($(OS), Windows_NT)
-  # OS is defined in the environment in cygwin builds.
+  # OS is defined in the environment in cygwin and MSYS2 builds.
   PLATFORM := windows
 else
   # OS X and linux don't seem to have anything useful in the environment to
@@ -98,12 +106,7 @@ endif
 # Set STUFF_DIR to the root of the 'stuff' repository.
 STUFF_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-ifeq ($(OPTIMIZE), 1)
-  WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-opt/wx-config
-else
-  WXCONFIG := $(TOOLS_DIR)/wxWidgets-3.1.0-dbg/wx-config
-endif
-QT_DIR := $(TOOLS_DIR)/Qt-5.9.2
+QT_DIR := $(TOOLS_DIR)/qt5_install
 EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.4
 CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
 ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
@@ -123,10 +126,10 @@ ifeq ($(PLATFORM), osx)
   # since homebrew gfortran appears to have a bug that prevents passing this
   # flag. If the flag is not passed the object files will not have the correct
   # version.
-  FORTRAN_COMPILER := gfortran -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
+  FORTRAN_COMPILER := gfortran-8 -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
 endif
 ifeq ($(PLATFORM), windows)
-  INNO_SETUP := '/c/Program Files (x86)/Inno Setup 5/Compil32.exe'
+  INNO_SETUP := '/c/Program Files (x86)/Inno Setup 6/Compil32.exe'
   #MATLAB_LIB := /c/Program Files/MATLAB/R2013a/extern/lib/win64/microsoft
   #MATLAB_INC := /c/Program\ Files/MATLAB/R2013a/extern/include
   READLINE_LIB := -lreadline
@@ -170,14 +173,10 @@ ifeq ($(PLATFORM), windows)
   # Statically link windows binaries to prevent dependence on mingw DLLs that
   # wont be distributed with the application.
   LDFLAGS += -static -static-libgcc -static-libstdc++
-
-  # wx-config seems not to get the proper library names in version 3.0.1, this
-  # sed command fixes that up.
-  WX_LIBS_SED = | sed 's/\-3\.0\.a/-3.0-x86_64-w64-mingw32.a/g'
 endif
 
 ifeq ($(PLATFORM), osx)
-  CFLAGS += -mmacosx-version-min=10.9
+  CFLAGS += -mmacosx-version-min=10.12
 endif
 
 ifeq ($(OPTIMIZE), 1)

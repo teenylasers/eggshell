@@ -1,3 +1,14 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include "trace.h"
 #include "thread.h"
@@ -11,13 +22,6 @@ using std::vector;
 // Performance monitoring.
 
 #undef Trace
-
-#ifdef __TOOLKIT_WXWINDOWS__
-#include "stdwx.h"
-static wxStopWatch stopwatch;
-#define STOPWATCH_START stopwatch.Start();
-#define STOPWATCH_MICROSECONDS (stopwatch.TimeInMicro().ToLong())
-#endif
 
 #ifdef QT_CORE_LIB
 #include <QElapsedTimer>

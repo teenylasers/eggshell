@@ -1,183 +1,692 @@
-﻿# @@@ TODO: Notes for things to add to this document
-# * Make it clear that optimize() should return many values and that they can
-#   be negative. Don't return values like a^2+b^2+c^2, return a,b,c instead.
-# * Spell check.
+﻿# Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
+
+# @@@ TODO: Notes for things to add to this document
+# * Tutorial.
+#   - Wifi house. Radiation boundary. Radiation patterns.
+# * PMLs
+# * util table - add to "6.9 Utility functions" ?
+# * Design notes
+# * Terminology and definitons:
+#   - S paramaters
+#   - Waveguide modes and TE10
+# * VSWR visualization with amplitude
+
+# Populate the spell check dictionary.
+@spelling{GPLv} @spelling{COPYING} @spelling{i.e} @spelling{e.g} @spelling{Lua}
+@spelling{JetNum} @spelling{ScriptConfig} @spelling{config} @spelling{Exy}
+@spelling{Ez} @spelling{XY} @spelling{Jsurf} @spelling{params}
+@spelling{Maxwell's} @spelling{Schrödinger} @spelling{Schrödinger's}
+@spelling{C++} @spelling{co-linear} @spelling{S-parameters}
+@spelling{multi-frequency} @spelling{Mesher} @spelling{polyline}
+@spelling{polylines} @spelling{Rama} @spelling{Rama's} @spelling{tolerancing}
+@spelling{non-default} @spelling{levenberg-marquardt} @spelling{jacobians}
+@spelling{hx,hy} @spelling{Ex,Ey} @spelling{Ez,Hz} @spelling{Ez/Hz}
+@spelling{x,y} @spelling{checkbox} @spelling{checkboxes}
+@spelling{multi-choice} @spelling{auto-run} @spelling{dxf} @spelling{'th}
+@spelling{x=} @spelling{y=} @spelling{/} @spelling{copy-by-reference}
+@spelling{test(} @spelling{test()} @spelling{PML} @spelling{submillimeter}
+@spelling{elementwise} @spelling{github} @spelling{trackpads}
+@spelling{website} @spelling{on-screen} @spelling{filesystem}
+@spelling{refactoring} @spelling{antialiasing} @spelling{constant-Z}
+@spelling{Atacama} @spelling{utf} @spelling{false} @spelling{JetComplex}
+@spelling{ZFillCallback} @spelling{PNG} @spelling{linux} @spelling{matlab}
+@spelling{Poisson's} @spelling{quasi-static} @spelling{isovoltage}
+
 
 @title{Rama}
 @subtitle{v@arg{version}}
-@author{Evenedric}
 
-@emph{This is the manual for the Rama simulator. It is a work in progress and
-not all parts have been written!}
-
-Here are the @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
-and the @link{http://ramasimulator.org/Rama.dmg}{Mac image}
-for the latest version of Rama.
+@figure{images/horn_phase.gif}{}
 
 @contents{}
 
 #############################################################################
 @section{Introduction to Rama}
 
-Rama is a finite element simulator for electromagnetic and quantum mechanical
-systems. It is intended for physics education and for engineering design of
-certain problems. Rama is very fast and interactive, because it is limited to
-two dimensional systems (and some 3D systems that have the right kind of 2D
-symmetry). The user can adjust model geometry and see new solutions generated
-in real time. This is a good way to develop quick intuitions about many models.
+Rama is an open source physics simulator for electromagnetic and quantum
+mechanical systems. It is intended for physics education, and to be an
+engineering design tool. It simulates two dimensional systems, though it will
+also simulate some 3D systems that have the right kind of symmetry. Rama is
+based on the finite element method. Compared to other such simulators, Rama has
+some unique features:
 
-@figure{ramademo1.gif}{}
-
-Rama has a variety of features to investigate and design systems.
 @list{
-@* The field solutions can be visualized in many ways.
-@* Plots can be generated from model parameters swept over values.
-@* Model parameters can be optimized to improve an objective function.
+@* Rama is fast. Solutions to many interesting problems are produced in a
+   fraction of a second.
+@* Because Rama is fast, it is interactive. You can adjust your model with
+   sliders and see the solution change in real time. This is a good way to
+   develop quick intuitions about many physical situations.
+@* Rama models are created with scripts, rather than with CAD tools. This may
+   seem like a disadvantage, but models created this way can be more easily
+   parameterized and made interactive.
+@* Rama's built in optimization tools quickly solve for optimal configurations.
+@* Rama has many ways to visualize solutions, and can generate all kinds of
+   plots to help you understand your model.
 }
 
 The 2D limitation might seem to rule out using Rama for serious design
-problems. However there are many 3D problems with 2D symmetries that allow
-Rama to generate exact solutions, especially problems involving
+problems. However there are many 3D problems with symmetries that allow Rama to
+generate exact solutions, especially problems involving
 @link{http://en.wikipedia.org/wiki/Waveguide}{waveguide}-fed cavities. Some
 other problems have 2D models that approximate the full 3D situations, and
-Rama can provide design intuition in these cases.
+Rama can provide design intuition in these cases, although not exact solutions.
+In those cases Rama can often be the starting point for a new design, to get
+the basics worked out quickly before moving to another simulator's much slower
+3D design process.
 
-[TODO: maybe add a getting started guide, walk through one of the examples?]
+@subsection{Getting Rama}
 
-@subsection{Rama development}
+Rama is available for Mac, Windows and Linux platforms. Here are the installers
+for the latest stable version:
+
+@list{
+@* @link{http://ramasimulator.org/setup_rama.exe}{Windows installer}
+@* @link{http://ramasimulator.org/Rama.dmg}{Mac image}
+@* @link{http://ramasimulator.org/rama.tgz}{Linux archive}
+}
 
 All Rama development is done on @link{https://github.com/Evenedric/stuff}{github}.
-Documentation and binaries are available here, at @link{http://ramasimulator.org}{ramasimulator.org}.
-The mathematical backbone of Rama is described in this companion document,
-@link{https://evenedric.github.io/fem.html}{The Finite Element Method}.
+If you discover problems please
+@link{https://github.com/Evenedric/stuff/issues/new}{submit an issue here}.
+
+@subsection{Rama Examples}
+
+Here is an example of interactively changing the width of a horn antenna, to
+investigate the point at which it starts radiating:
+
+@figure{images/horn_sweep.gif}{}
+
+Here we simulate a WR-10 coupler designed for the ALMA radio telescope, to
+check its performance:
+
+@figure{images/example_alma.jpg}{}
+
+Here we inspect the electric field in a mode of a waveguide:
+
+@figure{images/example_mode.jpg}{}
+
+Here we simulate a quantum mechanical wave packet being deflected by the
+potential radiating from a point charge.
+
+@figure{images/example_qm.jpg}{}
 
 #############################################################################
-@section{Concepts of simulation}
+@section{What can be simulated}
 
-Rama solves the Schrödinger equation for nonrelativistic particles, or
-@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}.
-Solutions are produced within 2D cavities that have boundary conditions and
-materials described by a script. Four kinds of cavities are supported:
-@numlist{
-@* @b{@c{S}} cavities contain Schrödinger fields and are bounded by walls
-   where @m{\psi=0}. The constant frequency (i.e. fixed momentum) Schrödinger
-   equation is solved:
-   @M{
-     \nabla^2 \psi + 2 m \left( \omega - {V \by \hbar} \right) \psi &= 0
-   }
-   We use Planck units with @m{\hbar=1} and @m{m=1/2}, giving
-   @M{
-     \nabla^2 \psi + ( \omega - V ) \: \psi &= 0
-   }
-@* @b{@c{Ez}} cavities contain electromagnetic (EM) fields and are bounded by
-   walls of constant depth in the Z direction, and all electric fields point
-   in the Z direction:
+@subsection{Electromagnetic cavities (Z field)}
 
-   @figure{EzCavity.png}{}
+Rama can solve
+@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}
+to determine the electromagnetic fields in @b{@c{Ez}} cavities, which are
+bounded by walls of constant depth in the Z direction, and where all electric
+fields point in the Z direction:
 
-   Rama computes a 2D field @m{\phi(x,y)} such that the full 3D electric and
-   magnetic phasor fields are
+@figure{images/cavity_Ez.png}{}
 
-   @M{
-     \mathbf{E} &= \left[ 0, 0, \phi(x,y) \right] \\
-     \mathbf{H} &= {i \by \mu \omega} \: \left[
-      {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right]
-   }
+The cavity depth is arbitrary, in fact the solution is independent of the
+depth. A depth of infinity models free space propagation.
 
-   where @m{\phi} satisfies the 2D Helmtolhz equation with wavenumber
-   @m{k = \omega \sqrt{\mu \epsilon}}.
-
-@* @b{@c{Exy}} cavities cavities contain EM fields and are bounded by walls of
-   constant depth in the Z direction, and all electric fields lie in the XY
-   plane:
-
-   @figure{ExyCavity.png}{}
-
-   Rama computes a 2D field @m{\phi(x,y)} such that the full 3D electric and
-   magnetic phasor fields are
-
-   @M{
-     \mathbf{E} &= {i \by \epsilon \omega} \: {d^2  k^2 \by d^2 k^2 - \pi^2}
-                   \: \cos\left({\pi z \by d}\right) \: \left[
-      {-\del \phi(x,y) \by \del y}, {\del \phi(x,y) \by \del x}, 0 \right] \\
-     \mathbf{H} &= \left[ \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del x},
-                          \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del y},
-                          \cos\left({\pi z \by d}\right) \phi(x,y) \right] \\
-      \alpha &= { \pi d \by \pi^2-d^2 k^2}
-   }
-
-   where @m{d} is the depth of the cavity and @m{\phi} satisfies the 2D
-   Helmtolhz equation with wavenumber
-   @m{k = \sqrt{\omega^2 \mu \epsilon - \pi^2/d^2}}.
-
-@* @b{@c{TE}} and @b{@c{TM}} cavities correspond to cross sections of
-   arbitrarily shape EM waveguides. Rama can compute the TE and TM modes.
-}
-
-In all cases the interior of the cavity can be free space or can contain
-materials with various dielectric properties. The boundary of the cavity can be
-metal walls, ports (from which energy enters or leaves) or absorbers used in
-radiation problems.
-
+The interior of the cavity can be free space or can contain materials with
+various dielectric properties. The boundary of the cavity can be metal walls,
+ports (from which energy enters or leaves) or absorbers used in radiation
+problems.
 The ports are actually
 @link{http://en.wikipedia.org/wiki/Waveguide}{rectangular waveguides}. It is
-assumed that the fields at the ports have the @m{TE_{10}} mode. In each
-simulation one port is the excited port, where energy in injected. Energy will
-exit through the other ports.
+assumed that the fields at the ports have the @m{TE_{10}} mode. Energy is
+injected through excited ports and exits through all ports and boundary
+absorbers.
 
-@subsection{Modelling tips}
+These cavities can be models of real life structures make from sheet metal, or
+milled out of metal blocks using ``split block construction'' like so:
 
-TODO: write this section. Things to include:
-@list{
-@* Minimum mesh size for accuracy.
-@* Don't violate the @m{TE_{10}} mode assumption at ports, i.e. use an
-   appropriate width and keep this width for a short distance.
+@figure{images/splitblock.jpg}{(image from @link{https://www.techbriefs.com/component/content/article/tb/techbriefs/physical-sciences/14855}{here})}
+
+Under the hood, Rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+electric and magnetic phasor fields are
+
+@M{
+  \mathbf{E} &= \left[ 0, 0, \phi(x,y) \right] \\
+  \mathbf{H} &= {i \by \mu \omega} \: \left[
+   {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right]
 }
+
+where @m{\phi} satisfies the 2D
+@link{https://en.wikipedia.org/wiki/Helmholtz_equation}{Helmholtz equation}
+with wave number @m{k = \omega \sqrt{\mu \epsilon}}.
+
+
+@subsection{Electromagnetic cavities (XY field)}
+
+Rama can solve
+@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}
+to determine the electromagnetic fields in @b{@c{Exy}} cavities, which are
+bounded by walls of constant depth in the Z direction, and where all electric
+fields are in the XY plane:
+
+@figure{images/cavity_Exy.png}{}
+
+The cavity depth is arbitrary. The solution depends on depth, and if the depth
+is too small the cavity will not support propagating waves.
+A depth of infinity models free space propagation.
+
+As with @b{@c{Ez}} cavities, the interior can be free space or can contain
+dielectrics, and the boundary can be metal, @m{TE_{10}} ports, or absorbers.
+
+Under the hood, Rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+electric and magnetic phasor fields are
+
+@M{
+  \mathbf{E} &= \alpha {i d \mu \omega \by \pi}
+                \: \cos\left({\pi z \by d}\right) \: \left[
+   {\del \phi(x,y) \by \del y}, -{\del \phi(x,y) \by \del x}, 0 \right] \\
+  \mathbf{H} &= \left[ \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del x},
+                       \alpha \: \sin\left({\pi z \by d}\right) {\del \phi(x,y) \by \del y},
+                       \cos\left({\pi z \by d}\right) \phi(x,y) \right] \\
+   \alpha &= { \pi d \by \pi^2-d^2 k_0^2}
+}
+
+where @m{d} is the depth of the cavity and @m{\phi} satisfies the 2D
+@link{https://en.wikipedia.org/wiki/Helmholtz_equation}{Helmholtz equation}
+with wave number @m{k = \sqrt{\omega^2 \mu \epsilon - \pi^2/d^2}}.
+
+
+@subsection{Electrostatic cavities}
+
+Rama can solve for the electric field in @b{@c{ES}} cavities, which are static
+or quasi-static situations where the frequency is very low and where all
+electric fields are in the XY plane. This is a special case of Maxwell's
+equations.
+The solution is independent of cavity depth. The interior of the cavity can be
+free space or can contain dielectrics. The boundaries of the cavity are (by
+default) dielectrics with @m{\epsilon \rightarrow \infty}, or metal
+containing specified amounts of charge can also be specified.
+
+Under the hood, Rama computes a 2D field @m{\phi(x,y)} such that the full 3D
+electric field is
+
+@M{
+  \mathbf{E} &= \left[ {\del \phi(x,y) \by \del x}, {\del \phi(x,y) \by \del y}, 0 \right]
+}
+
+and the magnetic field is zero.
+@m{\phi} satisfies
+@link{https://en.wikipedia.org/wiki/Poisson%27s_equation}{Poisson's equation},
+@m{\nabla^2 \phi = \rho / \epsilon}.
+
+
+@subsection{Waveguide modes}
+
+Rama can solve
+@link{http://en.wikipedia.org/wiki/Maxwell%27s_equations}{Maxwell's equations}
+to determine the electromagnetic fields in waveguides of constant cross section:
+
+@figure{images/waveguide.png}{}
+
+The @b{@c{TE}} and @b{@c{TM}} modes can be separately computed.
+
+
+@subsection{Schrödinger's equation}
+
+Rama can solve the Schrödinger's equation for nonrelativistic particles in
+a 2D cavity. The constant frequency (i.e. fixed momentum) Schrödinger equation
+is solved:
+
+@M{
+  \nabla^2 \psi + {2 m \by \hbar} \left( \omega - {V \by \hbar} \right) \psi &= 0
+}
+
+We use Planck units with @m{\hbar=1} and @m{m=1/2}, giving
+
+@M{
+  \nabla^2 \psi + ( \omega - V ) \: \psi &= 0
+}
+
+The wave function @m{\psi} is computed within the cavity.
+The interior of the cavity can be free space (@m{V=0}) or can contain areas
+with nonzero @m{V} (in much the same way that electromagnetic cavities can
+contain dielectric materials).
+
+The boundary of the cavity can be walls where @m{\psi=0}, ports (from which
+waves enter or leave) or absorbers used in radiation problems.
+The ports behave similarly to those in @b{@c{Ez}} cavities.
+
+Non constant momentum solutions can be computed using the
+@link{multifrequency}{multi-frequency} feature. This allows the behavior of
+compact wave packets to be studied.
 
 #############################################################################
 @section{Rama user interface}
 
+@subsection{Windows and tabs}
+
 Rama simulations are managed from a single window:
 
-@figure{ramaUI.png}{}
+@figure{images/rama_ui.png}{}
 
-In the cavity tab, mouse buttons are used to change the view:
+The left hand pane contains the parameters defined by the model, which can be
+adjusted by entering numerical values or by moving sliders.
+
+The right hand pane contains various tabs that show different aspects of the
+model. The window under each of these tabs can be dragged away to a separate
+window - in this way it is possible to see several of those windows at once.
+
+The ``model'' tab shows the geometry of the model, the mesh, and the field
+solution. Mouse buttons can be used to change the view:
 @list{
 @* Right click + drag: pan the view.
-@* Mouse wheel: zoom around the mouse pointer.
+@* Mouse wheel: zoom in or out, centered around the mouse pointer.
 @* Ctrl + right click + drag: zoom around the mouse pointer.
-@* On Mac trackpads:
-   @list{
-     @* Pinch+zoom: zoom around the mouse pointer.
-     @* Two finger swipes: pan the view.
-   }
 }
 
-Model scripts are loaded with the File/Open menu command. Scripts are executed
-to create the model. If the Field checkbox is ticked, the field is then
-computed and displayed. The script is re-executed (and the field recomputed)
-when either:
+On Mac trackpads, pinch and zoom can be used to zoom around the mouse pointer,
+and two finger swipes pan the view.
+
+The ``Sweep'' tab is a plot that shows values computed as a parameter varies.
+It is often used to show S-parameters of model ports, but can also plot any
+user value generated by the script.
+
+The ``S Params'' tab is a plot that shows S parameters over frequency, for
+multi-frequency solves.
+
+The ``Antenna'' tab is a plot that shows the radiation emitted by the model for
+each angle. It is only useful for models that have radiation boundaries
+defined.
+
+The ``Script messages'' tab shows errors and other printed output from the
+model. When there is a model script error the view will automatically switch to
+this tab, where the error messages are.
+
+
+@subsection{The model}
+
+Model scripts are loaded with the ``File / Open'' menu command, or are
+specified on the command line. The script is executed to create the model. If
+the ``Field'' checkbox is ticked, the field solution is then computed and
+displayed. The script is reexecuted (and the field recomputed) when either:
 @list{
 @* A parameter is changed through its text box or slider.
 @* The script is edited and saved with an external text editor.
-@* The File/Reload menu command is selected.
+@* The ``File / Reload'' menu command is selected.
 }
 
-[TODO: write more] Notes:
+The multi-choice box that defaults to ``Hide mesh'' can be used to show the mesh,
+or to draw the dielectric properties into the model.
+
+If the checkbox ``Field'' is ticked then the field solution is computed and
+displayed. If it is not ticked then the model geometry (or mesh) is shown.
+
+If the checkbox ``Animate'' is ticked, then the field solution is computed and
+animated, so you can get a sense of how the waves flow.
+
+The multi-choice box that defaults to ``amplitude and phase'' is used to select
+how the field solution is displayed. The options (which depend on the cavity
+type) are:
 @list{
-@* Explain menu commands in detail.
-@* Tabs can be rearranged, multiple tabs at once.
-@* Explain script messages and what happens on errors.
+@* @b{Ez/Hz amplitude and phase}. Display the field solution directly, as the
+   amplitude and phase of the electric or magnetic Z component (or in other
+   words, the real part of the phasor @m{\phi}).
+@* @b{Ez/Hz max amplitude}. Display the maximum amplitude of the field
+   solution that is ever reached during animation (or in other words, the
+   amplitude of the phasor).
+@* @b{[Ex,Ey] max amplitude}. In @b{@c{Exy}} cavities display the maximum
+   amplitude of the (Ex,Ey) vector.
+@* @b{H & Jsurf amplitude}. In @b{@c{Ez}} cavities display the maximum
+   amplitude of the (Hx,Hy) vector, which is also proportional to the amplitude
+   of the surface current on the constant-Z walls.
+@* @b{Rotated vector E}. In @b{@c{Exy}} cavities display the (Ex,Ey) vector,
+   rotated by 90 degrees.
+@* @b{Vector Jsurf}. In @b{@c{Ez}} cavities display the surface current
+   vector at the constant-Z walls
+@* @b{Vector E, Jsurf}. In @b{@c{Exy}} cavities display the (Ex,Ey) vector,
+   which is also proportional to the surface current on the constant-Z walls.
+@* @b{Vector H}. In @b{@c{Ez}} cavities display the (Hx,Hy) vector.
+@* @b{Poynting vector}. Display the Poynting power flow vector.
 }
 
-@subsection{Sweeps}
+For @b{@c{ES}} cavity display the following options are available:
+@list{
+@* @b{Voltage}. Display the voltage.
+@* @b{Absolute voltage}. Display the magnitude of the voltage. This is not so
+   useful since nothing physical is changed when a constant is added to the
+   voltage everywhere.
+@* @b{E magnitude}. Display the magnitude of the (Ex,Ey) electric field.
+@* @b{Vector E}. Display the (Ex,Ey) vector.
+@* @b{Vector isovoltage}. Display contours along which the voltage is constant.
+}
 
-[TODO: write this]
+For @b{@c{TE}} or @b{@c{TM}} waveguide mode display the following options are
+available:
+@list{
+@* @b{Ez} or @b{Hz} to view the Z component of the field.
+@* @b{Ez amplitude} or @b{Hz amplitude} to view the absolute value of the Z
+   component of the field.
+@* @b{[Ex,Ey] amplitude} or @b{[Hx,Hy] amplitude} to view the amplitude of the
+   X,Y component of the field.
+@* @b{[Ex,Ey]} to view the (Ex,Ey) vector.
+@* @b{[Hx,Hy]} to view the (Hx,Hy) vector.
+}
 
-@figure{PlotExample.png}{}
+During animation the phase of the displayed solution is rotated. If a maximum
+amplitude of some kind is being displayed then the animation shows the real
+part of the amplitude of the rotating phasor.
+The animation time dial spins during animation. When not animating, you can
+click and drag the animation time dial to adjust time.
 
-Within the plot window, zoom in by left-clicking and dragging to select an area
-of the plot. Zoom out to the previous view by right-clicking.
+The color scheme used to render the field can be changed with the color
+multi-choice box. The intensity of the colors (or the length of displayed
+vectors) can be changed with the brightness slider.
+
+
+@subsection{Menu command reference}
+
+# We omit "system" menu commands that look differently on mac/windows/linux.
+# For example on macs the "help/about" command appears under a separate menu
+# for the application. The quit/exit commands is also system dependent.
+# We also don't list keyboard shortcuts here because they're system dependent
+# and easy to discover.
+
+@list{
+@* @b{File}
+   @list{
+   @* @b{Open model}: Open a new model script Lua file and executed it to
+      create a new model.
+   @* @b{Reload model}: Reload the current model script file, and execute it
+      to recreate the model.
+   @* @b{Auto-run model on change}: Automatically detect when the model script
+      file changes, and reload it when that happens. This is on by default.
+      This makes it convenient to develop models - just save it in your text
+      editor and immediately see the results.
+   @* @b{Export boundary as DXF}. Export the model boundary shape
+      (@c{config.cd}) as a DXF file, so it can be imported into a CAD program.
+      The coordinates in the DXF are in the @c{config.unit} units, but the
+      value of @c{config.unit} is not saved in the DXF file. Therefore you must
+      set the units manually or scale the model when importing into a CAD
+      program.
+   @* @b{Export boundary as x,y list} Export the model boundary shape
+      (@c{config.cd}) as text file list of coordinates.
+   @* @b{Export field as matlab data}. Save the mesh and current field
+      solution to a matlab file. The following matrices are saved:
+      @list{
+      @* @c{p}: Mesh point coordinates.
+      @* @c{t}: Mesh triangles, indexes into @c{p}.
+      @* @c{u}: Solution complex values, one for each point.
+      }
+      In matlab the solution can be visualized with:
+@===[
+  patch('Vertices',p,'Faces',t,'FaceVertexCData',real(u),...
+        'FaceColor','interp','EdgeColor','none'); axis equal
+]===@
+   @* @b{Export plot as matlab data}. Export the current sweep plot as a matlab
+      file containing an @c{x} coordinate vector and a complex @c{y} matrix
+      with columns for each port or channel. In matlab, to reproduce the sweep
+      plot in dB use:
+@===[
+  plot(x,20*log10(abs(y)))
+]===@
+   @* @b{Export antenna pattern as matlab data}. Compute and export the
+      antenna pattern. The following vectors are saved:
+      @list{
+      @* @c{azimuth} - the azimuths at which the far field is evaluated (radians).
+      @* @c{field} - the complex values of the far field at each azimuth.
+      @* @c{xcorrection}, @c{ycorrection} - used for phase center correction, as below.
+      }
+      To plot the beam pattern magnitude in dB:
+@===[
+  plot(azimuth,20*log10(abs(field)))
+]===@
+      To plot the beam phase, assuming a phase center at @c{cx,cy} (in config
+      units):
+@===[
+  plot(azimuth,angle(field.*(xcorrection.^cx.*ycorrection.^cy)))
+]===@
+   }
+@* @b{Edit}
+   @list{
+   @* @b{Copy parameters to clipboard}. Set the clipboard to a fragment of Lua
+      code that sets the @c{default_parameters} table to the current
+      parameter values. This can be pasted in to the Lua script, as a way of
+      saving the current parameter values.
+   }
+@* @b{View}
+   @list{
+   @* @b{Zoom to extents}. Set the view so the entire model is visible.
+   @* @b{Zoom in / out}. Zoom in to or out from the model, around the current
+      mouse pointer position, in case other methods of zooming (like the mouse
+      scroll wheel) are not available.
+   @* @b{Set animation time to 0}. The animation time controls the phase of
+      the wave or the position of the wideband pulse. This resets the time to
+      zero, starting the animation from the beginning.
+   @* @b{Increase / Decrease animation time}. Move the current animation time
+      forwards or backwards by one unit.
+   @* @b{Show boundary}: Select which features of the boundary are displayed:
+      lines, ports, or vertices. Vertex derivatives with respect to the first
+      checked parameter can also be displayed, as vectors.
+   @* @b{Show grid}. Toggle the grid.
+   @* @b{Show markers}. Show the handles for markers, which are 2D parameter
+      values. The handles can be dragged to adjust those parameters.
+   @* @b{Show S parameters}. Show the computed S-parameters for all ports in
+      the model.
+   @* @b{Antialiasing}. Render the model and field more smoothly, using
+      antialiasing. On some platforms this can be slow, and so can be switched
+      off.
+   @* @b{Switch to model after each solve}. When this option is turned on,
+      each time a new field solution is computed the model tab is made visible.
+      Turn this option off to allow other tabs to remain visible.
+   }
+@* @b{Solve}
+   @list{
+   @* @b{Sweep}. Plot S-parameters or other values over parameter values.
+      See the section on @link{sweeps}{sweeps}.
+   @* @b{Select optimizer}. Select the numerical technique that will be used to
+      perform optimizations. For certain problems some techniques perform
+      better than others. Options are Levenberg-Marquardt, and Subspace dogleg.
+   @* @b{Start optimization}. Adjust the selected parameters to improve the
+      output of the @c{config.optimize} function.
+      See the section on @link{optimization}{optimization}.
+   @* @b{Stop sweep or optimization}. Abort the current sweep or optimization,
+      in case it is taking too long.
+   @* @b{Run test() after each solve}. After each solve, run the
+      @c{config.test} function.
+   }
+@* @b{Help}
+   @list{
+   @* @b{Rama manual}. Open a web brower at the Rama manual.
+   @* @b{Rama website}. Open a web brower at the Rama website.
+   @* @b{Lua manual}. Open a web browser at the Lua manual.
+   @* @b{Check for latest version}. Check to see if there is a new version
+      of Rama.
+   }
+}
+
+@subsection{Command line arguments}
+
+Rama can be started from the command line with the following arguments:
+
+@table{
+@* @c{filename.lua}
+@| The path of a Lua model script file to load and run.
+@* @c{-unittest}
+@| Run all the unit tests, print status and exit.
+@* @c{-test}
+@| Run the @c{config.test()} function in the script file then exit.
+@* @c{-key=value}
+@| See the definition of @c{FLAGS} in @link{luafnvars}{this section}.
+}
+
+#############################################################################
+@section{Tutorial}
+
+@subsection{ALMA coupler}
+
+Here we design a four port coupler similar to one used in the
+Atacama Large Millimeter / submillimeter Array (ALMA), a radio telescope.
+The starting point of the coupler is the paper
+@link{http://legacy.nrao.edu/alma/memos/html-memos/alma468/memo468.pdf}{Designs of Wideband 3dB Branch line Couplers for ALMA Bands 3 to 10}.
+
+Physically, the coupler might look like this:
+
+@figure{images/alma_closed.png}{}
+
+The four ports are rectangular
+@link{https://en.wikipedia.org/wiki/Waveguide_(radio_frequency)}{waveguides},
+with screw holes and pins to support the standard
+@link{http://www.google.com/search?q=wr-12+waveguide&tbm=isch}{WR-12} waveguide
+flange connection.
+The waveguide channels are made with split block construction, i.e. the
+channels are milled in separate aluminum blocks which are bolted together:
+
+@figure{images/alma_open.png}{}
+
+Create a Lua file to model just the active area in the center of the block (the
+final file is available in the Rama distribution under
+@c{examples/tutorial_ALMA.lua}).
+This shape will be created:
+
+@figure{images/alma_cd.png}{}
+
+First add a @c{config} table that sets the properties of the simulation. The
+simulation frequency is set to a parameter so that it is easy to change with a
+slider:
+
+@===[
+  config = {
+    type = 'Exy',
+    unit = 'mm',
+    frequency = Parameter{label='Frequency (Hz)', min=75e9, max=115e9, default=93e9},
+    mesh_edge_length = 0.2,
+    excited_port = 1,
+    depth = 2.54,
+  }
+]===@
+
+Then set some variables that will control the geometry. The default values are
+taken from the above paper:
+
+@===[
+  -- Basic parameters.
+  B = 1.27        -- Waveguide short dimension
+  S = 0.605       -- Spacing to other arm of coupler
+  L = 2           -- Feed length
+
+  -- Parameters for adjustable post and gap sizes.
+  G1 = Parameter{label='Gap 1',  min=0.05, max=1, default=0.332}
+  P1 = Parameter{label='Post 1', min=0.05, max=1, default=0.542}
+  G2 = Parameter{label='Gap 2',  min=0.05, max=1, default=0.544}
+  P2 = Parameter{label='Post 2', min=0.05, max=1, default=0.424}
+  G3 = Parameter{label='Gap 3',  min=0.05, max=1, default=0.598}
+]===@
+
+Now create the geometry itself by adding together rectangles into the shape
+variable @c{cd}:
+
+@===[
+  -- Create feed-through channels.
+  width = 2*L + 2*(G1+P1+G2+P2)+G3
+  cd = Rectangle(0, 0, width, B) + Rectangle(0, B+S, width, 2*B+S)
+
+  -- Create the air gaps between the channels.
+  x = L
+  cd = cd + Rectangle(x, 0, x + G1, 2*B+S)  x = x + G1 + P1
+  cd = cd + Rectangle(x, 0, x + G2, 2*B+S)  x = x + G2 + P2
+  cd = cd + Rectangle(x, 0, x + G3, 2*B+S)  x = x + G3 + P2
+  cd = cd + Rectangle(x, 0, x + G2, 2*B+S)  x = x + G2 + P1
+  cd = cd + Rectangle(x, 0, x + G1, 2*B+S)
+]===@
+
+The ports are specified by selecting points in the middle of each port segment:
+
+@===[
+  -- Add the ports.
+  cd:Port(cd:Select(0, B/2), 1)
+  cd:Port(cd:Select(0, S+B*1.5), 2)
+  cd:Port(cd:Select(width, B/2), 3)
+  cd:Port(cd:Select(width, S+B*1.5), 4)
+]===@
+
+Finally set the @c{config.cd} variable to @c{cd} (alternatively @c{config.cd}
+could have been used directly instead of @c{cd} above):
+
+@===[
+  config.cd = cd
+]===@
+
+Running Rama on this file and selecting ``Hz max amplitude'' to show the
+amplitude of the waves gives:
+
+@figure{images/alma_power.png}{}
+
+For the coupler to work, power injected on port 1 needs to be equally split
+between ports 3 and 4, with no power being returned on ports 1 or 2. The
+displayed S parameters show that the configuration is close to this situation,
+but is not perfect. To automatically optimize a better configuration, add an
+@c{optimize} function to the @c{config} table like so:
+
+@===[
+  config = {
+    ...
+    optimize = function(port_power, port_phase, field)
+      return port_power[1],                 -- Minimal return loss
+             port_power[2],                 -- Minimal output to port 2
+             port_power[3] - port_power[4]  -- Balance ports 3 and 4
+    end,
+  }
+]===@
+
+The three values returned by @c{optimize} will, if they go to zero, result in
+the desired constraints being achieved.
+Now tick all gap and post parameters, and run ``Solve / Start optimization''.
+After optimization has finished the situation has improved, particularly the
+balance of power between ports 3 and 4.
+
+Run ``Solve / Sweep'' to plot the S-parameters over frequency:
+
+@figure{images/alma_sweep1.png}{}
+
+Notice that at the default frequency (93 GHz) ports 3 and 4 are well balanced,
+but at other frequencies the balance is not so good. To improve this, optimize
+over multiple frequencies simultaneously. Change @c{config.frequency} to be
+@c{LinearRange(85e9, 100e9, 50)}, to optimize over 85 GHz to 100 GHz. Now the
+@c{optimize} function needs to be changed to return information for all
+frequencies:
+
+@===[
+  optimize = function(port_power, port_phase, field)
+    -- Hint to the solver that we're going to be Select()ing all solutions.
+    field.SolveAll()
+    -- Compute values to optimize over all frequencies.
+    local T = {}
+    for i = 1,#config.frequency do
+      field.Select(i)
+      port_power, port_phase = field.Ports()
+      table.insert(T, port_power[1])  -- Minimal return loss
+      table.insert(T, port_power[2])  -- Minimal output to port 2
+      table.insert(T, port_power[3] - port_power[4])  -- Balance ports 3 and 4
+    end
+    -- Return all values to the optimizer.
+    return table.unpack(T)
+  end,
+]===@
+
+After rerunning the optimization, the S-parameters over frequency can be seen
+using the ``S Params'' tab:
+
+@figure{images/alma_sweep2.png}{}
+
+Note that the ``Solve / Sweep'' command can't be used for this because
+@c{config.frequency} is no longer a single value controlled by a parameter.
+The balance between ports 3 and 4 is greatly improved across frequency,
+somewhat at the expense of the power returned on ports 1 and 2. This tradeoff
+can be adjusted by weighting the values returned by the @c{optimize} function.
 
 #############################################################################
 @section{Lua scripting}
@@ -185,14 +694,14 @@ of the plot. Zoom out to the previous view by right-clicking.
 Simulations in Rama are driven by Lua scripts that specify the boundary of
 the cavity, the locations of ports, any dielectric materials, and other
 parameters. Here's the
-@link{http://www.lua.org/manual/5.3/manual.html}{reference manual} for Lua,
+@link{http://www.lua.org/manual/5.4/manual.html}{reference manual} for Lua,
 which explains the structure of the language. That has much more detail than
 you actually need to run Rama, a gentler introduction is the book
 @link{http://www.lua.org/pil/}{Programming in Lua}. An older version of that
 book @link{http://www.lua.org/pil/contents.html}{is available online} and is
 still 100% relevant as Rama does not use any advanced Lua features.
 
-@subsection{The config table}
+@subsection{@label{configtable} The config table}
 
 The job of the script is to create a Lua table called @c{config} that contains
 the following fields:
@@ -200,8 +709,8 @@ the following fields:
 @table{
 
   @* @c{type}
-  @| The type of cavity to simulate: @c{'S'}, @c{'Exy'}, @c{'Ez'}, @c{'TE'} or
-     @c{'TM'}.
+  @| The type of cavity to simulate: @c{'S'}, @c{'Exy'}, @c{'Ez'}, @c{'ES'},
+     @c{'TE'} or @c{'TM'}.
 
   @* @c{unit}
   @| The distance unit to use for all geometry numbers. Options are @c{'nm'},
@@ -213,21 +722,18 @@ the following fields:
   @| The geometry of the ``computational domain''. This is a shape object that
      specifies the boundary polygon, dielectric regions, and the location of
      ports. Usually most of the script is concerned with creating this object
-     (see ``Shape objects'' below).
+     (see the section on @link{shapes}{shape objects}).
 
   @* @c{frequency}
   @| The frequency in Hz to run the simulation at. This is a single number for
-     a single-frequency simulation. For a multi-frequency simulation this is
-     an array of frequencies.
+     a single frequency simulation. For a multi-frequency simulation this is
+     an array of frequencies. For @c{'ES'} cavities this can be set to 1.
 
   @* @c{mesh_edge_length}
   @| The maximum edge length of the mesh (in the above units). This should
      usually be no larger than 1/10 of the wavelength. Smaller numbers here
      result in finer meshes that will have more accurate solutions but which
      will take longer to solve.
-
-  @* @c{mesh_refines}
-  @| The number of mesh refinement steps to take. This is currently ignored.
 
   @* @c{excited_port}
   @| If this is an integer @m{\ge 1}, the port to inject a signal on.
@@ -238,6 +744,8 @@ the following fields:
   @* @c{depth} (optional)
   @| The depth (in the above units) of @c{Exy} cavities. This is not used for
      the other cavities as their solutions are independent of depth.
+     The depth can be set to @c{Infinity} to model free space, with
+     solutions that are independent of Z.
 
   @* @c{optimize} (optional)
   @| When optimization is performed the optimizer calls this function. It is
@@ -254,14 +762,14 @@ the following fields:
   optimization is to get the errors as close to zero as possible.
 
   The @c{field} table contains functions that can be called with x,y
-  coordinates to return various field-derived quantities:
+  coordinates to return various field derived quantities:
 @===[
   field.Select(n)       -- Select field for frequency n (1..#config.frequency)
                         -- All functions below return values for this frequency
   field.SolveAll()      -- A hint that Select will be called for all n.
                         -- This pre-solves the fields in parallel, for speed
   field.Ports()         -- The port_power,port_phase for the selected field
-  field.Complex(x,y)    -- real,imaginary field components (2 return values)
+  field.Complex(x,y)    -- field components as a complex number
   field.Magnitude(x,y)  -- magnitude of the field
   field.Phase(x,y)      -- phase of the field (in radians)
   field.Poynting(x,y)   -- x,y components of Poynting vector (2 return values)
@@ -283,12 +791,44 @@ the following fields:
   }
 
   If @c{config.optimize} is defined it is also called once for each regular
-  (non-optimization) run of the script, to help verify the function contains no
-  runtime errors. For these calls the @c{field} functions may return zeros.
+  (non optimization) run of the script, to help verify the function contains no
+  runtime errors. For these calls the @c{field} functions may return all zeros.
+
+  @* @c{test} (optional)
+  @| When the ``Run test() after each solve'' checkbox is ticked, the @c{test}
+     function is called every time a new solution is created. It has exactly
+     the same arguments as @c{optimize}:
+@===[
+  test=function(port_power, port_phase, field)
+    ...
+    return value1,value2,...
+  end
+]===@
+  The @c{test} function can optionally return values, that can be plotted
+  during a sweep. It can also send output to the script messages tab using
+  either @c{print} or @c{error}. This function is callable when parameters are
+  changed, during sweeps, and optimizations.
+  The @c{test} feature can be used to generate reports, and it is also used as
+  part of the internal Rama unit test system.
+
+  @* @c{antenna_pattern} (optional)
+  @| For antenna simulations, the way in which the far field antenna pattern
+     will be computed. Options are
+     @list{
+     @* @c{"at_ABC"}, which means that the far field will be computed at the
+        exterior of the computational domain, wherever there is an ABC
+        boundary. This is the default.
+     @* @c{"at_far_field_material"}, which means that the far field will be
+        computed at the boundary between regular materials and those that have
+        the @c{util.FAR_FIELD} color bit. PML materials are created with this
+        bit.
+     @* @c{"at_boundary"}, which means that the far field will be computed at
+        the exterior of the computational domain, regardless of boundary type.
+     }
 
   @* @c{boresight} (optional)
   @| For antenna simulations, the angle that is nominally the highest gain part
-     of the beam. This angle becomes the zero-azimuth on the antenna pattern
+     of the beam. This angle becomes the zero azimuth on the antenna pattern
      plot. This angle is in degrees, 0 is towards the right and 90 is up. If
      this is not specified it defaults to 0.
 
@@ -305,9 +845,7 @@ the following fields:
 
 The geometry and other parameters of most models will be driven by parameters.
 Parameters are numerical values that the user can easily adjust via text boxes
-and sliders in a panel on the user interface:
-
-@figure{parameters.png}{}
+and sliders in a panel on the user interface.
 
 Parameters are easy to use from within the script. For each parameter you want,
 call the @c{Parameter()} function like this:
@@ -323,7 +861,7 @@ value of the parameter is specified by @c{default} (which must be between
 @c{min} and @c{max}). The returned @c{value} of the @c{Parameter()} function is
 the current value of the parameter. The first time the script is run this will
 be the @c{default}, but when the user changes the parameter the script will be
-re-run, @c{Parameter()} will return the new value and an updated solution will
+rerun, @c{Parameter()} will return the new value and an updated solution will
 be computed for any new geometry.
 
 By default parameters can take any real value. Parameters that are restricted
@@ -338,9 +876,9 @@ If you have many parameters it can be useful to put them into groups. A
 horizontal line to separate groups can be generated by calling
 @c{ParameterDivider()}.
 
-Parameter values can be used to control shapes, or for anything else. For
-example it is common to use parameters in the @c{config} table to allow
-configuration values to be controlled, like this:
+Parameter values can be used to control shapes or any other aspect of the
+simulation. For example it is common to use parameters in the @c{config} table
+to allow configuration values to be controlled, like this:
 
 @===[
   config = {
@@ -352,12 +890,12 @@ configuration values to be controlled, like this:
   }
 ]===@
 
-If the "Reload resets parameters to script defaults" checkbox is checked then
+If the ``Reload resets parameters to script defaults'' checkbox is checked then
 parameters are reset to their default values each time the script is loaded
-from disk. If it's not checked then parameters keep their current values
-(actually they take the value of whatever parameter last had the same label,
-even if the parameter order changed, as long as the min and max values are
-consistent).
+from the filesystem. If it's not checked then parameters keep their current
+values (actually they take the value of whatever parameter last had the same
+label, even if the parameter order changed, as long as the min and max values
+are consistent).
 
 @subsection{Parameter defaults}
 
@@ -366,9 +904,8 @@ If it is not given, the default value will be read from the global
 @c{default_parameters} table using the parameter label as a key, if that table
 and key exists. If that table or key doesn't exist the parameter will take the
 @c{min} value. This mechanism allows easy copying of the current parameter
-values back into the script: simply select Edit/Copy from the menu (or press
-Ctrl+C) and the current parameters will be copied to the clipboard in this
-form:
+values back into the script: simply select ``Edit / Copy'' from the menu and
+the current parameters will be copied to the clipboard in this form:
 
 @===[
   default_parameters = {
@@ -388,7 +925,7 @@ It is common to have parameters that are actually the x,y coordinates of some
 point within a shape. Such parameters pairs can be generated automatically and
 controlled by clicking and dragging on-screen markers, as shown here:
 
-@figure{markers.png}{}
+@figure{images/marker.png}{}
 
 To create a marker you call the @c{ParameterMarker@{@}} function like this:
 
@@ -409,9 +946,9 @@ another function, so for example the following is a convenient idiom:
   shape:AddPoint(ParameterMarker{...})
 ]===@
 
-@subsection{Functions accessible to the Lua script}
+@subsection{@label{luafnvars} Global functions and variables available to the script}
 
-The following @link{http://www.lua.org/manual/5.3/manual.html}{Lua standard libraries}
+The following @link{http://www.lua.org/manual/5.4/manual.html}{Lua standard libraries}
 can be used: base, table, string, utf8 and
 math. The standard Lua @c{print()} function sends text to the ``script messages''
 tab. The standard Lua @c{error()} function will output its error message to this
@@ -437,30 +974,41 @@ tab also. The following extra miscellaneous functions are defined:
      decibels.
 }
 
+In addition to the standard Lua global variables, the following are available:
+
+@table{
+  @* @c{FLAGS}
+  @| A table populated with any @c{-key=value} arguments given on the command
+     line. This is useful for testing. For example if @c{-test_number=5} is
+     given on the command line then @c{FLAGS.test_number} will return the value
+     @c{'5'} (note that this is the string @c{'5'} and not the number 5).
+}
+
 @subsection{@label{vectors} Vectors}
 
-Rama Lua supports vectors in addition to regular Lua numbers. Vectors are
+Rama Lua supports vectors in addition to real numbers. Vectors are
 arrays of numbers that are treated as a single block by math operators.
 Vector are mostly used by @link{dielectrics}{dielectric callback functions},
 for efficiency reasons. Below are the operations and functions available for
-vectors (@c{a} and @c{b} are vectors of the same size and @c{k} is a regular
+vectors (@c{a} and @c{b} are vectors of the same size and @c{k} is a real
 number).
 
 @table{
   @* @c{a + b}, @c{a - b}, @_
      @c{a * b}, @c{a / b}, @_
      @c{a ^ b}
-  @| The element-wise sum (product, etc) of @c{a} and @c{b}. This result is a
+  @| The elementwise sum (product, etc) of @c{a} and @c{b}. This result is a
      vector of the same size as @c{a} or @c{b}.
   @* @c{a + k}, @c{k + a}, etc.
-  @| The element-wise sum of @c{a} and @c{k}. This result is a vector of the
+  @| The elementwise sum of @c{a} and @c{k}. This result is a vector of the
      same size as @c{a} (and likewise for the other operators).
   @* @c{Vector()}
-  @| Create a new zero-sized vector.
+  @| Create a new zero size vector.
   @* @c{@#a}
   @| The number of elements in @c{a}.
   @* @c{a:Resize(n)}
-  @| Resize the vector to have @c{n} elements.
+  @| Resize the vector to have @c{n} elements. All elements will be set to
+     zero. Return @c{a}, so that @c{v = Vector():Resize(n)} can be written.
   @* @c{a[i]}
   @| Access the @c{i}'th element of @c{a}, where @c{i} is in the range
      @c{1...@#a}.
@@ -473,30 +1021,182 @@ number).
      @c{vec.sin(a)},@~@c{vec.sqrt(a)}, @_
      @c{vec.tan(a)}
   @| Math functions on vectors, similar to the regular functions in the
-     Lua math library.
+     Lua math library. The @c{atan} function accepts one argument or two
+     as in Lua 5.3, the @c{atan2} function accepts two arguments as in Lua 5.0.
   @* @c{vec.eq(a,b)} @| A vector with ones where @m{a = b} and zero otherwise.
+     Named comparison functions are used for elementwise comparison instead of
+     overloading the comparison operators, because the latter can only return
+     single booleans.
   @* @c{vec.ne(a,b)} @| A vector with ones where @m{a \ne b} and zero otherwise.
   @* @c{vec.lt(a,b)} @| A vector with ones where @m{a < b} and zero otherwise.
   @* @c{vec.gt(a,b)} @| A vector with ones where @m{a > b} and zero otherwise.
   @* @c{vec.le(a,b)} @| A vector with ones where @m{a \le b} and zero otherwise.
   @* @c{vec.ge(a,b)} @| A vector with ones where @m{a \ge b} and zero otherwise.
+  @* @c{vec.IsVector(a)} @| True if @c{a} is a vector, false otherwise.
 }
 
-@subsection{Programming style}
+@subsection{@label{complex} Complex numbers}
 
-At the end of the script it is a good idea to do these things:
+Rama Lua supports complex numbers in addition to real numbers. The real and
+imaginary parts of the complex numbers can be either real numbers or vectors.
+Below are the operations and functions available for complex numbers
+(@c{a} and @c{b} are complex numbers, @c{k} is a real number and @c{v} is
+a vector).
 
-@list{
+@table{
+  @* @c{Complex(re,im)}@_@c{Complex(re)}
+  @| Create a new complex value from the real and (optionally) imaginary
+     parts, which are either both real numbers or both vectors of the same
+     size.
+  @* @c{a + b}, @c{a - b}, @_
+     @c{a * b}, @c{a / b}, @_
+     @c{a ^ b}
+  @| The complex sum (product, etc). The values @c{a} and @c{b} must be
+     compatible in the sense that their real and imaginary parts must either
+     both be real numbers or both be vectors of the same size.
+  @* @c{a + k}, @c{k + a}, etc.
+  @| The sum of complex value @c{a} and real number @c{k} (and likewise for the
+     other operators).
+  @* @c{a + v}, @c{a * v}, etc.
+  @| The sum (product, etc) of complex value @c{a} and vector @c{v}, which
+     must be compatible.
+     In binary operations the complex value @c{a} must appear before the
+     vector @c{v} to ensure @c{v} is treated as the real part of a complex
+     vector. Due to the way overloaded operators work in Lua, if @c{v} appears
+     first then @c{a} will be treated as a vector, which will fail.
+  @* @c{a.abs}
+  @| The absolute value or magnitude of @c{a}.
+  @* @c{a.angle}
+  @| The angle of @c{a} in radians.
+  @* @c{a.re}, @c{a.im}
+  @| The real and imaginary parts of @c{a}.
+  @* @c{a.conj}
+  @| The conjugate of @c{a}.
+  @* @c{complex.exp(a)}
+  @| Math functions on complex numbers or vectors, similar to the regular
+     functions in the Lua math library.
+}
 
-@* Check the geometry to make sure it has the expected number of pieces, e.g.:
-@===[
-  assert(config.cd.pieces == 3)
-]===@
+Complex valued vectors in Rama are a @c{Complex} object where the real and
+imaginary parts are @c{Vector} objects (not the reverse, i.e. vectors where
+each value is complex).
 
+
+@subsection{Utilities}
+
+The @c{util} table contains a variety of helper functions.
+All of these are implemented in Lua in the @c{user_script_util.lua} source file.
+
+@table{
+  @* @c{c}         @| The speed of light in m/s.
+  @* @c{epsilon0}  @| The permittivity of free space, @m{\epsilon_0}.
+  @* @c{mu0}       @| The permeability of free space, @m{\mu_0}.
+  @* @c{FAR_FIELD} @| A special material color, see @c{config.antenna_pattern}.
+
+  @* @c{DistanceScale()}
+  @| Return the distance scale in ``meters per unit''. This is the length in
+     meters of one @c{config.unit} unit of distance.
+  @* @c{Lambda0InM()}
+  @| Return the free space wavelength @m{\lambda_0} in meters.
+  @* @c{Lambda0()}
+  @| Return the free space wavelength @m{\lambda_0} in @c{config.unit} units.
+  @* @c{K0InM()}
+  @| Return the free space wave number @m{k_0} in radians per meter.
+  @* @c{K0()}
+  @| Return the free space wave number @m{k_0} in radians per @c{config.unit}.
+  @* @c{KInM()}
+  @| Compute the cavity wave number @m{k}, in radians per meter.
+     In @c{Ez} cavities this is the free space wave number, in @c{Exy} cavities
+     this is the effective wave number that depends on the cavity depth. For
+     @c{Exy} cavities if @m{k^2} is negative then @m{k} is imaginary and
+     travelling waves will not propagate at this frequency, and this function
+     will fail.
+  @* @c{KSquaredInM()}
+  @| Compute the squared value of @c{KInM()}.
+  @* @c{K()}
+  @| Compute the cavity wave number @m{k}, in radians per @c{config.unit}.
+
+  @* @c{RotateSigmas(@m{\sigma_{xx}}, @m{\sigma_{yy}}, @m{\sigma_{xy}}, @m{\theta})}
+  @| Given @m{\sigma} values that describe an anisotropic dielectric, rotate
+     them by the angle @m{\theta} (in radians) then return all three. The angle
+     argument can also be a vector of angles, in which case vectors are
+     returned.
+
+  @* @c{PaintPML(S, P, @m{\theta}, d, a, far_field_boundary)}
+  @| Paint a PML region @c{P} into the shape @c{S}, with normal incidence at
+     angle @m{\theta} (in radians). The strength of the PML is given as how
+     much attenuation @c{a} we want (as a fraction of full strength) over
+     distance @c{d} (in @c{config.unit}). The distance @c{d} does not have to
+     correspond to any dimension in P. Typical values would be @c{a=0.01} and
+     @c{d=util.Lambda0()}, indicating that the field should die to 1% of its
+     value over one wavelength.
+     If @c{far_field_boundary} is true then use the @c{util.FAR_FIELD} color
+     bit to indicate that the antenna pattern should be measured at the PML
+     boundary.
+
+  @* @c{PaintRectangularPML(S, x1, y1,x2, y2, T, a, sides)}
+  @| Paint a rectangular PML to @c{S}. The given rectangle coordinates are the
+     exterior of the PML boundary, and the PML thickness is @c{T}. The
+     attenuation parameter is @c{a}, as per @c{PaintPML()}. The @c{sides}
+     argument is a string that contains one or more of the characters @c{t},
+     @c{b}, @c{l}, @c{r}, which indicate that the PML should have absorbing
+     regions on the top, bottom, left, or right of the rectangle. To get all
+     four sides specify @c{'tblr'}.
+
+  @* @c{PaintCircularPML(S, cx, cy, r, npoints, T, a)}
+  @| Paint a circular PML to @c{S}. The exterior of the PML boundary is
+     @c{Circle(cx,cy,r,npoints)}, and the PML thickness is @c{T}.
+     The attenuation parameter is @c{a} as per @c{PaintPML()}.
+
+  @* @c{PaintMetal(s, q, color, @m{\sigma}, @m{\epsilon_r})}
+  @| Paint the shape @c{q} into the shape @c{s}, with the given color, to
+     model a slightly lossy (but still good) conductor with conductivity
+     @m{\sigma}. This models the power loss in the floor and ceiling of the
+     cavity, but does not model power loss in the walls. The @m{\epsilon_r}
+     (which defaults to 1 if it is omitted) is the relative dielectric
+     constant of the interior of the cavity after the region is painted.
+     The complex epsilon value used for the medium is returned.
+
+  @* @c{PortMetal(s, sel_table, n, @m{\sigma}, @m{\epsilon\mbox{metal}}, @m{\epsilon\mbox{medium}})}
+  @| Similar to @c{Port()}, given a selection table @c{sel_table} specifying
+     one or more shape edges in @c{s}, mark all those edges as belonging to
+     port @c{n}. Adjust the boundary properties to model a slightly lossy (but
+     still good) conductor with conductivity @m{\sigma}. This models the power
+     loss in the walls of the cavity but does not model power loss in the floor
+     and ceiling.
+     @m{\epsilon\mbox{metal}} is the relative dielectric constant of the
+     metal, it defaults to 1 if it is omitted. @m{\epsilon\mbox{medium}} is
+     the relative dielectric constant of the medium next to the boundary, it
+     defaults to 1 if it is omitted.
+     The epsilon returned by @c{PaintMetal} can be passed to @c{PortMetal} as
+     @m{\epsilon\mbox{medium}}, however for good conductors this value is very
+     close to 1 so it makes little difference. Using the default 1 as the
+     @m{\epsilon\mbox{medium}} argument will work just as well.
+
+     For @c{Exy} cavities the wall loss has an angle dependence that can not be
+     reproduced here. The boundary is set to produce the correct loss for a
+     wave travelling parallel to the wall. The loss for a normally incident
+     wave will be lower, by the ratio of the effective wave number to the free
+     space wave number. For @c{Exy} cavities near cutoff this ratio becomes
+     very high, but for rectangular waveguide in the middle of the useful
+     @m{TE_{10}} frequency band the ratio is about 1.7.
+
+  @* @c{PortCharge(s, sel_table, n, charge)}
+  @| Similar to @c{Port()} but for @c{ES} cavities. Given a selection table
+     @c{sel_table} specifying one or more shape edges in @c{s}, mark all those
+     edges as belonging to port @c{n}, which will have the given charge.
+
+  @* @c{Dump(s)}
+  @| Print out internal information about the shape @c{s}. This is mostly for
+     debugging.
+
+  @* @c{LoadSTL(filename)}
+  @| Uses @link{shapegeomfn}{@c{Shape():LoadSTL}} to read an STL file, assuming
+     that the STL coordinates are in mm.
 }
 
 #############################################################################
-@section{Shape objects}
+@section{@label{shapes} Shape objects}
 
 A shape object represents the 2D geometry of the computational domain. It
 contains the boundary polygons, dielectric regions, and the location of ports.
@@ -528,17 +1228,17 @@ The following global functions will create the standard primitive shapes:
      where (x,y) is the center of the circle.
 
   @* @c{Rectangle(x1,y1,x2,y2)}
-  @| Return a rectangle shape with 4 vertices, where (x1,y1) and (x2,y2) are
-     vertices on diagonally opposite corners.
+  @| Return a rectangle shape with 4 vertices, where @m{(x_1,y_1)} and
+     @m{(x_2,y_2)} are vertices on diagonally opposite corners.
 
   @* @c{Shape()}
   @| Return a new, empty shape. This is useful when @c{AddPoint()} is used to
      create a shape directly from vertices.
 }
 
-Shapes can be created vertex-by-vertex using @c{AddPoint()}. For example, to
-create a triangle from the points (x1,y1), (x2,y2), and (x3,y3) you can do
-this.
+Shapes can be created vertex by vertex using @c{AddPoint()}. For example, to
+create a triangle from the points @m{(x_1,y_1)}, @m{(x_2,y_2)}, and
+@m{(x_3,y_3)} you can do this.
 
 @===[
   triangle = Shape():AddPoint(x1,y1):AddPoint(x2,y2):AddPoint(x3,y3)
@@ -546,7 +1246,8 @@ this.
 
 Note that all shapes must contain at least three vertices. If the vertices wind
 in an anticlockwise manner the new shape will have positive area, and vice
-versa.
+versa. The shape union operator (@c{A+B}) currently only works with shapes that
+have positive area.
 
 @subsection{Shapes are copy-by-reference}
 
@@ -564,7 +1265,7 @@ can do this:
 
 @===[
   q = Rectangle(0, 0, 1, 1)     -- q is a new rectangle shape
-  r = q:s:Clone()               -- r is a copy (or "clone") of q
+  r = q:Clone()                 -- r is a copy (or "clone") of q
   q.Offset(10, 10)              -- q is moved, r stays the same
 ]===@
 
@@ -589,7 +1290,13 @@ referenced with the following syntax:
   @* @c{s[n]}
   @| The @c{n}'th vertex of a single piece shape, where n is in the range 1 to
      @c{@#s}. It is an error if @c{s} has more than once piece. The vertex is
-     returned as a table containing number fields @c{x} and @c{y}.
+     returned as a table containing number fields @c{x} and @c{y}, and also
+     the fields @c{kind0}, @c{kind1}, @c{dist0}, @c{dist0} which are used for
+     debugging.
+
+  @* @c{s.material}
+  @| The material table of a single piece shape. The table contains keys
+     @c{color}, @c{epsilon} (a complex number).
 }
 
 For example, the following program prints out all pieces and vertices in @c{s}:
@@ -642,7 +1349,15 @@ If @c{A} and @c{B} are two shapes then a third shape can be created by:
      This is rarely used.
 }
 
-@subsection{Shape object geometry functions}
+The coincident vertex rule: If @c{A} and @c{B} have a coincident vertex, and
+that same vertex appears in the final shape, the port that will be attached to
+that vertex in the final shape will come from @c{A}, and whatever ports were
+attached to that vertex in @c{B} will be ignored.
+
+It is an error if @c{A} and @c{B} both contain port callback functions for the
+same port numbers.
+
+@subsection{@label{shapegeomfn} Shape object geometry functions}
 
 A shape object @c{s} can be modified or interrogated by the following
 functions. Note that shape functions that don't return some other value will
@@ -665,7 +1380,7 @@ rotate @c{s} about (3,4) you could do this:
      area holes. Other cases are not handled and result in an error.
 
   @* @c{s:ChamferVertex(x,y, @_@~@~predist,postdist)}
-  @| Add a chamfer of the given pre- and post-vertex distances to the vertex
+  @| Add a chamfer of the given pre- and post- vertex distances to the vertex
      closest to @c{x},@c{y}. It is a runtime error if the shape is empty.
 
   @* @c{s:Clean(threshold)}
@@ -700,6 +1415,18 @@ rotate @c{s} about (3,4) you could do this:
      merged will be erased. This only works with @c{area}@m{\ge 0} polygons.
      The optional @c{endcap_style} is for the ends of polylines, and it can be
      @c{'square'}, @c{'round'}, or @c{'butt'}. Returns @c{s}.
+
+  @* @c{s:HasPorts()}
+  @| Return true if any ports (or ABC) have been set on this shape.
+     Return false otherwise.
+
+  @* @c{s:LoadSTL(filename)}
+  @| Load a binary STL file and convert it to a Shape that traces the edges of
+     all the triangles in the @m{Z=0} plane. Suitable STL files can be
+     generated by e.g. sectioning 3D CAD files at @m{Z=0}. STL coordinates are
+     entered directly into the shape (STL files do not contain information
+     about units). It is an error if the STL file is not readable or has bad
+     format.
 
   @* @c{s:MakePolyline()}
   @| Turn the last piece of this shape into a polyline by adding points
@@ -737,8 +1464,8 @@ rotate @c{s} about (3,4) you could do this:
 
   @* @c{s:Select(x1,y1,x2,y2)}
   @| Returns a selection table for all polygon edges that intersect the
-     rectangle (x1,y1,x2,y2). The selection table is an array of @c{@{p,e@}}
-     tables.
+     rectangle @m{(x_1,y_1,x_2,y_2)}. The selection table is an array of
+     @c{@{p,e@}} tables.
 
   @* @c{s:SelectAll()}
   @| Returns a selection table for all polygon edges in the shape. The
@@ -760,6 +1487,18 @@ functions:
   @| Given a selection table @c{sel_table} specifying one or more shape edges
      in @c{s}, mark all those edges as belonging to port @c{n}, where
      @c{n}@m{\ge 1}.
+  @* @c{s:Port(sel_table,n,@_@~@~function(d,x,y)@_@~@~@~@~return @m{\alpha},@m{\beta}@_@~@~end)}
+  @| Similar to the @c{Port()} function above, but also use a function that is
+     given a vector @c{d} of edge distances, corresponding vectors @c{x} and
+     @c{y} of point coordinates, and computes corresponding vectors of boundary
+     @m{\alpha} and @m{\beta} values. The return vectors can be complex. Each
+     edge has distance @c{d} going from 0 to 1 as we traverse the polygon
+     counter clockwise. This feature allows arbitrary boundary constraints and
+     boundary excitations. For convenience, before being used in the simulation
+     the @m{\alpha} and @m{\beta} values are multiplied by the effective
+     wavenumber @m{k} of the material attached to the port (noting that @m{k}
+     is affected by the relative dielectric constant, and for @c{Exy} cavities
+     the depth).
 }
 
 @subsection{@label{dielectrics} Dielectrics}
@@ -769,34 +1508,44 @@ conditions. The space between the walls is vacuum by default (or you can regard
 this as air). Other materials with different dielectric constants or
 Schrödinger potentials can be inserted into the cavity. These dielectrics are
 represented as ``painted'' regions within shapes. The ``paint'' that is used
-has a actual visible color (so that the area can be identified on screen) and a
-relative epsilon (@m{\epsilon}) or potential value.
+has an actual visible color (so that the area can be identified on screen),
+a relative epsilon (@m{\epsilon}) or potential value, and other parameters.
 
 The following functions can be used to define dielectrics in shape @c{s}:
 
 @table{
-  @* @c{s:Paint(q,col,epsilon)} @_
-     or @_
-     @c{s:Paint(q,col,epsilon_r, @_@~@~epsilon_i)}
+  @* @c{s:Paint(q,col,@m{\epsilon})}
   @| Paint a new dielectric into @c{s}. The painted area is shape @c{q}, which
      should intersect @c{s}. The on-screen color used to represent this is
      @c{col}, which is an @c{0xrrggbb} color constant. The relative epsilon
-     value of the dielectric is @m{\epsilon} (e.g. for air @m{\epsilon=1}) or
-     @m{\epsilon_r+i\epsilon_i}. For Schrödinger cavities @c{epsilon} is
-     actually the potential @m{V}.
+     value of the dielectric is @m{\epsilon} (e.g. for air @m{\epsilon=1}).
+     The @m{\epsilon} value can be a @link{complex}{complex} number.
+     For Schrödinger cavities @m{\epsilon} is actually the potential @m{V}.
 
-  @* @===[
-s:Paint(q,col,function(x,y)
-          ...
-          return er,ei
-        end)
-]===@
-  @| Similar to the @c{Paint()} function above except that the relative
-     epsilon value of the dielectric is specified with a function that takes
-     @c{x,y} coordinates are returns the real (and optionally, imaginary) part
-     of @m{\epsilon}. For performance reasons @c{x,y} are vectors of
-     coordinates and the returned values must be vectors of the same size.
-     See the section on @link{vectors}{Vectors}.
+  @* @c{s:Paint(q,col,@m{\epsilon},@_@~@~@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}})}
+  @| Similar to the @c{Paint()} function above except that the sigma values
+     for anisotropic dielectrics are also specified. If the sigma values are
+     not given then the default is the isotropic case
+     @m{\sigma_{xx}=\sigma_{yy}=1, \sigma_{xy}=0}.
+     Each of the @m{\epsilon,\sigma_{xx},\sigma_{yy},\sigma_{xy}} values can be
+     a real number or @link{complex}{complex} number.
+
+  @* @c{s:Paint(q,col,@m{\epsilon},@_@~@~@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}},@m{f})}
+  @| Similar to the @c{Paint()} function above except that the excitation value
+     @m{f} is also specified. It can be a real number or
+     @link{complex}{complex} number. If @m{f} is not given then the default is
+     zero. To scale @m{f} so that @c{q} emits amplitudes similar to ports,
+     use a scale for @m{f} similar to @c{util.KinM()/short_dimension_of_q_in_meters}.
+
+  @* @c{s:Paint(q,col,function(x,y)@_@~@~...@_@~@~return @m{\epsilon},@m{\sigma_{xx}},@m{\sigma_{yy}},@m{\sigma_{xy}},@m{f}@_end)}
+  @| Similar to the @c{Paint()} function above except that the @m{\epsilon},
+     @m{\sigma}, and @m{f} values are specified with a function that takes
+     @c{x,y} coordinates and returns those values. The @m{\sigma} and @m{f}
+     values are optional (although if @m{f} is given then the @m{\sigma} values
+     must be given too). Each return value can be a real or complex number.
+     For performance reasons @c{x,y} are vectors of coordinates and the
+     returned values must be vectors of the same size. See the section on
+     @link{vectors}{Vectors}.
 }
 
 In the current implementation of @c{Paint()} the shape is split into several
@@ -804,7 +1553,7 @@ unmerged pieces with different material properties, so the shape piece and
 vertex access functions may return unexpected results after painting.
 
 @emph{Also note that in the current implementation of dielectrics, if
-dielectric-containing shapes are combined with others using the
+dielectric containing shapes are combined with others using the
 @c{+},@c{*},@c{-},@c{~} operators then the dielectric regions will be erased.
 This limitation will be corrected in a future version. This means that painting
 should generally be one of the last steps in model creation.}
@@ -831,16 +1580,109 @@ should generally be one of the last steps in model creation.}
 #############################################################################
 @section{Sweeps and Optimization}
 
-TODO: write me. NOTES:
-@list{
-@* Select parameters to optimize
-@* The ``invisible hand'' concept.
-@* How to write the @c{optimize()} function: don't square things, split
-   separate objectives into multiple return values.
+@subsection{@label{sweeps} Sweeps}
+
+The ``Solve / Sweep'' menu command creates a plot by sweeping a parameter over a
+range of values. For example, using this command on the
+@c{model_ALMA_coupler_Exy.lua} model (included with Rama) opens this dialog
+box:
+
+@figure{images/sweep_dialog.png}{}
+
+The ``parameter to sweep'' is one of the parameters defined by the model.
+The start and end values default to the min and max values of the parameter.
+The ``number of steps'' is the number of solves that will be done as the
+parameter goes from the start to the end value.
+
+If the filename text box is filled in (either by entering a filename there or
+by selecting the Browse button) then after each solve the model window will be
+saved to a PNG image. The filename must end in @c{.png} and contain a @c{@#}
+which will be substituted for the step number.
+
+Once the sweep has completed the sweep tab will show a plot of the results:
+
+@figure{images/sweep_results.png}{}
+
+Within the plot window, zoom in by left clicking and dragging to select an area
+of the plot. Zoom out to the previous view by right clicking.
+
+If the ``Plot test()'' checkbox was not ticked, the plot will show the
+S-parameters at each port, which is a measurement of the amount of power
+exiting the port (relative to the excited port).
+
+If the ``Plot test()'' checkbox was ticked, the plot will show the values returned
+by the @c{config.test} function.
+
+The multi-choice box that defaults to ``Magnitude'' can be used to select what
+is plotted, either the magnitude, phase or group delay of the plotted values.
+
+
+@subsection{@label{optimization} Optimization}
+
+Rama's optimizer adjusts selected parameters to improve the output of the
+@c{config.optimize} function. This can often be much faster than hand tuning
+parameters to find a desired configuration. For example, optimizing all 5
+geometry parameters in the @c{model_ALMA_coupler_Exy.lua} model (included with
+Rama) takes only a second or two.
+
+To use the optimizer, here are the steps:
+
+@numlist{
+@* Define the @c{config.optimize} function, referring to the
+   @link{configtable}{Config table} section. The optimizer will adjust
+   parameters to try to make all outputs of the @c{optimize} function as close
+   to zero as possible. There are a few tricks to writing this function to
+   achieve better performance:
+   @list{
+   @* If you are optimizing multiple things, return multiple values from
+      @c{optimize}. For example if you want the returned power from ports 1 and
+      2 to both be zero, you should @c{return port_power[1], port_power[2]}.
+      An alternative single return value is possible,
+      @c{return port_power[1]^2 + port_power[2]^2} and this will have the same
+      optimal point, but by combining both optimization targets into a single
+      return value you are removing information that the optimizer can use to
+      do a better job.
+   @* The optimizer tries to push all return values close to zero, so
+      negative return values will be pushed positively toward zero, and
+      positive return values will be pushed negatively toward zero.
+      There is no need to force return values to be positive, e.g. by squaring
+      values.
+   @* Complex return values can not be returned directly, return the real and
+      imaginary parts separately.
+   @* Where possible limit discontinuities in the @c{optimize} function.
+      For example @c{return port_power[1]} and @c{return math.abs(port_power[1])}
+      both express the same optimal point, but the discontinuity of the @c{abs}
+      function will make that optimization converge more slowly.
+   }
+@* Select the parameters to optimize by ticking the checkboxes to the left of
+   the parameter names. A range of checkboxes can be ticked by selecting one
+   and then selecting another with shift pressed. The more parameters are
+   selected, the longer optimization will take. Any parameter can be selected,
+   not just parameters that control the geometry.
+@* Move the selected parameters to their initial values. The optimization
+   will converge to a @emph{locally} optimal configuration that may be somewhat
+   close to the initial values. Better configurations that are further away may
+   not be explored unless you start with parameter values close to that.
+   So before optimization is attempted you should manually explore how the
+   solution looks across a range of parameter values, and start with parameter
+   values near to where you think a reasonable configuration is.
+@* (Optionally) select the optimization method with the ``Solve / Select
+   optimizer'' menu. For certain problems some techniques perform better than
+   others. The default Levenberg-Marquardt technique works for most problems.
+@* Run the optimizer with the ``Solve / Start optimization'' menu command.
+   The parameters will be adjusted and the field will be solved repeatedly as
+   the optimizer searches for a solution. If the process is taking too long
+   you can select ``Solve / Stop sweep or optimization'' to abort it.
+   When convergence is achieved a message will be displayed with convergence
+   information.
+@* If you are not happy with the solution, you can always tweak the parameter
+   values and try again, or change the set of parameters that is optimized.
+   It will often be necessary to tweak the @c{optimize} function to achieve
+   satisfactory results, after observing the results of a few optimizations.
 }
 
 #############################################################################
-@section{Multi-frequency solves}
+@section{@label{multifrequency} Multi-frequency solves}
 
 Often @c{config.frequency} is a single number, and each field solution is for
 that particular frequency. However @c{config.frequency} can be an array of
@@ -849,16 +1691,16 @@ to want this: wideband optimization and pulse visualization.
 
 @subsection{UI controls}
 
-If the current model has multiple frequencies then the "Frequency" spinner and
+If the current model has multiple frequencies then the ``Frequency'' spinner and
 slider at the top of the model window will be enabled, letting you select which
 of the solutions is currently displayed.
 
 Many functions in Rama will apply only to the currently displayed solution: for
 example, sweeps and the antenna plot.
 
-The "S Params" window plots the S parameters across all the frequencies in the
+The ``S Params'' window plots the S parameters across all the frequencies in the
 model. However if an S parameter plot is all that is desired it is generally
-simpler to use the Sweep command to sweep a frequency paramater.
+simpler to use the Sweep command to sweep a frequency parameter.
 Computing multiple frequencies can be slower per update, as the model needs to
 be solved multiple times.
 
@@ -880,7 +1722,7 @@ The @c{field.Ports()} function will return the arrays of @c{port_power} and
 
 @subsection{Pulse visualization}
 
-If the "Wideband pulse" checkbox is ticked and the model has solutions for
+If the ``Wideband pulse'' checkbox is ticked and the model has solutions for
 multiple frequencies then the displayed field is all solutions added together.
 This results in a pulse, i.e. a short time burst of energy. In many situations
 it can be instructive to look at how a pulse propagates through the system.
@@ -890,7 +1732,7 @@ number of values in @c{config.frequency}.
 When animating the pulse each solution is advanced in phase by the appropriate
 amount so the pulse stays coherent. Unlike the single frequency solution, the
 displayed field does not repeat for every turn of the time dial.
-The "Set animation time to 0" command can be used to reset the pulse to its
+The ``Set animation time to 0'' command can be used to reset the pulse to its
 starting state.
 
 There is one subtlety to consider when displaying pulses. The weight given to
@@ -915,117 +1757,80 @@ in a rectangle with 2:1 aspect ratio, modes 4 and 5 will have this issue. The
 best that the mode solver can do is find an orthogonal subspace for all modes
 with the same cutoff frequency.
 
+#############################################################################
+@section{Modeling}
 
-#############################################################################
-#############################################################################
-#############################################################################
+@subsection{Ports}
+
+Ports are line segments. Multiple co-linear ports with co-linear regular
+boundary segments in between are not supported - they will be merged into a
+single segment and the distinction between the ports will be lost. This happens
+because of a limitation in the Clipper library, that we should fix at some
+point.
+
+Ports in @c{Ez} and @c{Exy} cavities are intended to support the @m{TE_{10}}
+mode. For this to work, the port width for @c{Ez} or the cavity depth for
+@c{Exy} should be large enough to operate above the cutoff frequency of the
+waveguide. If the port is too wide, other modes will be possible but only the
+@m{TE_{10}} mode will be excited or absorbed. The waveguide should be constant
+width after the port, for a significant fraction of a wavelength, to ensure
+that the @m{TE_{10}} mode becomes established so that the simulation is
+physically meaningful for excited or absorbed waves.
+
+@subsection{Coordinates}
+
+To help deal with geometrical tolerancing issues within Rama, shape coordinates
+have a limited resolution. There are effectively 32 bits to the left and right
+of the decimal point. This quantizes coordinates to @m{2.3\times10^{-10}} and
+gives us a maximum coordinate of @m{\pm 2.1\times10^9}. This is generally not a
+problem: for @c{config.unit} set to meters, the quantization size is on the
+order of the atomic spacing in a crystal lattice. This does mean however that
+you should chose @c{config.unit} appropriately for your problem. For example,
+don't create a circle the diameter of the Earth in microns, because that's
+@m{1.3\times 10^{13}}. Use miles or kilometers instead.
+
+@subsection{Rama model errors}
+
+Here are things that Rama does not yet model. Correct modeling of these things
+may be implemented later, if there is need.
+
+@list{
+@*  Painting of dielectrics does not work in @c{Exy} cavities with finite
+    depth. Areas can be painted, and this will affect the solution, but the
+    solution will not satisfy Maxwell's equations and will not necessarily be
+    physically meaningful. Since this situation results in a 3D field with
+    complex structure, this limitation is not likely to be fixed.
+@*  Painting of constant dielectric areas works in @c{Ez} cavities and @c{Exy}
+    cavities with infinite depth, but painting of dielectric @emph{fields} does
+    not work in @c{Exy} cavities with infinite depth. This limitation will be
+    fixed once we add the dielectric term
+    @m{(\nabla \epsilon/\epsilon)\times(\nabla\times H)} to the Helmholtz
+    equation for such fields.
+@*  Dielectric painting does not work in @c{TE} and @c{TM} cavities.
+@*  Some ports on areas with non-default @m{\epsilon} or @m{\sigma} are not
+    well matched. This currently happens when
+    @list{
+    @* The @m{\epsilon} or @m{\sigma} values have imaginary components, meaning
+       there is attenuation or gain in the material.
+    @* @c{Ez} models have non-default @m{\sigma} values.
+    @* @c{Exy} models have non-default @m{\sigma} values and don't have a
+       principle axis of the anisotropy aligned with the port.
+    }
+    Ports that are not well matched do not deliver or absorb energy with
+    perfect efficiency. The effect is most noticeable at output ports where
+    there is some reflected wave. The S parameters computed at poorly matched
+    ports will not be correct.
+}
+
 #############################################################################
 @section{Rama Internals}
 
-This part of the manual is only useful if you want to do Rama software
-development.
+This is a random selection of documentation about the internals of Rama.
 
-@subsection{Building from source on windows}
+@subsection{Building from source}
 
-It is much more annoying to build on windows than on linux. We use the
-@c{x86_64-w64-mingw32} toolchain on cygwin so that we can (a) use GNU source on
-both linux and windows, and (b) still build native binaries on windows. The
-other major option (Visual C++) would compile much faster but also require a
-lot of Visual C++-specific modifications to the code. However building for
-@c{x86_64-w64-mingw32} is a big pain, because it mixes gnu-isms, linux-isms and
-windows-isms in a way that confuses many libraries. Therefore, many of the
-libraries below have to be built with a custom processes.
+See the @link{https://github.com/Evenedric/stuff}{instructions on github}.
 
-@subsubsection{Prerequisites}
-
-@list{
-@* Cygwin with @c{x86_64-w64-mingw32}, make (and other packages?)
-@* Matlab
-@* config.mk
-}
-
-@subsubsection{wxWidgets}
-
-wxWidgets is compiled to use its own internal implementations of vectors
-rather than the equivalent STL data structures. This is so we have the option
-to use the @c{_GLIBCXX_DEBUG} define in debug mode in the rest of the code.
-Using this flag causes STL data structures to change memory layout so it must
-be used consistently everywhere STL is used.
-
-wxWidgets is configured on Windows with:
-@===[
-./configure --host=x86_64-w64-mingw32 --disable-shared --disable-compat28 \
-            --with-opengl --with-msw --enable-http
-]===@
-
-@subsubsection{Eigen}
-
-Apply @c{eigen_patches.txt}.
-
-Eigen blas and lapack. From the eigen source directory:
-@===[
-mkdir build_dir
-cd build_dir
-make clean && cmake .. && make -j4 CMAKE_CXX_FLAGS=-mmacosx-version-min=10.9 \
-  CMAKE_C_FLAGS=-mmacosx-version-min=10.9 VERBOSE=1 blas lapack
-]===@
-
-@subsubsection{Triangle}
-
-The triangle library converts shape polygons into mesh triangles.
-
-@subsubsection{Clipper}
-@subsubsection{Lua}
-@subsubsection{Ceres}
-@subsubsection{ARPACK}
-
-@===[
-./configure --disable-alloca --with-our-malloc16 --disable-shared
-  --enable-static --disable-threads --enable-sse2 --host=x86_64-w64-mingw32
-]===@
-
-@subsubsection{Zlib}
-
-@subsubsection{Matlab (optional)}
-
-@subsubsection{Release process}
-
-@list{
-@* Update @c{__APP_VERSION__} in version.h before each binary release.
-@* Run Inno Setup Compiler.
-}
-
-
-@subsubsection{wxWidgets}
-
-wxWidgets is configured on OS X with:
-
-@===[
-# Patch with:
-patch -p1 < .../wxwidgets_patches.txt
-
-# Optimized:
-./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9
-
-# Debug
-./configure --disable-shared --disable-compat28 --with-opengl --enable-http --with-macosx-version-min=10.9 --enable-debug
-]===@
-
-
-@subsection{Design Notes}
-
-Just random notes for now.
-
-The ``invisible hand'' uses idle events to trigger recurrent processing of
-sweep and optimize updates while still being responsive to user input (mouse
-events etc). An alternative strategy is to use regular command events but call
-@c{wxTheApp->Yield(true)} before adding the next event within the event handler
-to ensure that those other events are processed. That however has reentrancy
-issues: arbitrary other class functions can be called, in particular the script
-may be re-run. Handling all those reentrancy issues separately is a pain, so we
-don't do that.
-
-#............................................................................
 @subsection{Computing the Jacobian}
 
 For optimization we need to compute derivatives of the @c{config.optimize}
@@ -1069,7 +1874,7 @@ and the @c{config.optimize} output. We use the chain rule to figure out
     can not simply replace those integers with @c{JetNum}. However each Clipper
     integer coordinate has an associated @c{Z} value, which we modify to
     contain the required derivatives. The @c{Z} derivatives for new vertices
-    introducted by Clipper are computed correctly by the Clipper
+    introduced by Clipper are computed correctly by the Clipper
     @c{ZFillCallback}.
 
     For simplicity below we enforce that @c{ScriptConfig} should not depend
@@ -1087,7 +1892,7 @@ and the @c{config.optimize} output. We use the chain rule to figure out
     we enforce that material settings can not depend on parameters.
 
     To compute @m{dM/dp} we associate boundary triangle edges to lines in
-    @m{dS/dp}, then then linearly interpolate from @m{dS/dp}. We assume that as
+    @m{dS/dp}, then linearly interpolate from @m{dS/dp}. We assume that as
     parameters changes only boundary triangles are affected, i.e. geometry
     changes are not propagated into interior triangles.
 
@@ -1116,7 +1921,7 @@ and the @c{config.optimize} output. We use the chain rule to figure out
     }
 
     The cost of this is one multiplication by @m{\del A / \del p} (which might
-    be cheap if it is sparse) and one solve with the already-factored
+    be cheap if it is sparse) and one solve with the already factored
     @m{A^{-1}}.
 
 @*  @m{dx/dp \rightarrow} Compute port powers @m{\rightarrow P}, where
@@ -1130,3 +1935,69 @@ Each @c{JetNum} contains the derivative with respect to just one parameter, so
 the above steps have to be done once per parameter. The @c{JetNum} could
 contain more derivatives but that would slow down the Lua interpreter, and we
 spend most of the time doing the matrix solves anyway.
+
+#############################################################################
+@section{Rama License}
+
+Rama is open source software that anyone is free to use and modify. It is
+licensed to you under the terms of the GNU General Public License, version 3
+(or @link{https://www.gnu.org/licenses/gpl-3.0.en.html}{GPLv3}).
+
+Rama is built upon many other open source software libraries, that each have
+their own licenses. Those other licenses are linked in the Rama
+@link{https://raw.githubusercontent.com/Evenedric/stuff/master/rama/COPYING}{COPYING file}.
+The licenses vary widely in what they permit, but the most restrictive of them
+are also GPLv3.
+
+For details of Rama's own license, please see the Rama
+@link{https://raw.githubusercontent.com/Evenedric/stuff/master/rama/COPYING}{COPYING file}.
+However, to summarise:
+
+@list{
+@* Anyone can use this software, free of charge. That includes private,
+   educational, and commercial use.
+@* Anyone can copy, modify and distribute this software.
+@* If you modify this software, your modifications must also be licensed under
+   GPLv3.
+@* If you distribute this software, those who receive it must inherit these same
+   rights and responsibilities.
+@* This software is provided without any warranty.
+@* The authors of this software can not be held liable for any damages inflicted
+   by the software.
+@* All copyrights are held by the respective authors.
+}
+
+#############################################################################
+@section{Change log}
+
+Here is what is added in each new version.
+
+@b{v0.36}
+@list{
+@* Added the ``coincident vertex rule'' for shape booleans.
+@* Added the shape @c{s.material} property.
+@* Added the shape vertex @c{kind0,kind1,dist0,dist1} properties
+@* Added @c{util.Dump()}.
+@* Fixed a bug that sometimes caused ports to be defective when added after
+   dielectric painting (consistent @c{EdgeInfo} on coincident vertices).
+@* Added @c{s:HasPorts()}.
+@* Warn about NaN derivatives in port callback values.
+@* Fix @c{field.Complex()} dummy evaluation.
+@* Warn about nonfinite or non number return values in @c{config.optimize()}.
+@* Fix @c{s:Grow} to work with two point polylines.
+@* Documented the @c{util} table.
+@* Added utilities for modeling the loss from good conductors (@c{PaintMetal}
+   and @c{PortMetal}).
+}
+
+@b{v0.37}
+@list{
+@* Support for @b{@c{ES}} cavities, for electrostatics.
+@* Added the @c{conj} field to complex numbers.
+@* Added @c{LoadSTL} functions to shape and @c{util}.
+@* Fix crashing bug for necked zero area polygons (in @c{SplitPolygonsAtNecks}).
+@* It's now an error if infinity is passed as a numerical arguments to a shape
+   function.
+@* Slightly improved display scaling of vector fields.
+@* Added examples: @c{capacitor_electrostatics.lua}, @c{photonic_nanojet.lua}
+}

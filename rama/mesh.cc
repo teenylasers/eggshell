@@ -1,3 +1,14 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include <math.h>
 #include <algorithm>
@@ -106,16 +117,73 @@ static void DeleteTriangulateIO(triangulateio *t) {
   delete[] t->normlist;
 }
 
+static void DumpTriangulateIO(const struct triangulateio &t, const char *msg)
+  __attribute__((unused));
+static void DumpTriangulateIO(const struct triangulateio &t, const char *msg) {
+  printf("%s struct triangulateio contains:\n", msg);
+  printf("\tPoints (numberofpoints=%d, numberofpointattributes=%d):\n",
+         t.numberofpoints, t.numberofpointattributes);
+  for (int i = 0; i < t.numberofpoints; i++) {
+    printf("\t\t%d: xy=%g,%g | marker=%d\n", i,
+           t.pointlist[2*i], t.pointlist[2*i+1], t.pointmarkerlist[i]);
+    // Ignored, we don't use: t.pointattributelist
+  }
+  printf("\tTriangles (numberoftriangles=%d, numberofcorners=%d, "
+         "numberoftriangleattributes=%d):\n",
+         t.numberoftriangles, t.numberofcorners, t.numberoftriangleattributes);
+  for (int i = 0; i < t.numberoftriangles; i++) {
+    CHECK(t.numberofcorners == 3);
+    printf("\t\t%d: %d %d %d | neighbors=%d %d %d | attr=", i,
+           t.trianglelist[i*3], t.trianglelist[i*3+1], t.trianglelist[i*3+2],
+           t.neighborlist[i*3], t.neighborlist[i*3+1], t.neighborlist[i*3+2]);
+    for (int j = 0; j < t.numberoftriangleattributes; j++) {
+      printf(" %g", t.triangleattributelist[i*t.numberoftriangleattributes+j]);
+    }
+    printf("\n");
+    // Ignored, we don't use: trianglearealist
+  }
+  printf("\tSegments (numberofsegments=%d):\n", t.numberofsegments);
+  for (int i = 0; i < t.numberofsegments; i++) {
+    printf("\t\t%d: %d %d | marker=%d\n", i,
+           t.segmentlist[i*2], t.segmentlist[i*2+1], t.segmentmarkerlist[i]);
+  }
+  printf("\tHoles (numberofholes=%d):\n", t.numberofholes);
+  for (int i = 0; i < t.numberofholes; i++) {
+    printf("\t\t%d: xy=%g,%g\n", i, t.holelist[i*2], t.holelist[i*2+1]);
+  }
+  printf("\tRegions (numberofregions=%d):\n", t.numberofregions);
+  for (int i = 0; i < t.numberofregions; i++) {
+    printf("\t\t%d: xy=%g,%g | attr=%g | area=%g\n", i, t.regionlist[i*4],
+           t.regionlist[i*4+1], t.regionlist[i*4+2], t.regionlist[i*4+3]);
+  }
+  // Ignored, we don't use: t.numberofedges, edgelist, edgemarkerlist, normlist
+};
+
 //***************************************************************************
 // Mesh.
 
-Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
+Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
   Trace trace(__func__);
+
+  // Find shape polygons with zero-width necks and split those into multiple
+  // pieces at the necks. This is needed because the clipper library is happy
+  // to regard polygons with zero width necks as a single polygon, but the
+  // triangle library regards the parts separated by the neck as distinct and
+  // gets confused because AnyPointInPoly() returns a point only inside one of
+  // them. We don't modify the shape argument, we make a local copy.
+  Shape s(s_arg);
+  s.SplitPolygonsAtNecks();
+
+  // Check for mesh validity.
   valid_mesh_ = false;          // Default assumption
   {
     const char *geometry_error = s.GeometryError();
     if (geometry_error) {
       ERROR_ONCE("Can not create mesh: %s", geometry_error);
+      return;
+    }
+    if (s.TotalArea() <= 0 || s.IsEmpty()) {
+      ERROR_ONCE("Can not create mesh from empty or zero area polygon");
       return;
     }
   }
@@ -136,24 +204,33 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
     return;
   }
 
+  // Save the shape width and height.
+  {
+    JetNum min_x, min_y, max_x, max_y;
+    s.GetBounds(&min_x, &min_y, &max_x, &max_y);
+    cd_width_ = ToDouble(max_x - min_x);
+    cd_height_ = ToDouble(max_y - min_y);
+  }
+
   // Identify negative area pieces that will become holes. For each hole pick
   // an x,y point that is guaranteed to be in the hole so that we can identify
   // it to the triangle library. This cumbersome way to identify holes (and
   // regions) is one of the main annoyances of the triangle library. If we have
   // split the model into unmergeable pieces with Paint() then polygon holes
   // may be enclosed by separate pieces but not actually be represented as
-  // negative area polygons. To properly identify the holes to the triangle
-  // library we need to run clipper to merge everything together and find any
-  // negative area polygons that result.
-  vector<RPoint> hole_points;
+  // negative area polygons. We can also have holes that are precisely filled
+  // by positive area polygons of different material. To properly identify the
+  // actual holes to the triangle library we need to run clipper to merge
+  // everything together and find any negative area polygons that result.
+  vector<RPoint> hole_points;   // One point inside each hole
   {
     Shape hole_finder;
     hole_finder.SetMerge(s);
     for (int i = 0; i < hole_finder.NumPieces(); i++) {
       if (hole_finder.Area(i) < 0) {
-        RPoint hole_point;
-        AnyPointInPoly(hole_finder.Piece(i), -1, &hole_point.p);
-        hole_points.push_back(hole_point);
+        double x, y;
+        CHECK(hole_finder.APointInside(i, &x, &y));
+        hole_points.push_back(RPoint(x, y));
       }
     }
   }
@@ -168,31 +245,93 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
     }
   }
 
-  // Make various point indexes. We remove all duplicate points and give the
-  // remaining points 'UPI's (unique point indexes). We make also a mapping
-  // from UPIs to Piece(i)[j) indexes (this clunky mapping could be avoided
-  // if we had a flattened points array and a pieces array which was offsets
-  // into it, but doing that would push some complexities elsewhere). Note that
-  // duplicate points might happen if there are unmerged polygons with
-  // different material types.
-  int count = 0;                                // Count of all polys_ points
-  for (int i = 0; i < s.NumPieces(); i++) {
-    count += s.Piece(i).size();
-  }
+  // Even though there can be duplicate points, we give all point coordinates
+  // 'UPI's (unique point indexes). Duplicate points occur when unmerged
+  // polygons with different material types come together. We insist that
+  // duplicate points nevertheless have the same EdgeInfo, so that later when
+  // we copy EdgeInfo from the shape into the mesh there is no ambiguity that
+  // leads to errors in port formation.
   typedef std::map<std::pair<JetNum, JetNum>, int> PointMap;
   PointMap point_map;                           // x,y -> UPI
-  vector<std::pair<int, int> > index_map;       // UPI -> polys[i].p[j]
+  vector<EdgeInfo> upi_edge_info;               // UPI --> edge info
+  int num_unique_points = 0;
   for (int i = 0; i < s.NumPieces(); i++) {
     for (int j = 0; j < s.Piece(i).size(); j++) {
       JetPoint p = s.Piece(i)[j].p;
-      if (point_map.count(std::make_pair(p[0], p[1])) == 0) {
+      auto it = point_map.find(std::make_pair(p[0], p[1]));
+      if (it == point_map.end()) {
         // This is a new point.
-        point_map[std::make_pair(p[0], p[1])] = index_map.size();
-        index_map.push_back(std::make_pair(i, j));
+        point_map[std::make_pair(p[0], p[1])] = num_unique_points;
+        upi_edge_info.push_back(s.Piece(i)[j].e);
+        num_unique_points++;
+      } else {
+        if (upi_edge_info[it->second] != s.Piece(i)[j].e) {
+          // Even though we found a bug, we don't CHECK() and crash, because
+          // ensuring this consistency is a little hard to get right and we
+          // don't want to render the program unusable in some weird corner
+          // case.
+          ERROR_ONCE("Internal error: "
+                     "Found duplicate points with inconsistent EdgeInfo");
+        }
       }
     }
   }
-  int num_unique_points = index_map.size();
+
+  // Make a reverse point index that maps unique point indexes to Piece(i)[j].
+  // In pass 0, for each Piece(i)[j] segment (i.e. from point j to j+1), figure
+  // out how many times that segment is used overall. Segments that are used
+  // just once are on the external boundary. For pass 1 and 2, make an
+  // index_map mapping from UPIs (at the start of a segment) to boundary
+  // Piece(i)[j] vertices (at the start of the same segment). Duplicate points
+  // that map to the same UPI happen if there are unmerged polygons with
+  // different material types, in which case a UPI could be mapped to multiple
+  // Piece(i)[j] segments, but we always select the one on the external
+  // boundary because the newly created mesh points will adopt the segment
+  // markers which are taken from this mapping, and we want those segment
+  // markers to indicate the correct boundary conditions.
+  std::map<std::pair<int, int>, int> seg_count;         // (UPI,UPI) --> count
+  vector<std::pair<int, int>> index_map(num_unique_points);  // UPI -> i,j
+  for (int i = 0; i < num_unique_points; i++) {
+    index_map[i] = std::make_pair(-1, -1);      // -1 means "unknown"
+  }
+  for (int pass = 0; pass < 3; pass++) {
+    for (int i = 0; i < s.NumPieces(); i++) {
+      for (int j = 0; j < s.Piece(i).size(); j++) {
+        JetPoint p1 = s.Piece(i)[j].p;
+        JetPoint p2 = s.Piece(i)[(j+1) % s.Piece(i).size()].p;
+        int upi1 = point_map[std::make_pair(p1[0], p1[1])];
+        int upi2 = point_map[std::make_pair(p2[0], p2[1])];
+        if (pass == 0) {
+          // Count segment use in pass 0.
+          seg_count[std::make_pair(upi1, upi2)]++;
+          seg_count[std::make_pair(upi2, upi1)]++;
+        } else if (pass == 1) {
+          int count = seg_count[std::make_pair(upi1, upi2)];
+          if (count == 1) {
+            // Give preference to boundary segments in pass 1.
+            if (index_map[upi1].first != -1) {
+              // In this (rare, usually degenerate) case a point is on many
+              // external boundary segments, e.g. if different material's
+              // polygons come together at a neck. This can not be represented
+              // by index_map so we fail. @@@ Fix this?
+              ERROR_ONCE("Internal error: "
+                         "Can not create mesh, polygons are necked");
+              return;
+            }
+            index_map[upi1] = std::make_pair(i, j);
+          }
+        } else {
+          // For unassigned interior points choose arbitrary segments in pass 2.
+          if (index_map[upi1].first == -1) {
+            index_map[upi1] = std::make_pair(i, j);
+          }
+        }
+      }
+    }
+  }
+  for (int i = 0; i < num_unique_points; i++) {
+    CHECK(index_map[i].first >= 0);     // Make sure all points assigned
+  }
 
   // Setup data structure for 'Triangle' library. Since we are dealing with one
   // or more closed polygons, the number of vertices is equal to the number of
@@ -205,6 +344,10 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
   // since 0 and 1 have a reserved meaning in the triangle library). Segments
   // are marked with -1-(the UPI of the first point in the edge). New vertices
   // in the triangulation will pick up the segment marker values.
+  int count = 0;                                // Count of all polys_ points
+  for (int i = 0; i < s.NumPieces(); i++) {
+    count += s.Piece(i).size();
+  }
   triangulateio tin, tout;
   memset(&tin, 0, sizeof(tin));
   memset(&tout, 0, sizeof(tout));
@@ -227,7 +370,9 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
     tin.pointmarkerlist[upi] = 2 + upi;
   }
   {
-    // Copy all segments. Filter out redundant segments.
+    // Copy all segments. Filter out redundant segments. The segment markers
+    // are set to (negative) unique index of the first point in the segment,
+    // minus one.
     typedef std::map<std::pair<int, int>, bool> SegmentMap;
     SegmentMap segment_map;
     int offset = 0;
@@ -321,7 +466,10 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
     EdgeInfo e;
     int marker = tout.pointmarkerlist[i];
     if (marker >= 2) {
-      // Output point was copied from input point. Copy EdgeInfo of input.
+      // Output point was copied from input point. Copy EdgeInfo of input. Here
+      // we rely on the fact, checked above, that duplicate points have
+      // consistent EdgeInfo, because we are copying the EdgeInfo from just one
+      // of those points.
       int upi = marker - 2;
       CHECK(upi < index_map.size());
       int piece = index_map[upi].first;
@@ -379,11 +527,12 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
     }
   }
 
-  // Copy shape materials
+  // Copy shape materials and port callbacks.
   materials_.resize(s.NumPieces());
   for (int i = 0; i < s.NumPieces(); i++) {
     materials_[i] = s.GetMaterial(i);
   }
+  port_callbacks_ = s.PortCallbacks();
 
   // Free heap allocated data. Note that holelist and regionlist are copied
   // from tin to tout so make sure not to free them twice.
@@ -396,7 +545,8 @@ Mesh::Mesh(const Shape &s, double longest_edge_permitted, Lua *lua) {
   UpdateDerivatives(s);
 
   if (lua) {
-    DeterminePointDielectric(lua, &dielectric_);
+    DeterminePointMaterial(lua, &mat_params_);
+    DetermineBoundaryParameters(lua, &boundary_params_);
   }
 }
 
@@ -408,7 +558,7 @@ void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
 
   if (draw_type == MESH_DIELECTRIC_REAL || draw_type == MESH_DIELECTRIC_IMAG ||
       draw_type == MESH_DIELECTRIC_ABS) {
-    if (dielectric_.empty()) {
+    if (mat_params_.empty()) {
       return;                             // Nothing to show
     }
     // Create color map.
@@ -430,11 +580,11 @@ void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
         int k = triangles_[i].index[j];
         double value;
         if (draw_type == MESH_DIELECTRIC_REAL) {
-          value = ToDouble(dielectric_[k].real());
+          value = ToDouble(mat_params_[k].epsilon.real());
         } else if (draw_type == MESH_DIELECTRIC_IMAG) {
-          value = ToDouble(dielectric_[k].imag());
+          value = ToDouble(mat_params_[k].epsilon.imag());
         } else {
-          value = ToDouble(abs(dielectric_[k]));
+          value = ToDouble(abs(mat_params_[k].epsilon));
         }
         int c = std::max(0, std::min(kNumColors - 1,
           int(round((value - minval) * (kNumColors / (maxval-minval))))));
@@ -616,24 +766,22 @@ int Mesh::FindTriangle(double x, double y) {
   return -1;
 }
 
-void Mesh::DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric) {
+void Mesh::DeterminePointMaterial(Lua *lua,
+                                  vector<MaterialParameters> *mat_params) {
   Trace trace(__func__);
+  mat_params->clear();
   bool have_callbacks = false;
   for (int i = 0; i < materials_.size(); i++) {
-    have_callbacks = have_callbacks || (!materials_[i].callback.empty());
+    have_callbacks = have_callbacks || materials_[i].callback.Valid();
   }
   if (!have_callbacks) {
-    dielectric->clear();
     return;
   }
-  dielectric->resize(points_.size());
-  // Set default to 1.
-  for (int i = 0; i < dielectric->size(); i++) {
-    (*dielectric)[i] = 1;
-  }
+  mat_params->resize(0);
+  mat_params->resize(points_.size());   // Sets material parameters to defaults
   for (int i = 0; i < materials_.size(); i++) {
-    // Skip materials without property callback functions.
-    if (materials_[i].callback.empty()) {
+    // Skip materials without parameter callback functions.
+    if (!materials_[i].callback.Valid()) {
       continue;
     }
     // Mark all points that are touched by this material.
@@ -652,7 +800,7 @@ void Mesh::DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric) {
     }
     if (count > 0) {
       // Push the callback function to the lua stack.
-      materials_[i].GetCallbackFromRegistry(lua->L());
+      materials_[i].callback.Push(lua->L());
       // Push vectors of x,y coordinates for marked points to the lua stack.
       LuaVector *x = LuaUserClassCreateObj<LuaVector>(lua->L());
       LuaVector *y = LuaUserClassCreateObj<LuaVector>(lua->L());
@@ -668,27 +816,116 @@ void Mesh::DeterminePointDielectric(Lua *lua, vector<JetComplex> *dielectric) {
       }
       // Call the callback function. RunCallback() will pop the callback
       // function and arguments.
-      LuaVector *result[2];
-      if (!materials_[i].RunCallback(lua, result)) {
+      vector<MaterialParameters> result;
+      if (!materials_[i].RunCallback(lua, false, &result)) {
         // A lua error message will have been displayed at this point.
-        dielectric->clear();
+        mat_params->clear();
         return;
       }
-      // Set point dielectric properties from the callback function's results.
-      count = 0;
+      // Set point material properties from the callback function's results.
+      int index = 0;
       for (int j = 0; j < mark.size(); j++) {
         if (mark[j]) {
-          if (result[1]) {
-            (*dielectric)[j] = JetComplex((*result[0])[count],
-                                          (*result[1])[count]);
-          } else {
-            (*dielectric)[j] = (*result[0])[count];
-          }
+          (*mat_params)[j] = result[index];
         }
-        count += mark[j];
+        index += mark[j];
       }
+      CHECK(index == count);
     }
   }
+}
+
+void Mesh::DetermineBoundaryParameters(Lua *lua,
+                                std::map<RobinArg, RobinRet> *boundary_params) {
+  Trace trace(__func__);
+  boundary_params->clear();
+  int original_top = lua_gettop(lua->L());
+
+  // Scan the boundary and create lists of arguments that will be passed to
+  // Robin(), indexed by port number.
+  std::map<int, vector<RobinArg>> args;
+  std::map<int, vector<double>> dist;   // Argument to callbacks
+  std::map<int, vector<JetPoint>> xy;   // Argument to callbacks
+  for (BoundaryIterator it(this); !it.done(); ++it) {
+    int p = it.kind().PortNumber();
+    if (p) {
+      // First point of the boundary edge.
+      args[p].push_back(RobinArg(it.tindex(), it.tside(), it.tside()));
+      dist[p].push_back(it.dist1());
+      xy[p].push_back(points_[it.pindex1()].p);
+
+      // Second point of the boundary edge.
+      args[p].push_back(RobinArg(it.tindex(), it.tside(), (it.tside() + 1) % 3));
+      dist[p].push_back(it.dist2());
+      xy[p].push_back(points_[it.pindex2()].p);
+    }
+  }
+
+  // For all port numbers with callback functions, generate boundary
+  // parameters.
+  for (auto it : args) {
+    int port_number = it.first;
+    if (port_callbacks_.count(port_number) == 0) {
+      continue;
+    }
+    vector<RobinArg> &arg = it.second;
+    port_callbacks_[port_number].Push(lua->L());                // fn
+
+    // Create the Lua vectors that will be passed to the callback function.
+    LuaVector *d = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d
+    LuaVector *x = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d x
+    LuaVector *y = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d x y
+    d->resize(arg.size());
+    x->resize(arg.size());
+    y->resize(arg.size());
+    for (int i = 0; i < arg.size(); i++) {
+      (*d)[i] = dist[port_number][i];
+      (*x)[i] = xy[port_number][i][0];
+      (*y)[i] = xy[port_number][i][1];
+    }
+
+    // Call the function, check the return values.
+    // @@@ This duplicates code in Material::RunCallback, share the code?
+    int n = lua_gettop(lua->L()) - 3;     // First return argument slot
+    int code = lua->PCall(3, LUA_MULTRET);            // ret1 ret2
+    if (code != LUA_OK) {
+      return;
+    }
+    int nret = lua_gettop(lua->L()) - n + 1;
+    if (nret != 2) {
+      Error("Port callback should return 2 boundary parameters");
+      return;
+    }
+    vector<vector<JetComplex>> vec(nret);
+    for (int i = 0; i < nret; i++) {
+      if (!ToJetComplexVector(lua->L(), n + i, &vec[i])) {
+        Error("Invalid vectors (or complex vectors) returned by port "
+              "callback");
+        return;
+      }
+      if (vec[i].size() != arg.size()) {
+        Error("Port callback should return vectors (or complex "
+              "vectors) of the same size as the d,x,y arguments");
+        return;
+      }
+      for (int j = 0; j < vec[i].size(); j++) {
+        if (IsNaNValue(vec[i][j].real()) || IsNaNValue(vec[i][j].imag())) {
+          Error("A NaN (not-a-number) was returned by a callback, "
+                "in position %d of return value %d", j+1, i+1);
+          return;
+        } else if (isnan(vec[i][j].real()) || isnan(vec[i][j].imag())) {
+          Warning("A NaN (not-a-number) derivative was returned by a callback, "
+                  "in position %d of return value %d\n"
+                  "This will prevent the optimizer from working.", j+1, i+1);
+        }
+      }
+    }
+    for (int i = 0; i < arg.size(); i++) {
+      (*boundary_params)[arg[i]] = RobinRet(vec[0][i], vec[1][i]);
+    }
+    lua_pop(lua->L(), 2);                             // empty stack
+  }
+  CHECK(lua_gettop(lua->L()) == original_top);
 }
 
 //***************************************************************************

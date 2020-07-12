@@ -1,3 +1,14 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include "lua_util.h"
 #include <string.h>
@@ -21,9 +32,9 @@ static const char *LuaStrerror(int err) {
     case LUA_ERRRUN: return "Script could not run";
     case LUA_ERRSYNTAX: return "Script syntax error";
     case LUA_ERRMEM: return "Memory allocation error";
-    case LUA_ERRGCMM: return "Script error while running a __gc metamethod";
     case LUA_ERRERR: return "Script error while running the message handler";
     case LUA_ERRFILE: return "Script file can not be read";
+    case LUA_YIELD: return "The thread (coroutine) yields";
     default: return "Unknown error while running Lua";
   }
 }
@@ -327,12 +338,12 @@ void Lua::UseStandardLibraries(bool safe) {
   lua_settop(L_, top);
 }
 
-bool Lua::RunString(const std::string &script, bool run_it) {
-  return Run(script, false, run_it);
+bool Lua::RunString(const std::string &script, bool run_it, const char *name) {
+  return Run(script, false, run_it, name);
 }
 
 bool Lua::RunFile(const std::string &filename, bool run_it) {
-  return Run(filename, true, run_it);
+  return Run(filename, true, run_it, 0);
 }
 
 int Lua::Print() {
@@ -353,16 +364,16 @@ static int StringWriter(lua_State *L, const void *p, size_t sz, void *ud) {
   return 0;
 }
 
-void Lua::Dump(std::string *s, bool strip) {
-  CHECK(lua_gettop(L_) >= 1);
-  CHECK(lua_type(L_, -1) == LUA_TFUNCTION);
+void LuaDump(lua_State *L, std::string *s, bool strip) {
+  CHECK(lua_gettop(L) >= 1);
+  CHECK(lua_type(L, -1) == LUA_TFUNCTION);
   s->clear();
-  lua_dump(L_, StringWriter, s, strip);
+  lua_dump(L, StringWriter, s, strip);
 }
 
-void Lua::Hash(std::string *hash, bool strip) {
+void LuaHash(lua_State *L, std::string *hash, bool strip) {
   std::string dump;
-  Dump(&dump, strip);
+  LuaDump(L, &dump, strip);
   md5_state_t ms;
   md5_init(&ms);
   md5_append(&ms, (const md5_byte_t*) dump.data(), dump.size());
@@ -371,7 +382,8 @@ void Lua::Hash(std::string *hash, bool strip) {
   hash->assign((char*) digest, sizeof(digest));
 }
 
-bool Lua::Run(const std::string &s, bool s_is_filename, bool run_it) {
+bool Lua::Run(const std::string &s, bool s_is_filename, bool run_it,
+              const char *name) {
   there_were_errors_ = false;
   int top = lua_gettop(L_);
 
@@ -380,7 +392,7 @@ bool Lua::Run(const std::string &s, bool s_is_filename, bool run_it) {
   if (s_is_filename) {
     err = luaL_loadfile(L_, s.c_str());
   } else {
-    err = luaL_loadbuffer(L_, s.data(), s.size(), NULL);
+    err = luaL_loadbuffer(L_, s.data(), s.size(), name);
   }
   if (err != LUA_OK) {
     char buffer[1000];

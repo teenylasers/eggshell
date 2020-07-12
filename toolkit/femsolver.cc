@@ -1,3 +1,14 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 // Testing for FEMSolver.
 
@@ -228,9 +239,6 @@ TEST_FUNCTION(ComputeSolutionDerivative) {
     ExampleFEMProblem::Number value = solver.triplets[i].value();
     double deriv = RandDouble() * 2 - 1;
     dAdp(solver.triplets[i].row(), solver.triplets[i].col()) += deriv;
-    if (solver.triplets[i].col() != solver.triplets[i].row()) {
-      dAdp(solver.triplets[i].col(), solver.triplets[i].row()) += deriv;
-    }
     value.derivative = deriv;
     new_triplets.push_back(ExampleFEMProblem::Triplet(
           solver.triplets[i].row(), solver.triplets[i].col(), value));
@@ -278,8 +286,8 @@ TEST_FUNCTION(EigenSystem) {
 
   // Make sure A*x = lambda*B*x for all x,lambda.
   Eigen::SparseMatrix<double> A, B;
-  solver.GetSystemMatrix(solver.triplets, &A, true);
-  solver.GetSystemMatrix(solver.Gtriplets, &B, true);
+  solver.GetSystemMatrix(solver.triplets, &A);
+  solver.GetSystemMatrix(solver.Ctriplets, &B);
   for (int i = 0; i < 5; i++) {
     const Eigen::VectorXd vec = solver.GetRawEigenvector(i);
     Eigen::VectorXd error = A*vec - solver.GetEigenvalue(i)*B*vec;

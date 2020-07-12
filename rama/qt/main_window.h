@@ -1,3 +1,15 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+
 #ifndef __MAIN_WINDOW_H__
 #define __MAIN_WINDOW_H__
 
@@ -17,10 +29,13 @@ public:
   explicit MainWindow(QWidget *parent = 0);
   ~MainWindow();
 
+  void ToggleRunTestAfterSolve();
+  void ScriptTestMode();
   void LoadFile(const QString &full_path);
   bool ReloadScript(bool rerun_even_if_same);
   void OnFileChanged(const QString &path);
   void ReloadTimeout();
+  void SetCommandLineArguments(int argc, char **argv);
 
 private slots:
   void ResetCurrentModelBackground();
@@ -38,7 +53,8 @@ private slots:
   void on_actionZoomExtents_triggered();
   void on_actionZoomIn_triggered();
   void on_actionZoomOut_triggered();
-  void on_actionViewLinesAndPorts_triggered();
+  void on_actionViewLines_triggered();
+  void on_actionViewPorts_triggered();
   void on_actionViewVertices_triggered();
   void on_actionViewVertexDerivatives_triggered();
   void on_actionShowGrid_triggered();
@@ -65,6 +81,7 @@ private slots:
   void on_mode_number_valueChanged(int arg1);
   void on_display_style_Ez_currentIndexChanged(int index);
   void on_display_style_Exy_currentIndexChanged(int index);
+  void on_display_style_ES_currentIndexChanged(int index);
   void on_display_style_TM_currentIndexChanged(int index);
   void on_display_style_TE_currentIndexChanged(int index);
   void on_copy_to_clipboard_clicked();
@@ -75,13 +92,18 @@ private slots:
   void on_sparam_plot_type_currentIndexChanged(int index);
   void on_show_sparams_stateChanged(int arg1);
   void on_time_dial_valueChanged(int value);
-
   void on_actionSet_animation_time_to_0_triggered();
+  void on_actionRunTest_triggered();
+  void on_actionShowSParameters_triggered();
+  void on_actionSwitchToModelAfterEachSolve_triggered();
+  void on_actionExportAntennaPatternAsMatlabData_triggered();
+  void on_actionIncrease_animation_time_triggered();
+  void on_actionDecrease_animation_time_triggered();
 
 private:
-  Ui::MainWindow *ui;
+  Ui::MainWindow *ui = 0;
   QString script_filename_;
-  bool autorun_;
+  bool autorun_ = true;
   QFileSystemWatcher watcher_;
 
   void UpdateDisplayStyle(int index);

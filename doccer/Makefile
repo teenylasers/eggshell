@@ -3,7 +3,7 @@ APP=doccer.exe
 
 GENERATED_FILES=doccer_lexxer.cc  doccer_parser.cc  doccer_parser.h
 
-CFLAGS=-Wall -Wno-sign-compare -g -MMD
+CFLAGS=-Wall -Wno-sign-compare -g -MMD -std=c++11
 
 all: $(APP)
 

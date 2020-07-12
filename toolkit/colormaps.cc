@@ -1,3 +1,14 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include <math.h>
 #include <algorithm>
@@ -62,6 +73,13 @@ void Copper(float x, float rgb[3]) {
 
 void Wheel(float x, float rgb[3]) {
   Jet(fmodf(x * 8.0f, 1.0f), rgb);
+}
+
+void Wave(float x, float rgb[3]) {
+  rgb[0] = std::min(1.0f, std::max(0.0f, 0.3f - 0.6f*x) +
+           std::max(0.0f, (x - 0.5f)/0.3f));
+  rgb[1] = std::min(0.8f, x*4/3) + std::max(0.0f, x - 0.8f);
+  rgb[2] = std::min(1.0f, x + 0.8f) - fabsf(x - 0.2f)/0.9f;
 }
 
 }  // namespace ColorMap

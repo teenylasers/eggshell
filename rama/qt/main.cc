@@ -1,3 +1,15 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+
 #include "main_window.h"
 #include "../../toolkit/error.h"
 #include "../../toolkit/crash_handler.h"
@@ -13,9 +25,9 @@ int main(int argc, char *argv[]) {
     SetupCrashHandling();
   #endif
 
-  // If the -test flag is given on the command line, run all tests and exit.
+  // If the -unittest flag is given on the command line, run all tests and exit.
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-test") == 0) {
+    if (strcmp(argv[i], "-unittest") == 0) {
       testing::RunAll();
       exit(0);
     }
@@ -53,8 +65,17 @@ int main(int argc, char *argv[]) {
   SetErrorHandler(new qtErrorHandler);
 
   // Start the main window. If a filename was specified on the command line,
-  // load it.
+  // load it. If the -test flag is given on the command line then run the
+  // test() function in that file then exit.
   MainWindow w;
+  w.SetCommandLineArguments(argc, argv);
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-test") == 0) {
+      w.ToggleRunTestAfterSolve();
+      w.ScriptTestMode();
+      break;
+    }
+  }
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
       w.LoadFile(argv[i]);

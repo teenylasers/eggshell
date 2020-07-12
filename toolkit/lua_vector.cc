@@ -1,3 +1,15 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+
 #include "lua_vector.h"
 
 #define COMMA ,         // Used to pass commas as macro arguments
@@ -5,21 +17,27 @@
 // Given arguments to a binary operator at positions 1 and 2 on the stack,
 // return the corresponding LuaVector objects and the scalar to use when either
 // of the object pointers is 0. Return the result vector to populate. Generate
-// an error for bad arguments.
+// an error for bad arguments. If the second argument is not given it defaults
+// to the scalar 1, this behavior is used by atan() to match math.atan().
 static inline LuaVector *BinaryOperatorArguments(
-       lua_State *L, LuaVector **op1_ret, LuaVector **op2_ret, JetNum *scalar) {
+       lua_State *L, LuaVector **op1_ret, LuaVector **op2_ret, JetNum *scalar,
+       bool arg2_defaults_to_1 = false) {
+  int top = lua_gettop(L);
   LuaVector *op1 = LuaCastTo<LuaVector>(L, 1);
-  LuaVector *op2 = LuaCastTo<LuaVector>(L, 2);
+  LuaVector *op2 = (top >= 2) ? LuaCastTo<LuaVector>(L, 2) : 0;
   int n = 0;
   *scalar = 0;
   if (op1 && op2 && op1->size() == op2->size()) {
     n = op1->size();
-  } else if (op1 && lua_type(L, 2) == LUA_TNUMBER) {
+  } else if (op1 && top >= 2 && lua_type(L, 2) == LUA_TNUMBER) {
     n = op1->size();
     *scalar = lua_tonumber(L, 2);
   } else if (op2 && lua_type(L, 1) == LUA_TNUMBER) {
     n = op2->size();
     *scalar = lua_tonumber(L, 1);
+  } else if (op1 && top == 1 && arg2_defaults_to_1) {
+    n = op1->size();
+    *scalar = 1;
   } else {
     LuaError(L, "Operands must be two vectors of the same size or a vector "
                 "and a scalar");
@@ -91,8 +109,8 @@ bool LuaVector::Operator(lua_State *L, int op, int pos) {
 
   // Handle binary operators with vector or scalar arguments. We would like the
   // ==,<,<= operators to return vectors of 0 or 1 but the result of those
-  // operators is always converted to a boolean, so we have separete functions
-  // in the 'vec' table for them instead.
+  // metatable operators is always converted to a boolean, so we have separate
+  // functions in the 'vec' table for them instead.
   LuaVector *op1, *op2;
   JetNum scalar;
   LuaVector *result = BinaryOperatorArguments(L, &op1, &op2, &scalar);
@@ -130,7 +148,8 @@ int LuaVector::LuaResize(lua_State *L) {
     LuaError(L, "Argument to resize must be an integer >= 0");
   }
   resize(nn);
-  return 0;
+  lua_pop(L, 1);
+  return 1;             // Return the vector
 }
 
 void LuaVector::SetLuaGlobals(lua_State *L) {
@@ -157,7 +176,6 @@ void LuaVector::SetLuaGlobals(lua_State *L) {
   MATHFUNC1(abs)
   MATHFUNC1(acos)
   MATHFUNC1(asin)
-  MATHFUNC1(atan)
   MATHFUNC1(ceil)
   MATHFUNC1(cos)
   MATHFUNC1(exp)
@@ -168,14 +186,20 @@ void LuaVector::SetLuaGlobals(lua_State *L) {
   MATHFUNC1(sqrt)
   MATHFUNC1(tan)
 
-  #define MATHFUNC2(name, fn, op) \
+  #define MATHFUNC2(name, fn, op, arg2default1) \
     lua_pushcclosure(L, [](lua_State *L) -> int { \
-      if (lua_gettop(L) != 2) { \
-        LuaError(L, #name "() expecting 2 arguments"); \
+      if (arg2default1) { \
+        if (lua_gettop(L) != 1 && lua_gettop(L) != 2) { \
+          LuaError(L, #name "() expecting 1 or 2 arguments"); \
+        } \
+      } else { \
+        if (lua_gettop(L) != 2) { \
+          LuaError(L, #name "() expecting 2 arguments"); \
+        } \
       } \
       LuaVector *op1, *op2; \
       JetNum scalar; \
-      LuaVector *result = BinaryOperatorArguments(L, &op1, &op2, &scalar); \
+      LuaVector *result = BinaryOperatorArguments(L, &op1, &op2, &scalar, arg2default1); \
       int n = result->v_.size(); \
       if (!op1) { \
         for (int i = 0; i < n; i++) result->v_[i] = fn(scalar op op2->v_[i]); \
@@ -189,14 +213,26 @@ void LuaVector::SetLuaGlobals(lua_State *L) {
     }, 0); \
     LuaRawSetField(L, -2, #name);
 
-  MATHFUNC2(fmod, fmod, COMMA)
-  MATHFUNC2(atan2, atan2, COMMA);
-  MATHFUNC2(eq, , ==);
-  MATHFUNC2(ne, , !=);
-  MATHFUNC2(lt, , <);
-  MATHFUNC2(gt, , >);
-  MATHFUNC2(le, , <=);
-  MATHFUNC2(ge, , >=);
+  MATHFUNC2(fmod, fmod, COMMA, false)
+  MATHFUNC2(atan, atan2, COMMA, true)
+  MATHFUNC2(atan2, atan2, COMMA, false);
+  MATHFUNC2(eq, , ==, false);
+  MATHFUNC2(ne, , !=, false);
+  MATHFUNC2(lt, , <, false);
+  MATHFUNC2(gt, , >, false);
+  MATHFUNC2(le, , <=, false);
+  MATHFUNC2(ge, , >=, false);
+
+  // The vec.IsVector function.
+  lua_pushcfunction(L, [](lua_State *L) -> int {
+    if (lua_gettop(L) != 1) {
+      LuaError(L, "IsVector() expecting 1 argument");
+    }
+    LuaVector *arg = LuaCastTo<LuaVector>(L, 1);
+    lua_pushboolean(L, arg != 0);
+    return 1;
+  });
+  LuaRawSetField(L, -2, "IsVector");
 
   lua_setglobal(L, "vec");
 }

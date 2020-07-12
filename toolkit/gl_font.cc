@@ -1,3 +1,14 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #define GL_FONT_IMPLEMENTATION
 
@@ -48,84 +59,6 @@ void DrawStringM(const char *s, double x, double y, double z,
 }
 
 //***************************************************************************
-// wxWidgets implementation
-
-#ifdef __TOOLKIT_WXWINDOWS__
-
-#include "stdwx.h"
-
-void RenderDrawStrings(QWidget *) {
-  glBlendFunc(GL_ZERO, GL_SRC_COLOR);   // Blending mode ensures text background
-  glEnable(GL_BLEND);                   //   is transparent
-
-  // Shader with pixel coordinate mapping.
-  static gl::Shader shader(
-    // Vertex shader.
-    " #version 330 core\n"
-    " uniform float vwidth, vheight; "  // Viewport width and height
-    " uniform float x, y; "             // Screen coordinates of image TL
-    " in vec2 vertex;"
-    " out vec2 tex_coord;"
-    " void main() {"
-    "   gl_Position = vec4((x + vertex.x) * 2.0 / vwidth - 1.0,"
-    "                      (y - vertex.y) * 2.0 / vheight - 1.0, 0, 1);"
-    "   tex_coord = vertex.xy;"
-    " }",
-    // Fragment shader.
-    " #version 330 core\n"
-    " uniform sampler2DRect tex;"
-    " in vec2 tex_coord;"
-    " out vec4 frag_color;"
-    " void main() {"
-    "   frag_color = texture(tex, tex_coord);"
-    " }");
-  gl::PushShader push_shader(shader);
-  GLint V[4];                           // viewport x,y,width,height
-  glGetIntegerv(GL_VIEWPORT, V);
-  gl::SetUniform("vwidth", V[2]);
-  gl::SetUniform("vheight", V[3]);
-
-  for (int i = 0; i < strings.size(); i++) {
-    StringToDraw &s = strings[i];
-
-    // Create the memory DC and measure the text.
-    wxMemoryDC memdc;
-    memdc.SetFont(*s.font->font);
-    wxCoord w, h, descent;
-    memdc.GetTextExtent(s.s.c_str(), &w, &h, &descent);
-    AlignText(w, h, descent, s.halign, s.valign, false, &s.x, &s.y);
-
-    // Create the bitmap to render into and set text rendering mode.
-    wxBitmap bitmap(w, h);                //@@@ cache bitmaps or DCs?
-    memdc.SelectObject(bitmap);
-    memdc.SetTextBackground(*wxWHITE);
-    memdc.SetTextForeground(*wxBLACK);
-    memdc.SetBackgroundMode(wxPENSTYLE_SOLID);
-    memdc.DrawText(s.s.c_str(), 0, 0);
-    memdc.SelectObject(wxNullBitmap);     // Now bitmap data can be used
-    memdc.SetFont(wxNullFont);
-    gl::SetUniform("x", s.x);
-    gl::SetUniform("y", s.y);
-
-    // Render the image.
-    wxImage image = bitmap.ConvertToImage();
-    gl::TextureRectangle tex(image.GetWidth(), image.GetHeight(),
-                             image.GetData());
-    tex.Bind();
-    float iw = image.GetWidth(), ih = image.GetHeight();
-    float xy[][2] = {{0, 0}, {iw, 0}, {0, ih}, {iw, ih}};
-    gl::VertexBuffer<float[2]> buffer(4, xy);
-    buffer.Specify1("vertex", 0, 2, GL_FLOAT);
-    buffer.Draw(GL_TRIANGLE_STRIP);
-  }
-  glDisable(GL_BLEND);
-
-  strings.clear();
-}
-
-#endif  // __TOOLKIT_WXWINDOWS__
-
-//***************************************************************************
 // Qt implementation
 
 #ifdef QT_CORE_LIB
@@ -145,7 +78,7 @@ void RenderDrawStrings(QWidget *win) {
     double y = win->height() - s.y / scale;
 
     // Measure and align the text.
-    double w = s.font->fm->width(s.s.c_str());
+    double w = s.font->fm->size(0, s.s.c_str()).width();
     double h = s.font->fm->height();
     double ascent = s.font->fm->ascent();
     double descent = s.font->fm->descent();
@@ -159,6 +92,12 @@ void RenderDrawStrings(QWidget *win) {
     painter.drawText(QPointF(x, y + ascent - 1), s.s.c_str());
   }
   strings.clear();
+}
+
+void DrawStringGetSize(const char *s, const Font *font,
+                       double *width, double *height) {
+  *width = font->fm->size(0, s).width();
+  *height = font->fm->height();
 }
 
 #endif  // QT_CORE_LIB

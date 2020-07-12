@@ -1,3 +1,14 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include <algorithm>
 #include <string>
@@ -23,6 +34,7 @@
 #include <QApplication>
 #include <QAbstractEventDispatcher>
 #include <QTimer>
+#include <QScreen>
 
 using std::vector;
 using std::string;
@@ -105,6 +117,11 @@ class MyLua : public Lua {
   // Implement lua DrawText().
   int LuaDrawText() {
     return model_->LuaDrawText(L());
+  }
+
+  // Implement lua _DistanceScale().
+  int LuaDistanceScale() {
+    return model_->LuaDistanceScale(L());
   }
 
   // Create jets with derivatives (for debugging).
@@ -340,9 +357,11 @@ void MySlider::OnValueChanged(int value) {
 //***************************************************************************
 // LuaModelViewer.
 
-//@@@ gl_type ignored here is the GL state is set globally, hmm.
+//@@@ No way is provided here to set the GL window type (e.g. double buffered,
+//    multi-sample, etc), on Qt that is set globally. Perhaps we should have
+//    that capability here?
 
-LuaModelViewer::LuaModelViewer(QWidget *parent, int gl_type)
+LuaModelViewer::LuaModelViewer(QWidget *parent)
     : GLViewer(parent) {
   valid_ = false;
   dragging_marker_ = -1;
@@ -361,10 +380,13 @@ LuaModelViewer::LuaModelViewer(QWidget *parent, int gl_type)
   num_ticked_count_ = 0;
   derivative_index_ = 0;
   rebuild_parameters_ = false;
-  colormap_ = ColorMap::Jet;
+  colormap_ = ColorMap::Wave;
   brightness_ = 500;
   antialiasing_ = true;
   show_markers_ = true;
+  run_test_after_solve_ = false;
+  script_test_mode_ = false;
+  switch_to_model_after_each_solve_ = true;
 
   // Setup the camera for 2D operation. This can be changed in a subclass.
   SetPerspective(false);
@@ -401,6 +423,9 @@ void LuaModelViewer::IdleProcessing() {
   // This is called from a single shot QTimer or when the event loop is about
   // to block (i.e. when there is no other work to do in the system. It's a
   // good place to start traces and to collect trace reports.
+  if (disable_idle_processing_) {
+    return;
+  }
   string report;
   TraceReport(&report);
   if (!report.empty() && emit_trace_report_) {
@@ -462,20 +487,26 @@ void LuaModelViewer::ToggleShowMarkers() {
   update();
 }
 
+void LuaModelViewer::ToggleSwitchToModelAfterEachSolve() {
+  switch_to_model_after_each_solve_ = !switch_to_model_after_each_solve_;
+}
+
 void LuaModelViewer::SetDisplayColorScheme(int color_scheme) {
   if (color_scheme == 0) {
-    colormap_ = ColorMap::Jet;
+    colormap_ = ColorMap::Wave;
   } else if (color_scheme == 1) {
-    colormap_ = ColorMap::Hot;
+    colormap_ = ColorMap::Jet;
   } else if (color_scheme == 2) {
-    colormap_ = ColorMap::Gray;
+    colormap_ = ColorMap::Hot;
   } else if (color_scheme == 3) {
-    colormap_ = ColorMap::HSV;
+    colormap_ = ColorMap::Gray;
   } else if (color_scheme == 4) {
-    colormap_ = ColorMap::Bone;
+    colormap_ = ColorMap::HSV;
   } else if (color_scheme == 5) {
-    colormap_ = ColorMap::Copper;
+    colormap_ = ColorMap::Bone;
   } else if (color_scheme == 6) {
+    colormap_ = ColorMap::Copper;
+  } else if (color_scheme == 7) {
     colormap_ = ColorMap::Wheel;
   } else {
     Panic("Internal: bad color_scheme = %d", color_scheme);
@@ -490,7 +521,8 @@ void LuaModelViewer::SetBrightness(int brightness) {
 
 void LuaModelViewer::Sweep(const string &parameter_name,
                            double start_value, double end_value,
-                           int num_steps) {
+                           int num_steps, bool sweep_over_test_output,
+                           const string &image_filename) {
   if (!IsModelValid()) {
     Error("The model is not yet valid");
     return;
@@ -499,6 +531,8 @@ void LuaModelViewer::Sweep(const string &parameter_name,
   // Sweeping parameters is the same as an invisible hand moving the slider and
   // recording the results after each solve.
   ih_.Start();
+  ih_.sweep_over_test_output = sweep_over_test_output;
+  ih_.image_filename = image_filename;
   const Parameter &p = GetParameter(parameter_name);
   if (p.integer) {
     // Integer parameter.
@@ -592,6 +626,14 @@ void LuaModelViewer::CopyParametersToClipboard() {
   QGuiApplication::clipboard()->setText(s);
 }
 
+void LuaModelViewer::ToggleRunTestAfterSolve() {
+  run_test_after_solve_ ^= 1;
+}
+
+void LuaModelViewer::ScriptTestMode() {
+  script_test_mode_ = true;
+}
+
 void LuaModelViewer::Connect(QListWidget *script_messages,
                              QWidget *parameter_window, qtPlot *plot,
                              QWidget *model_pane, QWidget *plot_pane,
@@ -619,7 +661,12 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
     delete parameter_layout_;
     parameter_layout_ = new QGridLayout(parameter_window_);
     parameter_layout_->setSpacing(5);
-    parameter_layout_->setContentsMargins(0, 0, 0, 0);
+    #if defined(__WINNT__)
+      // For some reason Windows wants extra margin here:
+      parameter_layout_->setContentsMargins(10, 0, 10, 0);
+    #else
+      parameter_layout_->setContentsMargins(0, 0, 0, 0);
+    #endif
     qDeleteAll(parameter_window_->findChildren<QWidget*>
                  (QString(), Qt::FindDirectChildrenOnly));
   }
@@ -671,6 +718,7 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
 
 bool LuaModelViewer::RerunScript(bool refresh_window,
                                  vector<JetNum> *optimize_output,
+                                 vector<JetNum> *test_output,
                                  bool only_compute_derivatives) {
   if (in_rerun_script_) {
     // The custom controls for parameter changing can sometimes cause this
@@ -725,17 +773,36 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
   lua_pushcfunction(lua_->L(),
                     (LuaGlobalStub<MyLua, &MyLua::LuaJetDerivative>));
   lua_setglobal(lua_->L(), "_JetDerivative");
+  lua_pushcfunction(lua_->L(), (LuaGlobalStub<MyLua,
+                    &MyLua::LuaDistanceScale>));
+  lua_setglobal(lua_->L(), "_DistanceScale");
+
+  // Populate the global 'FLAGS' table with the -key=value command line
+  // arguments.
+  lua_newtable(lua_->L());                                      // stack: T
+  for (int i = 1; i < copy_of_argc_; i++) {
+    char *arg = copy_of_argv_[i];
+    if (arg[0] == '-') {
+      char *equals = strchr(arg, '=');
+      if (equals && equals >= arg + 2) {
+        lua_pushlstring(lua_->L(), arg + 1, equals - arg - 1);  // stack: T k
+        lua_pushstring(lua_->L(), equals + 1);                  // stack: T k v
+        lua_rawset(lua_->L(), -3);                              // stark: T
+      }
+    }
+  }
+  lua_setglobal(lua_->L(), "FLAGS");
 
   // Run the script. First load the lua utility functions that are available to
   // user scripts.
   string user_script_util(&user_script_util_dot_lua,
                           user_script_util_dot_lua_length);
-  if (!lua_->RunString(user_script_util.c_str())) {
+  if (!lua_->RunString(user_script_util.c_str(), true, "user_script_util")) {
     // On script failure an error message will have been shown. But this should
     // never happen.
     lua_->Error("Internal error in script utility code");
   } else {
-    if (!lua_->RunString(script_.c_str())) {
+    if (!lua_->RunString(script_.c_str(), true, "main script")) {
       // On script failure an error message should have been shown.
       CHECK(lua_->ThereWereErrors());
     }
@@ -781,15 +848,22 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
           num_optimize_outputs_ = lua_gettop(lua_->L()) - top + 1;
           for (int i = 0; i < num_optimize_outputs_; i++) {
             if (optimize_output) {
+              int type = lua_type(lua_->L(), top + i);
+              if (type != LUA_TNUMBER) {
+                Error("Non-number return value %d of config.optimize(), "
+                      "type is %s", i + 1, lua_typename(lua_->L(), type));
+              }
               JetNum out = lua_tonumber(lua_->L(), top + i);
               // If any infinities or NaNs are returned from config.optimize()
               // (either values or derivatives) we pass them directly to the
-              // optimizer to deal with. A too-conservative alternative is to
-              // bail, below:
-              //   if (!IsFinite(out)) {
-              //     Error("Return value %d of config.optimize() (or its "
-              //           "derivative) is not finite.", i + 1);
-              //   }
+              // optimizer to deal with, since the optimizer may handle these
+              // gracefully by choosing not to step in to such regions. However
+              // we issue a warning about what is going on, because the
+              // optimizer may emit inscrutable error messages.
+              if (!IsFinite(out)) {
+                Warning("Nonfinite return value %d of config.optimize(): "
+                        "(%g, d/dp=%g)", i + 1, ToDouble(out), out.v()[0]);
+              }
               optimize_output->push_back(out);
             }
           }
@@ -798,10 +872,42 @@ bool LuaModelViewer::RerunScript(bool refresh_window,
     }
   }
 
+  // Call the script's test() function, if requested.
+  if (!lua_->ThereWereErrors() && run_test_after_solve_) {
+    // Find the function. Since there are no errors so far, the config table is
+    // guaranteed to exist.
+    LuaRawGetGlobal(lua_->L(), "config");
+    lua_getfield(lua_->L(), -1, "test");
+    int top = lua_gettop(lua_->L());
+    if (lua_type(lua_->L(), -1) != LUA_TFUNCTION) {
+      lua_->Error("Script does not define the config.test() function");
+    } else {
+      CreateArgumentsToOptimize(true);
+      if (!lua_->ThereWereErrors()) {
+        int err = lua_->PCall(3, LUA_MULTRET);
+        if (err != LUA_OK) {
+          lua_->Error("The config.test() function failed");
+        } else if (test_output) {
+          int n = lua_gettop(lua_->L()) - top + 1;
+          for (int i = 0; i < n; i++) {
+            test_output->push_back(lua_tonumber(lua_->L(), top + i));
+          }
+        }
+      }
+    }
+    // In script test mode, exit after running the test function.
+    if (script_test_mode_) {
+      exit(lua_->ThereWereErrors());
+    }
+  }
+
   // Select the script messages pane if there were errors, otherwise select the
   // pane that shows the computational domain.
-  SelectPane(lua_->ThereWereErrors() ? script_messages_pane_ : model_pane_,
-             lua_->ThereWereErrors());
+  if (!SelectScriptMessagesIfErrors()) {
+    if (switch_to_model_after_each_solve_) {
+      SelectPane(model_pane_);
+    }
+  }
 
   // If there were any script errors we assume that the model and config_ are
   // not valid.
@@ -964,6 +1070,11 @@ int LuaModelViewer::LuaDrawText(lua_State *L) {
   return 0;
 }
 
+int LuaModelViewer::LuaDistanceScale(lua_State *L) {
+  lua_pushnumber(L, DistanceScale(lua_tostring(L, 1)));
+  return 1;
+}
+
 Lua *LuaModelViewer::GetLua() {
   return lua_;
 }
@@ -986,6 +1097,11 @@ void LuaModelViewer::AddScriptMessageNotThreadSafe(QString msg,
   // added item is visible. script_messages_->scrollToItem() is quite slow so
   // we make sure that it's only called once, when idle.
   scroll_to_bottom_of_script_messages_ = true;
+
+  // Send script messages to standard output in script test mode.
+  if (script_test_mode_) {
+    printf("%s\n", msg.toUtf8().data());
+  }
 }
 
 void LuaModelViewer::SelectPane(QWidget *win, bool sticky) {
@@ -1007,6 +1123,18 @@ void LuaModelViewer::SelectPane(QWidget *win, bool sticky) {
 
   win->show();
   win->raise();
+}
+
+bool LuaModelViewer::ThereAreLuaErrors() {
+  return lua_->ThereWereErrors();
+}
+
+bool LuaModelViewer::SelectScriptMessagesIfErrors() {
+  if (lua_->ThereWereErrors()) {
+    SelectPane(script_messages_pane_);
+    return true;
+  }
+  return false;
 }
 
 void LuaModelViewer::SelectPlot(int plot_type) {
@@ -1193,21 +1321,55 @@ bool LuaModelViewer::OnInvisibleHandSweep() {
     Error("Sweep interrupted (internal error)");
     return false;
   }
+  if (ih_.sweep_over_test_output && !run_test_after_solve_) {
+    Error("If sweeping over test output, enable 'Run test() after each solve'");
+    return false;
+  }
 
-  // Rerun the script.
-  if (!RerunScript(false)) {
+  // Rerun the script, collect the test function output if requested.
+  std::vector<JetNum> test_output;
+  if (!RerunScript(false, 0, ih_.sweep_over_test_output ? &test_output : 0)) {
     Error("Sweep interrupted");
     return false;
   }
 
-  // Compute the sweep output.
-  if (!ComputeSweptOutput(&ih_.sweep_output[ih_.sweep_index])) {
-    Error("Sweep interrupted");
-    return false;
+  // If the test function was run and generated output, use it as the swept
+  // output. Otherwise compute the sweep output by ComputeSweptOutput().
+  if (!test_output.empty()) {
+    for (int i = 0; i < test_output.size(); i++) {
+      ih_.sweep_output[ih_.sweep_index].push_back(JetComplex(test_output[i]));
+    }
+  } else {
+    if (!ComputeSweptOutput(&ih_.sweep_output[ih_.sweep_index])) {
+      Error("Sweep interrupted");
+      return false;
+    }
   }
 
   // Display the result.
   repaint();
+
+  // Optionally save the model window images to files.
+  if (!ih_.image_filename.empty()) {
+    QString filename =
+        QString::asprintf(ih_.image_filename.c_str(), ih_.sweep_index);
+    // @@@ grabFramebuffer() causes a redundant re-paint. The more efficient
+    // approach would be to copy out the contents of the frame buffer that was
+    // already rendered in the repaint() above.
+    grabFramebuffer().save(filename);
+
+    // For making movies for the Rama documentation you can use instead this
+    // code, which captures the entire screen:
+    //   {
+    //     disable_idle_processing_ = true;
+    //     QTime end_time = QTime::currentTime().addMSecs(500);
+    //     while (QTime::currentTime() < end_time) {
+    //       QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+    //     }
+    //     QGuiApplication::primaryScreen()->grabWindow(0).save(filename);
+    //     disable_idle_processing_ = false;
+    //   }
+  }
 
   // Advance to the next value in a sweep.
   ih_.sweep_index++;
@@ -1285,7 +1447,7 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
       // i==0 were already computed above.
       if (i > 0) {
         derivative_index_ = i;
-        if (!RerunScript(false, &optimize_errors, true) ||
+        if (!RerunScript(false, &optimize_errors, 0, true) ||
             optimize_errors.empty()) {
           Error("Optimizer interrupted (script failed)");
           return false;

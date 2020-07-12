@@ -1,3 +1,15 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+
 // Interfaces between Lua and C++.
 
 #ifndef __TOOLKIT_LUA_UTIL_H__
@@ -83,24 +95,14 @@ class Lua {
   // runtime error the StackBacktrace() function will be called zero or more
   // times. For all errors the Error() function will be called once. If run_it
   // is false then the script is not run and the compiled chunk is left at the
-  // top of the stack.
-  bool RunString(const std::string &script, bool run_it = true);
+  // top of the stack. If the name is provided to RunString() it will used in
+  // error messages.
+  bool RunString(const std::string &script, bool run_it = true,
+                 const char *name = 0);
   bool RunFile(const std::string &filename, bool run_it = true);
 
   // Like lua_pcall but using the built-in message handler for errors.
   int PCall(int nargs, int nresults);
-
-  // Given a function on the top of the lua stack, dump it as a binary chunk to
-  // the string 's'. If strip is true then the binary representation is created
-  // without debug information about the function. This does not pop the
-  // function from the stack.
-  void Dump(std::string *s, bool strip);
-
-  // Given a function on the top of the lua stack, return the MD5 hash of its
-  // Dump() in 'hash'. A binary string is returned that may contain embedded
-  // zeros. The strip argument is given to Dump(). This does not pop the
-  // function from the stack.
-  void Hash(std::string *hash, bool strip);
 
   // Call these functions to display error messages or stack backtraces. These
   // differ from the Handle*() variants only in that they set the
@@ -137,7 +139,8 @@ class Lua {
   bool there_were_errors_;
   std::map<int, void*> user_objects_;
 
-  bool Run(const std::string &s, bool s_is_filename, bool run_it);
+  bool Run(const std::string &s, bool s_is_filename, bool run_it,
+           const char *name);
 
   DISALLOW_COPY_AND_ASSIGN(Lua);
 };
@@ -226,5 +229,20 @@ template<class T> T *LuaCastTo(lua_State *L, int index) {
   }
   return 0;
 }
+
+// Given a function on the top of the lua stack, dump it as a binary chunk to
+// the string 's'. If strip is true then the binary representation is created
+// without debug information about the function. This does not pop the function
+// from the stack. Functions with the same implementation will return the same
+// dump. However the upvalues for the function are not represented, so two
+// functions with the same dump called with the same arguments might still
+// return different results.
+void LuaDump(lua_State *L, std::string *s, bool strip);
+
+// Given a function on the top of the lua stack, return the MD5 hash of its
+// LuaDump() in 'hash'. A binary string is returned that may contain embedded
+// zeros. The strip argument is given to LuaDump(). This does not pop the function
+// from the stack. See the caveat for the LuaDump() function.
+void LuaHash(lua_State *L, std::string *hash, bool strip);
 
 #endif

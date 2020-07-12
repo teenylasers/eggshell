@@ -1,3 +1,14 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include <QDesktopServices>
 #include <QUrl>
@@ -8,6 +19,8 @@
 #include <QClipboard>
 #include <QNetworkReply>
 #include <QMessageBox>
+#include <QWindow>
+#include <QScreen>
 
 #include "main_window.h"
 #include "ui_main_window.h"
@@ -16,15 +29,16 @@
 #include "../version.h"
 #include "../../toolkit/error.h"
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
 #define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_MAC__
+#elif defined(__linux__)
+#define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_LINUX__
 #else
 #define __APP_LATEST_VERSION_PATH__ __APP_LATEST_VERSION_PATH_WIN__
 #endif
 
 MainWindow::MainWindow(QWidget *parent) :
-  QMainWindow(parent), ui(new Ui::MainWindow), autorun_(true),
-  watcher_(this)
+  QMainWindow(parent), ui(new Ui::MainWindow), watcher_(this)
 {
   ui->setupUi(this);
 
@@ -37,15 +51,25 @@ MainWindow::MainWindow(QWidget *parent) :
   tabifyDockWidget(ui->dock_model, ui->dock_sparams);
   tabifyDockWidget(ui->dock_model, ui->dock_antenna);
   tabifyDockWidget(ui->dock_model, ui->dock_script_messages);
-  resizeDocks({ui->dock_model}, {650}, Qt::Horizontal);   //@@@ scale width by main window size
   ui->dock_model->raise();
 
   // Default shows and hidden controls.
   ui->display_style_Exy->hide();
+  ui->display_style_ES->hide();
   ui->display_style_TE->hide();
   ui->display_style_TM->hide();
   ui->mode_label->hide();
   ui->mode_number->hide();
+
+  // Position the window so it takes up the entire screen minus a margin.
+  QScreen *s = QGuiApplication::screenAt(mapToGlobal({width()/2, height()/2}));
+  if (s) {
+    QRect rect = s->availableGeometry();
+    rect = rect.marginsRemoved(QMargins(rect.width()/8, rect.height()/8,
+                                        rect.width()/8, rect.height()/8));
+    setGeometry(rect);
+    resizeDocks({ui->dock_model}, {rect.width() /3*2}, Qt::Horizontal);
+  }
 
   // Connect the model viewer to other controls.
   ui->model->Connect(ui->script_messages, ui->parameter_pane, ui->plot,
@@ -57,19 +81,31 @@ MainWindow::MainWindow(QWidget *parent) :
                    this, &MainWindow::OnFileChanged);
 
   // Asynchronously retrieve the latest application version number and
-  // display a message if there is a newer version available.
-  QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-  connect(manager, SIGNAL(finished(QNetworkReply*)),
-          this, SLOT(VersionReplyAvailable(QNetworkReply*)));
-  QNetworkRequest request(QUrl(__APP_URL__ __APP_LATEST_VERSION_PATH__));
-  // A user agent is necessary otherwise the security module on an apache
-  // server denies the request.
-  request.setRawHeader("User-Agent", "Rama");
-  manager->get(request);
+  // display a message if there is a newer version available. Don't do
+  // this is script test mode though, because we are going to be exiting
+  // very soon and processing the reply might cause problems.
+  if (!ui->model->IsScriptTestMode()) {
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    connect(manager, SIGNAL(finished(QNetworkReply*)),
+            this, SLOT(VersionReplyAvailable(QNetworkReply*)));
+    QNetworkRequest request(QUrl(__APP_URL__ __APP_LATEST_VERSION_PATH__));
+    // A user agent is necessary otherwise the security module on an apache
+    // server denies the request.
+    request.setRawHeader("User-Agent", "Rama");
+    manager->get(request);
+  }
 }
 
 MainWindow::~MainWindow() {
   delete ui;
+}
+
+void MainWindow::ToggleRunTestAfterSolve() {
+  ui->model->ToggleRunTestAfterSolve();
+}
+
+void MainWindow::ScriptTestMode() {
+  ui->model->ScriptTestMode();
 }
 
 void MainWindow::LoadFile(const QString &full_path) {
@@ -124,6 +160,7 @@ bool MainWindow::ReloadScript(bool rerun_even_if_same) {
   // Show the correct controls based on the cavity type.
   ui->display_style_Ez->setVisible(ui->model->IsEzCavity());
   ui->display_style_Exy->setVisible(ui->model->IsExyCavity());
+  ui->display_style_ES->setVisible(ui->model->IsESCavity());
   ui->display_style_TE->setVisible(ui->model->IsTEMode());
   ui->display_style_TM->setVisible(ui->model->IsTMMode());
   ui->animate->setVisible(ui->model->NumWaveguideModes() == 0);
@@ -152,6 +189,10 @@ void MainWindow::ReloadTimeout() {
   }
 }
 
+void MainWindow::SetCommandLineArguments(int argc, char **argv) {
+  ui->model->SetCommandLineArguments(argc, argv);
+}
+
 void MainWindow::ResetCurrentModelBackground() {
   ui->current_model->setStyleSheet("QLabel { }");
 }
@@ -172,7 +213,9 @@ void MainWindow::on_actionSweep_triggered() {
     ui->model->Sweep(sweep.GetParameterName().toUtf8().data(),
                      sweep.GetStartValue(),
                      sweep.GetEndValue(),
-                     sweep.GetNumSteps());
+                     sweep.GetNumSteps(),
+                     sweep.GetTestOutput(),
+                     sweep.GetImageFileName().toUtf8().data());
   }
 }
 
@@ -191,7 +234,7 @@ void MainWindow::on_actionReload_triggered() {
 void MainWindow::on_actionAutoRun_triggered() {
   autorun_ = !autorun_;
   if (autorun_) {
-      ReloadScript(false);
+    ReloadScript(false);
   }
 }
 
@@ -243,8 +286,12 @@ void MainWindow::on_actionZoomOut_triggered() {
   ui->model->Zoom(sqrt(2));
 }
 
-void MainWindow::on_actionViewLinesAndPorts_triggered() {
-  ui->model->ToggleShowBoundary();
+void MainWindow::on_actionViewLines_triggered() {
+  ui->model->ToggleShowBoundaryLines();
+}
+
+void MainWindow::on_actionViewPorts_triggered() {
+  ui->model->ToggleShowBoundaryPorts();
 }
 
 void MainWindow::on_actionViewVertices_triggered() {
@@ -299,10 +346,10 @@ void MainWindow::on_actionRamaManual_triggered() {
     dir.cd("../../Contents/Resources");
   #endif
   QString path = dir.absoluteFilePath("rama.html");
-  #ifndef __WXMSW__
-    QDesktopServices::openUrl(QUrl("file:///" + path));
-  #else
+  #ifdef __linux__
     QDesktopServices::openUrl(QUrl("file://" + path));
+  #else
+    QDesktopServices::openUrl(QUrl("file:///" + path));
   #endif
 }
 
@@ -312,7 +359,7 @@ void MainWindow::on_actionRamaWebsite_triggered() {
 }
 
 void MainWindow::on_actionLuaManual_triggered() {
-  QString link = "http://www.lua.org/manual/5.3/";
+  QString link = "http://www.lua.org/manual/5.4/";
   QDesktopServices::openUrl(QUrl(link));
 }
 
@@ -397,6 +444,10 @@ void MainWindow::on_display_style_Exy_currentIndexChanged(int index) {
   UpdateDisplayStyle(index);
 }
 
+void MainWindow::on_display_style_ES_currentIndexChanged(int index) {
+  UpdateDisplayStyle(index);
+}
+
 void MainWindow::on_display_style_TM_currentIndexChanged(int index) {
   UpdateDisplayStyle(index);
 }
@@ -411,6 +462,7 @@ void MainWindow::UpdateDisplayStyle(int index) {
   // @@@ Do we need to sync the TM and TE display styles too? they only have 5 entries.
   // @@@ Does TM/TE display style sync when a mode model is loaded?
   ui->display_style_Exy->setCurrentIndex(index);
+  ui->display_style_ES->setCurrentIndex(index);
   ui->display_style_Ez->setCurrentIndex(index);
   ui->model->SetDisplayStyle(index);
 }
@@ -435,7 +487,7 @@ void MainWindow::VersionReplyAvailable(QNetworkReply *reply) {
     if (latest > current) {
       Message("A newer version of " __APP_NAME__ " is available (current "
               "version is " __APP_VERSION__ ", latest version is %d.%d). "
-              "Use 'Help/Install Latest' to install the latest version.",
+              "Use 'Help/Download latest' to install the latest version.",
               major, minor);
     }
   }
@@ -458,8 +510,11 @@ void MainWindow::on_wideband_pulse_stateChanged(int arg1) {
 }
 
 void MainWindow::SetNumFrequencies(int n) {
+  // If n==1 then the slider will be disabled, but setting min=max=1 will cause
+  // the slider to disappear for some reason. Therefore if n==1 we set max to 2
+  // and value to 1 ensuring that the slider is visible and looks innocuous.
   ui->frequency_index_slider->setMinimum(1);
-  ui->frequency_index_slider->setMaximum(n);
+  ui->frequency_index_slider->setMaximum(std::max(n, 2));
   ui->frequency_index_spinner->setMinimum(1);
   ui->frequency_index_spinner->setMaximum(n);
 }
@@ -478,7 +533,7 @@ void MainWindow::on_sparam_plot_type_currentIndexChanged(int index) {
 }
 
 void MainWindow::on_show_sparams_stateChanged(int arg1) {
-  ui->model->ToggleShowSParams();
+  ui->model->ToggleShowSParamsGraph();
 }
 
 void MainWindow::on_time_dial_valueChanged(int value) {
@@ -488,4 +543,34 @@ void MainWindow::on_time_dial_valueChanged(int value) {
 void MainWindow::on_actionSet_animation_time_to_0_triggered() {
   ui->time_dial->setValue(0);
   ui->model->TimeDialToZero();
+}
+
+void MainWindow::on_actionRunTest_triggered() {
+  ui->model->ToggleRunTestAfterSolve();
+}
+
+void MainWindow::on_actionShowSParameters_triggered() {
+  ui->model->ToggleShowSParameters();
+}
+
+void MainWindow::on_actionSwitchToModelAfterEachSolve_triggered() {
+  ui->model->ToggleSwitchToModelAfterEachSolve();
+}
+
+void MainWindow::on_actionExportAntennaPatternAsMatlabData_triggered() {
+  QString filename = QFileDialog::getSaveFileName(this,
+      "Select a matlab file to save", QString(), "Matlab files (*.mat)");
+  if (!filename.isEmpty()) {
+    ui->model->ExportAntennaPatternMatlab(filename.toUtf8().data());
+  }
+}
+
+void MainWindow::on_actionIncrease_animation_time_triggered() {
+  ui->time_dial->setValue(ui->time_dial->value() + 1);
+  ui->model->TimeDialChanged(ui->time_dial->value());
+}
+
+void MainWindow::on_actionDecrease_animation_time_triggered() {
+  ui->time_dial->setValue(ui->time_dial->value() - 1);
+  ui->model->TimeDialChanged(ui->time_dial->value());
 }

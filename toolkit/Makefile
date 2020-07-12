@@ -1,3 +1,14 @@
+# Copyright (C) 2014-2020 Russell Smith.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
 
 default: run_all_tests
 
@@ -8,9 +19,7 @@ EXCLUDE_FROM_TESTS = \
   lua_util.cc \
   matlab_engine.cc \
   plot_glut_example.cc \
-  plot_wx.cc \
-  viewer.cc \
-  wxgl_font.cc
+  viewer.cc
 
 run_all_tests:
 	g++ -o all_tests -Wall $(CCFLAGS) -D__TOOLKIT_DEFINE_TESTING_MAIN__ \

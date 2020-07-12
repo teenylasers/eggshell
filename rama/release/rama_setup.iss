@@ -14,12 +14,13 @@ AppPublisher={#__APP_PUBLISHER__}
 AppPublisherURL={#__APP_URL__}
 AppSupportURL={#__APP_URL__}
 AppUpdatesURL={#__APP_URL__}
-DefaultDirName={pf}\{#__APP_NAME__}
+DefaultDirName={autopf}\{#__APP_NAME__}
 DefaultGroupName={#__APP_NAME__}
 OutputDir=../build
 OutputBaseFilename=setup_rama
 Compression=lzma
 SolidCompression=yes
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -30,16 +31,8 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 Source: "..\build\rama.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_ALMA_coupler_Exy.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_antenna_pattern_test.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_horn_Ez.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_schrodinger_test.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_Exy.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_Ez.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_bend.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\model_waveguide_modes.lua"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\doc\*.png"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\doc\*.gif"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\examples\*"; DestDir: "{app}\examples"; Flags: ignoreversion
+Source: "..\build\images\*"; DestDir: "{app}\images"; Flags: ignoreversion
 Source: "..\build\rama.html"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 

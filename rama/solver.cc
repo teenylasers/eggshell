@@ -1,3 +1,14 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include "solver.h"
 #include "../toolkit/gl_utils.h"
@@ -69,9 +80,9 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
   typedef Eigen::Matrix<MNumber, Eigen::Dynamic, 1> MNumberVector;
   typedef Eigen::SparseLU<Eigen::SparseMatrix<MNumber>,
                           Eigen::COLAMDOrdering<int> > Factorizer;
-  bool ProblemIsLowerTriangular() const { return false; }
-  bool GradientStepAtDielectricBoundary() const {
-    return s->config_.type == ScriptConfig::EXY;
+  bool AddDielectricForcingTerm() const {
+    return false;  // We use sigma steps to achieve the same thing
+    // Or: return s->config_.type == ScriptConfig::EXY;
   }
   MNumber MNumberFromNumber(Number n) const { return ToComplex(n); }
   Number GNumberToNumber(GNumber n) const { return Number(n); }
@@ -87,9 +98,9 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
     // For EM cavities, k^2 = omega^2*mu_0*epsilon_0*epsilon_r = k0^2*epsilon_r.
     JetComplex epsilon;
     const Material &material = s->materials_[s->triangles_[i].material];
-    if (!s->dielectric_.empty() && !material.callback.empty()) {
+    if (!s->mat_params_.empty() && material.callback.Valid()) {
       // This material has a dielectric field.
-      epsilon = s->dielectric_[s->triangles_[i].index[j]];
+      epsilon = s->mat_params_[s->triangles_[i].index[j]].epsilon;
     } else {
       epsilon = material.epsilon;
     }
@@ -101,7 +112,13 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
   }
 
   Number PointF(int i, int j) const {
-    return Number(0.0);
+    const Material &material = s->materials_[s->triangles_[i].material];
+    if (!s->mat_params_.empty() && material.callback.Valid()) {
+      // This material has a dielectric field.
+      return s->mat_params_[s->triangles_[i].index[j]].excitation;
+    } else {
+      return material.excitation;
+    }
   }
 
   EType EdgeType(int i, int j) const {
@@ -118,12 +135,22 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
 
   void Robin(int i, int j, int point_number, const Number &k2,
              Number *alpha, Number *beta) const {
+    // Note that k2 == PointG(i, point_number).
     JetComplex k = sqrt(k2);
     if (k2.real() < 0) {
-      // For nonpropagating modes in Exy cavities we need a different branch
+      // For nonpropagating modes in Ez cavities we need a different branch
       // cut for the sqrt(k2) to ensure we get exponential decay at the port
       // boundary conditions and not exponential increase.
       k = -k;
+    }
+
+    // If the boundary parameters for this point have been precomputed by a
+    // callback function then just return those.
+    auto it = s->boundary_params_.find(Mesh::RobinArg(i, j, point_number));
+    if (it != s->boundary_params_.end()) {
+      *alpha = std::get<0>(it->second) * k;
+      *beta = std::get<1>(it->second) * k;
+      return;
     }
 
     // Identify the edge type and port (if any) for edge j.
@@ -138,7 +165,8 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
       // The Robin condition at the port is: (grad u) . n + alpha*u = beta
       // The value of beta is nonzero for the excited port only.
       JetComplex excitation = s->config_.PortExcitation(port_number);
-      if (s->config_.type == ScriptConfig::EXY) {
+      if (s->config_.type == ScriptConfig::EXY ||
+          s->config_.type == ScriptConfig::ELECTROSTATICS) {
         *alpha = JetComplex(0, 1) * k;          // Works for all ports and ABC
         *beta = JetComplex(0, 2.0) * excitation * k;
       } else if (s->config_.type == ScriptConfig::EZ) {
@@ -169,17 +197,44 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
       *alpha = JetComplex(0, 1) * k;          // Works for all ports and ABC
       *beta = JetComplex(0);
     } else {
-      // At non-port robin boundaries we have alpha = beta = 0;
+      // At non-port robin boundaries we have alpha = beta = 0.
       *alpha = JetComplex(0.0);
       *beta = JetComplex(0.0);
     }
   }
 
-  GNumber Absolute(const GNumber &a) { return abs(a); }
-  bool SetSparseMatrixFromTriplets(const std::vector<Triplet> &triplets,
-                                   Eigen::SparseMatrix<MNumber> *A) {
-    return false;
+  bool AnisotropicSigma(int i, NumberVector *sigma_xx, NumberVector *sigma_yy,
+                        NumberVector *sigma_xy) {
+    const Material &material = s->materials_[s->triangles_[i].material];
+    if (!s->mat_params_.empty() && material.callback.Valid()) {
+      // This material has a material parameters field.
+      bool is_isotropic = true;
+      for (int j = 0; j < 3; j++) {
+        is_isotropic &= s->mat_params_[s->triangles_[i].index[j]].is_isotropic;
+      }
+      if (is_isotropic) {
+        return false;
+      }
+      for (int j = 0; j < 3; j++) {
+        (*sigma_xx)[j] = s->mat_params_[s->triangles_[i].index[j]].sigma_xx;
+        (*sigma_yy)[j] = s->mat_params_[s->triangles_[i].index[j]].sigma_yy;
+        (*sigma_xy)[j] = s->mat_params_[s->triangles_[i].index[j]].sigma_xy;
+      }
+      return true;
+    } else {
+      if (material.is_isotropic) {
+        return false;
+      }
+      for (int j = 0; j < 3; j++) {
+        (*sigma_xx)[j] = material.sigma_xx;
+        (*sigma_yy)[j] = material.sigma_yy;
+        (*sigma_xy)[j] = material.sigma_xy;
+      }
+      return true;
+    }
   }
+
+  GNumber Absolute(const GNumber &a) { return abs(a); }
   MNumber Derivative(const Number &a) {
     return Complex(a.real().Derivative(), a.imag().Derivative());
   }
@@ -206,8 +261,7 @@ struct WaveguideModeFEMProblem : FEM::FEMProblem {
   typedef Eigen::Matrix<MNumber, Eigen::Dynamic, 1> MNumberVector;
   typedef Eigen::SimplicialLLT<Eigen::SparseMatrix<MNumber>, Eigen::Lower,
                                Eigen::AMDOrdering<int> > Factorizer;
-  bool ProblemIsLowerTriangular() const { return true; }
-  bool GradientStepAtDielectricBoundary() const { return false; }
+  bool AddDielectricForcingTerm() const { return false; }
   MNumber MNumberFromNumber(Number n) const { return ToDouble(n); }
   Number GNumberToNumber(GNumber n) const { return n; }
   MNumberVector *CastMNumberToNumberVector(NumberVector *v) { return 0; }
@@ -227,11 +281,11 @@ struct WaveguideModeFEMProblem : FEM::FEMProblem {
     *alpha = 0.0;
     *beta = 0.0;
   }
-  GNumber Absolute(const GNumber &a) { return abs(a); }
-  bool SetSparseMatrixFromTriplets(const std::vector<Triplet> &triplets,
-                                   Eigen::SparseMatrix<MNumber> *A) {
+  bool AnisotropicSigma(int i, NumberVector *sigma_xx, NumberVector *sigma_yy,
+                        NumberVector *sigma_xy) {
     return false;
   }
+  GNumber Absolute(const GNumber &a) { return abs(a); }
   MNumber Derivative(const Number &a) {
     return a.Derivative();
   }
@@ -314,6 +368,8 @@ ScriptConfig::Type ScriptConfig::StringToType(const char *name) {
     return TE;
   if (strcmp(name, "TM") == 0)
     return TM;
+  if (strcmp(name, "ES") == 0)
+    return ELECTROSTATICS;
   return UNKNOWN;
 }
 
@@ -408,19 +464,31 @@ bool Solver::SameAs(const Shape &s, const ScriptConfig &config, Lua *lua) {
   if (s != shape_ || config != config_) {
     return false;
   }
-  // The shape and config are the same. The material values and implementation
-  // of the material callback functions are the same. However we don't know if
-  // the dielectric field computed by the material callback functions are the
-  // same, because those functions can use parameter values that we can't see
-  // here. Therefore build a new dielectric field and compare it with the
-  // existing one.
-  if (dielectric_.empty()) {
-    return true;
+  // At this point the shape and config are the same. The material values and
+  // material callback functions *might* be the same. The port callback
+  // functions *might* be the same. However we don't know if the material
+  // parameters field computed by the material callback functions are the same,
+  // because those functions can use parameter values (and maybe upvalues) that
+  // we can't see here. Similarly for the port callbacks. Therefore build a new
+  // material parameters field and a new boundary parameters map, and compare
+  // them with the existing ones. If the functions compute the same values,
+  // then everything is actually the same.
+  if (!mat_params_.empty()) {
+    vector<MaterialParameters> d;
+    DeterminePointMaterial(lua, &d);
+    CHECK(mat_params_.size() == d.size());
+    if (mat_params_ != d) {
+      return false;
+    }
   }
-  vector<JetComplex> d;
-  DeterminePointDielectric(lua, &d);
-  CHECK(dielectric_.size() == d.size());
-  return dielectric_ == d;
+  if (!boundary_params_.empty()) {
+    std::map<RobinArg, RobinRet> b;
+    DetermineBoundaryParameters(lua, &b);
+    if (boundary_params_ != b) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool Solver::UpdateDerivatives(const Shape &s) {
@@ -435,7 +503,9 @@ bool Solver::UpdateDerivatives(const Shape &s) {
   // Recreate the system (this will use the updated derivatives in the mesh
   // points and materials).
   solver_->UnCreateSystem();            // Resets triplets and rhs
-  solver_->CreateSystem();
+  if (!solver_->CreateSystem()) {
+    return false;
+  }
 
   // Recompute derivatives.
   solution_derivative_.resize(0);
@@ -500,18 +570,32 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
     const auto &Mgradient = solvers ? multi_Mgradient : Mgradient_;
 
   // For electrodynamic cavities we scale the gradient so it is similar to the
-  // scalar field. Assuming the scalar field has a form sin(2*pi*x/lambda_g),
-  // the maximum gradient is 2*pi/lambda_g. In a rectangular waveguide
-  // operating at 1.5 times the cutoff frequency we have
-  // lambda_g=(3*c)/(sqrt(5)*f).
-  // @@@ NOTE: This rescaling is frequency dependent, so colors can not be
-  // directly compared across different frequencies.
-  double gscale = 1;
+  // scalar field. There are two cases to consider:
+  //   * In high frequency simulations where one or multiple wavelengths fit
+  //     into the cavity, assuming the scalar field has a form
+  //     sin(2*pi*x/lambda_g), the maximum gradient is 2*pi/lambda_g. In a
+  //     rectangular waveguide operating at 1.5 times the cutoff frequency we
+  //     have lambda_g=(3*c)/(sqrt(5)*f). Scale so this case looks nice.
+  //     @@@ NOTE: This rescaling is frequency dependent, so colors can not be
+  //     directly compared across different frequencies.
+  //   * In electrostatics (f almost zero) the wavelength is much larger than
+  //     the cavity so the above scaling is wrong. Scale by a "typical" field
+  //     strength in the cavity.
+  double est_max_gradient = 0;  // Estimated max gradient, in 1/meters
+  double min_dimension = std::min(cd_width_, cd_height_);  // In config units
   if (config_.TypeIsElectrodynamic()) {
-    double max_gradient = (2 * sqrt(5) * M_PI * frequency_) /
-                          (3*kSpeedOfLight);
-    gscale = 1.0 / max_gradient;
+    if (config_.type == ScriptConfig::ELECTROSTATICS) {
+      est_max_gradient = 1.0 / (min_dimension * config_.unit);
+      // Completely arbitrary fudge factor to compensate for field strength
+      // enhancements at any corners we might have:
+      est_max_gradient *= 5;
+    } else {
+      est_max_gradient = (2 * sqrt(5) * M_PI * frequency_) / (3*kSpeedOfLight);
+    }
   }
+  // Scale the gradient so that the longest gradient vectors are about 1/20th
+  // of the minimum dimension.
+  double gscale = min_dimension / 20.0 / est_max_gradient;
 
   // See if we're drawing vectors. If not we're drawing colored triangles.
   if (draw_mode == DRAW_GRADIENT_VECTORS ||
@@ -520,8 +604,7 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
       draw_mode == DRAW_POYNTING_VECTORS_TA) {
     CREATE_SPATIAL_GRADIENT
     // Compute scale.
-    double arbitrary_scale = pow((brightness + 1) / 250.0, 3);
-
+    double arbitrary_scale = pow(100, (brightness - 500.0) / 500.0);
     gscale *= arbitrary_scale;
     // Draw the gradient vector from all mesh triangle vertices.
     gl::SetUniform("color", 0, 0, 1);
@@ -596,11 +679,11 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
       DRAWLOOP(fabs(phasor.real() * solution[k].real() -
                     phasor.imag() * solution[k].imag()), 0.0, scale)
     } else if (draw_mode == DRAW_GRADIENT_AMPLITUDE) {
-      scale /= gscale;
+      scale *= est_max_gradient;
       CREATE_SPATIAL_GRADIENT_MAX_AMPLITUDE
       DRAWLOOP( Mgradient[k], 0.0, scale)
     } else if (draw_mode == DRAW_GRADIENT_AMPLITUDE_REAL) {
-      scale /= gscale;
+      scale *= est_max_gradient;
       CREATE_SPATIAL_GRADIENT
       DRAWLOOP( sqrt(sqr(phasor.real() * Pgradient(k, 0).real() -
                          phasor.imag() * Pgradient(k, 0).imag()) +
@@ -859,7 +942,7 @@ void Solver::GetFieldPoynting(JetNum x, JetNum y, JetPoint *poynting) {
 }
 
 bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
-                                   vector<JetNum> *magnitude) {
+                                   vector<JetComplex> *field) {
   Trace trace(__func__);
   if (!config_.TypeIsElectrodynamic() || !ComputeSpatialGradient()) {
     return false;
@@ -881,33 +964,38 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
   const double k = sqrt(k2);
 
   // Return a previously cached result.
-  if (!antenna_magnitude_.empty()) {
+  if (!antenna_field_.empty()) {
     *azimuth = antenna_azimuth_;
-    *magnitude = antenna_magnitude_;
+    *field = antenna_field_;
     return true;
   }
 
-  // Precompute azimuths for far field result.
+  // Precompute equally spaced azimuths for far field result.
   azimuth->resize(kFarFieldPoints);
   for (int i = 0; i < kFarFieldPoints ; i++) {
     (*azimuth)[i] = (2.0 * M_PI * double(i)) / kFarFieldPoints - M_PI;
   }
 
-  // For all ABC boundary triangles find field values and field gradients, then
-  // update the far field. There is approximation error because the field and
-  // gradient are sampled at discrete points on a piecewise linear boundary.
-  // The error shows up as imperfect back-lobe cancellation for plane waves.
-  // The positions of the isotropic and dipole radiators have a big influence
-  // on this. The best results seem to be obtained when both kinds of radiators
-  // are positioned at the centroid of boundary triangles, with field values
-  // and gradients computed from the solution values at the triangle vertices.
-  vector<JetComplex> ff(kFarFieldPoints);       // Far field values over angle
-  int abc_count = 0;
-  for (BoundaryIterator it(this); !it.done(); ++it) {
-    if (!it.kind().IsABC()) {
+  // For all boundary triangles find field values and field gradients, then
+  // update the far field. See near_to_far_field.nb for the rationale. There is
+  // approximation error because the field and gradient are sampled at discrete
+  // points on a piecewise linear boundary. The error shows up as imperfect
+  // back-lobe cancellation for plane waves. The positions of the isotropic and
+  // dipole radiators have a big influence on this. The best results seem to be
+  // obtained when both kinds of radiators are positioned at the centroid of
+  // boundary triangles, with field values and gradients computed from the
+  // solution values at the triangle vertices.
+  field->clear();
+  field->resize(kFarFieldPoints);       // Far field values over angle
+  int radiator_count = 0;
+  bool use_ff_material = (config_.antenna_pattern == config_.AT_FF_MATERIAL);
+  uint32_t color_mask = use_ff_material ? Material::FAR_FIELD : 0;
+  for (BoundaryIterator it(this, color_mask); !it.done(); ++it) {
+    if (!( use_ff_material || it.kind().IsABC() ||
+           (config_.antenna_pattern == config_.AT_BOUNDARY) )) {
       continue;
     }
-    abc_count++;
+    radiator_count++;
 
     // Triangle vertices scaled to meters.
     JetPoint p1 = points_[it.pindex1()].p * config_.unit;
@@ -928,7 +1016,7 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
       TriangleGradient(p1, p2, p3, z1, z2, z3, &gradX, &gradY);
     }
 
-    // Find the the normal to the ABC boundary edge (outward-pointing).
+    // Find the the normal to the boundary edge (outward-pointing).
     JetPoint normal(p1[1] - p2[1], p2[0] - p1[0]);
     normal.normalize();
     // Ensure the normal is outward-pointing by making sure that the dot
@@ -938,42 +1026,50 @@ bool Solver::ComputeAntennaPattern(vector<double> *azimuth,
     }
     JetNum nangle = atan2(normal[1], normal[0]);
 
-    // Find the boundary-normal and boundary-perpendicular components of the
-    // gradient.
-    JetComplex gradN = gradX * normal[0] + gradY * normal[1];
-    JetComplex gradP = gradX * normal[1] - gradY * normal[0];
-
-    // Update far field values with an isotropic radiator from z and
-    // orthogonally oriented dipoles from gradN and gradP.
-    JetComplex scale(0, 1 / k);
+    // Update far field values.
     for (int i = 0; i < kFarFieldPoints; i++) {
-      double phi = (*azimuth)[i] + config_.boresight * M_PI / 180.0;
-      ff[i] += (z + scale * (gradN * cos(phi - nangle) -
-                             gradP * sin(phi - nangle))) *
-        exp(JetComplex(0, k * (center[0] * cos(phi) + center[1] * sin(phi))));
+      double phi = -(*azimuth)[i] + config_.boresight * M_PI / 180.0;
+      (*field)[i] += (k*cos(phi - nangle)*z +
+                JetComplex(0,1) * (sin(nangle)*gradY + cos(nangle)*gradX)) *
+          exp(JetComplex(0, k * (center[0] * cos(phi) + center[1] * sin(phi))));
     }
   }
 
-  // Return far field magnitudes. Scale by the number of radiators, i.e. the
-  // number of times we added to each element of ff[] in the inner loop.
-  magnitude->resize(kFarFieldPoints);
+  // Scale field by the number of radiators, i.e. the number of times we added
+  // to each element of field[] in the inner loop.
   for (int i = 0; i < kFarFieldPoints; i++) {
-    (*magnitude)[i] = abs(ff[i]) / double(abc_count);
+    (*field)[i] /= double(radiator_count);
   }
 
   // Cache the result (note that the return vectors might already be the cache
   // vectors).
   antenna_azimuth_ = *azimuth;
-  antenna_magnitude_ = *magnitude;
+  antenna_field_ = *field;
   return true;
 }
 
+void Solver::AdjustAntennaPhaseCenter(JetPoint phase_center,
+                                      const vector<double> &azimuth,
+                                      vector<JetComplex> *field) {
+  CHECK(field->size() == azimuth.size());
+  const double k2 = ComputeKSquared();
+  if (k2 <= 0) {
+    return;
+  }
+  const double k = sqrt(k2);
+  for (int i = 0; i < azimuth.size(); i++) {
+    double phi = azimuth[i] + config_.boresight * M_PI / 180.0;
+    (*field)[i] *= exp(JetComplex(0, -k *
+            (cos(phi) * phase_center[0] + sin(phi) * phase_center[1])));
+  }
+}
+
 bool Solver::LookupAntennaPattern(JetNum theta, JetNum *magnitude) {
-  if (!ComputeAntennaPattern(&antenna_azimuth_, &antenna_magnitude_)) {
+  if (!ComputeAntennaPattern(&antenna_azimuth_, &antenna_field_)) {
     return false;
   }
   CHECK(antenna_azimuth_.size() == kFarFieldPoints);
-  CHECK(antenna_magnitude_.size() == kFarFieldPoints);
+  CHECK(antenna_field_.size() == kFarFieldPoints);
   // Search the azimuth array for theta. Account for the wrap-around gap
   // between the last and first azimuth.
   theta = NormalizeAngle(theta);
@@ -986,8 +1082,8 @@ bool Solver::LookupAntennaPattern(JetNum theta, JetNum *magnitude) {
   CHECK(alpha >= 0 && alpha <= 1);
   // Linearly interpolate the power (magnitude^2), not the field magnitude.
   *magnitude = sqrt(
-                 sqr(antenna_magnitude_[i0]) +
-                 alpha * sqr(antenna_magnitude_[i] - antenna_magnitude_[i0])
+                 sqr(abs(antenna_field_[i0])) +
+                 alpha * sqr(abs(antenna_field_[i]) - abs(antenna_field_[i0]))
                );
   return true;
 }
@@ -1035,12 +1131,12 @@ void Solver::SaveMeshAndSolutionToMatlab(const char *filename) {
   }
 
   // Write mesh dielectric properties (if available).
-  if (!dielectric_.empty()) {
-    int dims[2] = {(int) dielectric_.size(), 1};
-    vector<double> pr(dielectric_.size()), pi(dielectric_.size());
-    for (int i = 0; i < dielectric_.size(); i++) {
-      pr[i] = ToDouble(dielectric_[i].real());
-      pi[i] = ToDouble(dielectric_[i].imag());
+  if (!mat_params_.empty()) {
+    int dims[2] = {(int) mat_params_.size(), 1};
+    vector<double> pr(mat_params_.size()), pi(mat_params_.size());
+    for (int i = 0; i < mat_params_.size(); i++) {
+      pr[i] = ToDouble(mat_params_[i].epsilon.real());
+      pi[i] = ToDouble(mat_params_[i].epsilon.imag());
     }
     mat.WriteMatrix("pp", 2, dims, MatFile::mxDOUBLE_CLASS,
                     pr.data(), pi.data());
@@ -1217,7 +1313,8 @@ double Solver::ComputeKSquared() {
     // of the depth. If k^2 is negative then k is imaginary and travelling
     // waves will not propagate at this frequency.
     k2 = sqr(2.0 * M_PI / lambda) - sqr(M_PI / (config_.depth * config_.unit));
-  } else if (config_.type == ScriptConfig::EZ) {
+  } else if (config_.type == ScriptConfig::EZ ||
+             config_.type == ScriptConfig::ELECTROSTATICS) {
     k2 = sqr(2.0 * M_PI / lambda);
   } else {
     Panic("Unsupported type");

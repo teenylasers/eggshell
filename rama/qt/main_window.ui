@@ -52,8 +52,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>290</width>
-         <height>661</height>
+         <width>289</width>
+         <height>676</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,1">
@@ -158,6 +158,7 @@
     <addaction name="actionExportBoundaryXY"/>
     <addaction name="actionExportFieldAsMatlab"/>
     <addaction name="actionExportPlotAsMatlab"/>
+    <addaction name="actionExportAntennaPatternAsMatlabData"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
@@ -175,7 +176,8 @@
      <property name="title">
       <string>Show boundary</string>
      </property>
-     <addaction name="actionViewLinesAndPorts"/>
+     <addaction name="actionViewLines"/>
+     <addaction name="actionViewPorts"/>
      <addaction name="actionViewVertices"/>
      <addaction name="actionViewVertexDerivatives"/>
     </widget>
@@ -190,11 +192,16 @@
     <addaction name="actionZoomOut"/>
     <addaction name="separator"/>
     <addaction name="actionSet_animation_time_to_0"/>
+    <addaction name="actionIncrease_animation_time"/>
+    <addaction name="actionDecrease_animation_time"/>
     <addaction name="separator"/>
     <addaction name="menuShow_boundary"/>
     <addaction name="actionShowGrid"/>
     <addaction name="actionShowMarkers"/>
+    <addaction name="actionShowSParameters"/>
     <addaction name="actionAntialiasing"/>
+    <addaction name="separator"/>
+    <addaction name="actionSwitchToModelAfterEachSolve"/>
     <addaction name="separator"/>
     <addaction name="menuDebugging"/>
    </widget>
@@ -214,6 +221,8 @@
     <addaction name="actionStartOptimization"/>
     <addaction name="separator"/>
     <addaction name="actionStopSweepOrOptimization"/>
+    <addaction name="separator"/>
+    <addaction name="actionRunTest"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -296,7 +305,7 @@
            <enum>QLayout::SetDefaultConstraint</enum>
           </property>
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0,0,0,0,0,0,0,0">
+           <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0,0,0,0,0,0,0,0,0">
             <property name="spacing">
              <number>10</number>
             </property>
@@ -427,6 +436,46 @@
              </widget>
             </item>
             <item>
+             <widget class="QComboBox" name="display_style_ES">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
+              <property name="frame">
+               <bool>true</bool>
+              </property>
+              <item>
+               <property name="text">
+                <string>Voltage</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Absolute voltage</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>E magnitude</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vector E</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vector isovoltage</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>n/a</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
              <widget class="QComboBox" name="display_style_TM">
               <item>
                <property name="text">
@@ -496,6 +545,11 @@
             </item>
             <item>
              <widget class="QComboBox" name="color_map">
+              <item>
+               <property name="text">
+                <string>Color Wave</string>
+               </property>
+              </item>
               <item>
                <property name="text">
                 <string>Color Jet</string>
@@ -998,9 +1052,6 @@
    <property name="text">
     <string>Open model...</string>
    </property>
-   <property name="toolTip">
-    <string>Open a .lua model file</string>
-   </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
    </property>
@@ -1008,9 +1059,6 @@
   <action name="actionReload">
    <property name="text">
     <string>Reload model</string>
-   </property>
-   <property name="toolTip">
-    <string>Reload the current model</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+R</string>
@@ -1020,11 +1068,11 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Auto-run model on change</string>
-   </property>
-   <property name="toolTip">
-    <string>Auto-run model on an change in the .lua file</string>
    </property>
   </action>
   <action name="actionExportBoundaryDXF">
@@ -1090,7 +1138,7 @@
     <string>PgUp</string>
    </property>
   </action>
-  <action name="actionViewLinesAndPorts">
+  <action name="actionViewLines">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -1098,10 +1146,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Lines and ports</string>
-   </property>
-   <property name="toolTip">
-    <string>View lines and ports</string>
+    <string>Lines</string>
    </property>
   </action>
   <action name="actionViewVertices">
@@ -1110,9 +1155,6 @@
    </property>
    <property name="text">
     <string>Vertices</string>
-   </property>
-   <property name="toolTip">
-    <string>View vertices</string>
    </property>
   </action>
   <action name="actionViewVertexDerivatives">
@@ -1133,6 +1175,9 @@
   </action>
   <action name="actionShowMarkers">
    <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
     <bool>true</bool>
    </property>
    <property name="text">
@@ -1212,7 +1257,7 @@
   </action>
   <action name="actionCheckForLatestVersion">
    <property name="text">
-    <string>Check for latest version</string>
+    <string>Download latest version</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -1226,6 +1271,68 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+0</string>
+   </property>
+  </action>
+  <action name="actionRunTest">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Run test() after each solve</string>
+   </property>
+  </action>
+  <action name="actionShowSParameters">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show S parameters</string>
+   </property>
+  </action>
+  <action name="actionViewPorts">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Ports</string>
+   </property>
+  </action>
+  <action name="actionSwitchToModelAfterEachSolve">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Switch to model after each solve</string>
+   </property>
+  </action>
+  <action name="actionExportAntennaPatternAsMatlabData">
+   <property name="text">
+    <string>Export antenna pattern as matlab data...</string>
+   </property>
+  </action>
+  <action name="actionIncrease_animation_time">
+   <property name="text">
+    <string>Increase animation time</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Right</string>
+   </property>
+  </action>
+  <action name="actionDecrease_animation_time">
+   <property name="text">
+    <string>Decrease animation time</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Left</string>
    </property>
   </action>
  </widget>

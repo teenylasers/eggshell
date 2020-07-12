@@ -1,3 +1,14 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include "cavity_qt.h"
 #include "mesh.h"
@@ -22,12 +33,13 @@ const double kMaxReasonableTriangles = 1e12;
 // Cavity.
 
 Cavity::Cavity(QWidget *parent)
-    : LuaModelViewer(parent, gl::DoubleBuffer | gl::MultiSampleBuffer) {  //@@@ gl bits ignored
+    : LuaModelViewer(parent) {
   antenna_pattern_plot_ = sparam_plot_ = 0;
   time_dial_ = 0;
   solver_draw_mode_static_ = Solver::DRAW_REAL;
   solver_draw_mode_animating_ = Solver::DRAW_REAL;
-  show_boundary_lines_and_ports_ = true;
+  show_boundary_lines_ = true;
+  show_boundary_ports_ = true;
   show_boundary_vertices_ = show_boundary_derivatives_ = false;
   show_grid_ = false;
   mesh_draw_type_ = Mesh::MESH_HIDE;
@@ -39,7 +51,8 @@ Cavity::Cavity(QWidget *parent)
   displayed_soln_ = 0;
   optimizer_soln_ = 0;
   sparams_plot_type_ = 0;
-  show_sparams_ = false;
+  show_sparameters_ = true;
+  show_sparams_graph_ = false;
 }
 
 Cavity::~Cavity() {
@@ -164,23 +177,21 @@ void Cavity::CreatePortPowerAndPhase(int solution_index) {
   }
 }
 
-void Cavity::CreateArgumentsToOptimize(bool optimize_output_requested) {
+void Cavity::CreateArgumentsToOptimize(bool real_invocation) {
   // If we know we are going to need the solver later (e.g. because we're
-  // drawing fields or the mesh) then we will create it here, so that the
-  // call to the lua optimize() function below can look up correct field
+  // drawing fields or the mesh) then we will create it here, so that the call
+  // to the lua optimize() or test() function later can look up correct field
   // values through the 3rd argument. If we will not be needing the solver
-  // later then we let the field lookups return 0 (e.g. when the field
-  // display is turned off, which is a case that we want to render
-  // quickly).
+  // later then we let the field lookups return 0 (e.g. when the field display
+  // is turned off, which is a case that we want to render quickly).
   if (WillCreateSolverInDraw()) {
     CreateSolver();
   }
 
-  // We only compute port powers/phases if optimization output is being
-  // requested, as ComputePortOutgoingPower() triggers a complete solve
-  // which is too expensive if all we are going to do later is draw the cd
-  // or the mesh.
-  if (optimize_output_requested) {
+  // We only compute port powers/phases if this is a real invocation, as
+  // ComputePortOutgoingPower() triggers a complete solve which is too
+  // expensive if all we are going to do later is draw the cd or the mesh.
+  if (real_invocation) {
     CreatePortPowerAndPhase(displayed_soln_);
   } else {
     // Push two dummy arguments for (port_power, port_phase).
@@ -188,10 +199,10 @@ void Cavity::CreateArgumentsToOptimize(bool optimize_output_requested) {
     LuaRawGetGlobal(GetLua()->L(), "__ZeroTable__");
   }
 
-  // Push the 3rd argument to config.optimize. If optimizer output is not
-  // requested then push a dummy argument that allows execution of the function
-  // but that does not actually do any work.
-  if (optimize_output_requested) {
+  // Push the 3rd argument to config.optimize or config.test. If this is not a
+  // real invocation then push a dummy argument that allows execution of the
+  // function but that does not actually do any real work.
+  if (real_invocation) {
     LuaRawGetGlobal(GetLua()->L(), "__Optimize3rdArg__");
   } else {
     LuaRawGetGlobal(GetLua()->L(), "__DummyOptimize3rdArg__");
@@ -245,16 +256,18 @@ void Cavity::DrawModel() {
         (show_wideband_pulse_ && solver_.Size() > 1) ? &solver_ : 0);
 
     // Draw the port powers, or cutoff frequencies, or other such information.
+    double dummy_width, line_height;
+    DrawStringGetSize("1", &s_parameter_font, &dummy_width, &line_height);
     if (config_.TypeIsElectrodynamic()) {
       vector<JetComplex> power;
       double scale = devicePixelRatio();
-      if (solver->ComputePortOutgoingPower(&power)) {
+      if (show_sparameters_ && solver->ComputePortOutgoingPower(&power)) {
         for (int i = 0; i < power.size(); i++) {
           char s[100];
           snprintf(s, sizeof(s), "S%d = %.2f dB @ %.1f" DEGREE_SYMBOL,
                    i + 1, 10*log10(ToDouble(abs(power[i]))),
                    ToDouble(arg(power[i])) * 180.0 / M_PI);
-          DrawString(s, 10*scale, window_height - (10 + 20*i)*scale,
+          DrawString(s, 10*scale, window_height - (10 + line_height*i)*scale,
                      &s_parameter_font, 0,0,0, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
         }
       }
@@ -275,7 +288,7 @@ void Cavity::DrawModel() {
           char prefix = SIPrefix(F, 0.99, &mag);
           char s[100];
           snprintf(s, sizeof(s), "F%d = %.2f %cHz", i, F / mag, prefix);
-          DrawString(s, 10*scale, window_height - (10 + 20*i)*scale,
+          DrawString(s, 10*scale, window_height - (10 + line_height*i)*scale,
                      &s_parameter_font, 0,0,0, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP);
         }
       }
@@ -294,7 +307,8 @@ void Cavity::DrawModel() {
   // Draw the computational domain.
   gl::SetUniform("color", 0, 0, 0);
   cd_.DrawBoundary(gl::Transform(),
-                   show_boundary_lines_and_ports_, show_boundary_vertices_,
+                   show_boundary_lines_, show_boundary_ports_,
+                   show_boundary_vertices_,
                    show_boundary_derivatives_ * kBoundaryDerivativesScale);
 
   // Draw the debug shapes.
@@ -430,7 +444,8 @@ void Cavity::PlotSParams(bool force_update) {
   //   1: Phase
   //   2: Group delay
 
-  if (!show_sparams_ || !config_.TypeIsElectrodynamic() || !solver_.Valid()) {
+  if (!show_sparams_graph_ || !config_.TypeIsElectrodynamic() ||
+      !solver_.Valid()) {
     return;
   }
 
@@ -571,8 +586,13 @@ void Cavity::ToggleShowBoundaryDerivatives() {
   update();
 }
 
-void Cavity::ToggleShowBoundary() {
-  show_boundary_lines_and_ports_ = !show_boundary_lines_and_ports_;
+void Cavity::ToggleShowBoundaryLines() {
+  show_boundary_lines_ = !show_boundary_lines_;
+  update();
+}
+
+void Cavity::ToggleShowBoundaryPorts() {
+  show_boundary_ports_ = !show_boundary_ports_;
   update();
 }
 
@@ -586,8 +606,13 @@ void Cavity::ToggleWidebandPulse() {
   update();
 }
 
-void Cavity::ToggleShowSParams() {
-  show_sparams_ = !show_sparams_;
+void Cavity::ToggleShowSParameters() {
+  show_sparameters_ = !show_sparameters_;
+  update();
+}
+
+void Cavity::ToggleShowSParamsGraph() {
+  show_sparams_graph_ = !show_sparams_graph_;
   PlotSParams(true);
 }
 
@@ -826,6 +851,10 @@ int Cavity::LuaPorts(lua_State *) {
 
 bool Cavity::CreateSolver() {
   if (!solver_.Valid()) {
+    if (ThereAreLuaErrors()) {
+      return false;
+    }
+
     // Don't do anything for an empty cd as meshing will fail.
     if (cd_.IsEmpty()) {
       return false;
@@ -838,6 +867,12 @@ bool Cavity::CreateSolver() {
     }
     // If solver creation fails then it will emit an Error() and clear solver_.
     if (!solver_.IsValid()) {
+      solver_.Clear();
+    }
+
+    // Check for errors to display. These errors might come from the callbacks
+    // if they were not caught in the initial run of the script.
+    if (SelectScriptMessagesIfErrors()) {
       solver_.Clear();
     }
   }
@@ -927,7 +962,6 @@ void Cavity::SetConfigFromTable() {
             LUA_TSTRING, 0, -1)
   GET_FIELD(unit, true, DistanceScale, lua_tostring, LUA_TSTRING, 0, -1)
   GET_FIELD(mesh_edge_length, true, ToDouble, lua_tonumber, LUA_TNUMBER, 0, -1)
-  GET_FIELD(mesh_refines, true, ToDouble, lua_tonumber, LUA_TNUMBER, 0, -1)
   GET_FIELD(depth, config_.type == ScriptConfig::EXY, ToDouble, lua_tonumber,
             LUA_TNUMBER, 0, -1)
   GET_FIELD(boresight, false, ToDouble, lua_tonumber, LUA_TNUMBER, -1e99, 0)
@@ -949,6 +983,22 @@ void Cavity::SetConfigFromTable() {
       config_.wideband_window = config_.HAMMING;
     } else {
       GetLua()->Error("config.wideband_window is not valid");
+    }
+  }
+  lua_pop(L, 1);
+
+  // Handle antenna_pattern specially because it is an enumeration.
+  config_.antenna_pattern = config_.AT_ABC;     // Default
+  lua_getfield(L, -1, "antenna_pattern");       // Stack: antenna_pattern
+  if (lua_type(L, -1) != LUA_TNIL) {
+    if (strcmp(lua_tostring(L, -1), "at_ABC") == 0) {
+      config_.antenna_pattern = config_.AT_ABC;
+    } else if (strcmp(lua_tostring(L, -1), "at_far_field_material") == 0) {
+      config_.antenna_pattern = config_.AT_FF_MATERIAL;
+    } else if (strcmp(lua_tostring(L, -1), "at_boundary") == 0) {
+      config_.antenna_pattern = config_.AT_BOUNDARY;
+    } else {
+      GetLua()->Error("config.antenna_pattern is not valid");
     }
   }
   lua_pop(L, 1);
@@ -1042,11 +1092,15 @@ void Cavity::OnAnimationTimeout() {
 
 JetNum Cavity::ComputeAntennaDirectivity(int solution_index) {
   vector<double> azimuth;
-  vector<JetNum> magnitude;
+  vector<JetComplex> field;
   CreateSolver();
   if (solver_.Valid() && solver_.At(solution_index)->
-                            ComputeAntennaPattern(&azimuth, &magnitude)) {
-    CHECK(azimuth.size() == magnitude.size());
+                            ComputeAntennaPattern(&azimuth, &field)) {
+    CHECK(azimuth.size() == field.size());
+    vector<JetNum> magnitude(field.size());
+    for (int i = 0; i < field.size(); i++) {
+      magnitude[i] = abs(field[i]);
+    }
     JetNum power_avg = 0, power_max = 0;
     for (int i = 0; i < magnitude.size(); i++) {
       int inext = (i + 1) % magnitude.size();
@@ -1066,22 +1120,22 @@ JetNum Cavity::ComputeAntennaDirectivity(int solution_index) {
 
 void Cavity::PlotAntennaPattern() {
   vector<double> azimuth;
-  vector<JetNum> magnitude;
+  vector<JetComplex> field;
   vector<Plot::Axis> axis_stack;
   axis_stack = antenna_pattern_plot_->plot().GetAxisStack();
   antenna_pattern_plot_->plot().Clear();
   CreateSolver();
   if (!antenna_show_ || !solver_.Valid() ||
-      !solver_.At(displayed_soln_)->ComputeAntennaPattern(&azimuth, &magnitude)) {
+      !solver_.At(displayed_soln_)->ComputeAntennaPattern(&azimuth, &field)) {
     // The antenna pattern can't be (or should not be) computed, e.g. because
-    // there is no valid solution, no ABC or the effective k doesn't support
-    // propagating waves.
+    // there is no valid solution, no useful boundary, or the effective k
+    // doesn't support propagating waves.
   } else {
     vector<double> x(azimuth.size()), y(azimuth.size());
     double maxy = -1e99;
     for (int i = 0; i < azimuth.size(); i++) {
       x[i] = azimuth[i] * 180.0 / M_PI;
-      y[i] = 20 * log10(ToDouble(magnitude[i]));
+      y[i] = 20 * log10(ToDouble(abs(field[i])));
       maxy = std::max(maxy, y[i]);
     }
     if (antenna_scale_max_) {
@@ -1110,4 +1164,48 @@ void Cavity::PlotAntennaPattern() {
   }
   // Draw now so we get updates e.g. during slider movement:
   antenna_pattern_plot_->repaint();
+}
+
+void Cavity::ExportAntennaPatternMatlab(const char *filename) {
+  vector<double> azimuth;
+  vector<JetComplex> field;
+  CreateSolver();
+  if (!solver_.Valid() ||
+      !solver_.At(displayed_soln_)->ComputeAntennaPattern(&azimuth, &field)) {
+    Error("Antenna pattern can't be computed");
+    return;
+  }
+  CHECK(azimuth.size() == field.size());
+
+  // Compute phase center correction factors.
+  vector<JetComplex> xcorrection(field.size()), ycorrection(field.size());
+  for (int i = 0; i < field.size(); i++) {
+    xcorrection[i] = 1;
+    ycorrection[i] = 1;
+  }
+  solver_.At(displayed_soln_)->AdjustAntennaPhaseCenter(
+      JetPoint(config_.unit, 0), azimuth, &xcorrection);
+  solver_.At(displayed_soln_)->AdjustAntennaPhaseCenter(
+      JetPoint(0, config_.unit), azimuth, &ycorrection);
+
+  // Export to matlab file.
+  MatFile mat(filename);
+  int dims[2] = {static_cast<int>(azimuth.size()), 1};
+  mat.WriteMatrix("azimuth", 2, dims, MatFile::mxDOUBLE_CLASS,
+                  azimuth.data(), 0);
+  WriteJetComplexVector(mat, "field", field);
+  WriteJetComplexVector(mat, "xcorrection", xcorrection);
+  WriteJetComplexVector(mat, "ycorrection", ycorrection);
+}
+
+void Cavity::WriteJetComplexVector(MatFile &mat, const char *name,
+                                   const vector<JetComplex> &v) {
+  vector<double> real(v.size()), imag(v.size());
+  for (int i = 0; i < v.size(); i++) {
+    real[i] = ToDouble(v[i].real());
+    imag[i] = ToDouble(v[i].imag());
+  }
+  int dims[2] = {static_cast<int>(v.size()), 1};
+  mat.WriteMatrix(name, 2, dims, MatFile::mxDOUBLE_CLASS,
+                  real.data(), imag.data());
 }

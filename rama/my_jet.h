@@ -549,6 +549,12 @@ Jet<T, N> log10(const Jet<T, N>& f) {
   return log(f) / M_LN10;
 }
 
+// log2(a + h) = log(a + h) / log(2)
+template <typename T, int N> inline
+Jet<T, N> log2(const Jet<T, N>& f) {
+  return log(f) / M_LN2;
+}
+
 // exp(a + h) ~= exp(a) + exp(a) h
 template <typename T, int N> inline
 Jet<T, N> exp(const Jet<T, N>& f) {
@@ -760,11 +766,11 @@ bool IsInfinite(const Jet<T, N>& f) {
 // The jet is NaN if any part of the jet is NaN.
 template <typename T, int N> inline
 bool IsNaN(const Jet<T, N>& f) {
-  if (isnan(f.a)) {
+  if (std::isnan(f.a)) {
     return true;
   }
   for (int i = 0; i < N; ++i) {
-    if (isnan(f.v[i])) {
+    if (std::isnan(f.v[i])) {
       return true;
     }
   }
@@ -1096,6 +1102,17 @@ inline long long int ToInt64(const JetNum &a) {
 }
 inline std::complex<double> ToComplex(const JetComplex &c) {
   return std::complex<double>(ToDouble(c.real()), ToDouble(c.imag()));
+}
+
+// isnan(Jet) checks both the value and its derivatives for nans. That's often
+// not what you want because the derivatives can easily become nan while the
+// values are still sane, e.g. taking the atan2 of two zero values with zero
+// derivatives.
+inline bool IsNaNValue(const JetNum &f) {
+  return std::isnan(f.a);
+}
+inline bool IsNaNOrInfValue(const JetNum &f) {
+  return std::isnan(f.a) || std::isinf(f.a);
 }
 
 // Calling these likely means a bug, so declare but don't define them to ensure

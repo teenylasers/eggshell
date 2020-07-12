@@ -1,3 +1,15 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+
 // The error handling and logging mechanism to be used by all toolkit code. The
 // main functions called by the user are Error(), Warning(), Message() and
 // Panic(), which all take printf()-style arguments. All functions below are
@@ -35,13 +47,6 @@ struct ErrorHandler {
 // chain error handlers together in a thread safe way.
 ErrorHandler *SetErrorHandler(ErrorHandler *e);
 ErrorHandler *GetErrorHandler();
-
-// An error handler for wxWidgets.
-#ifdef __TOOLKIT_WXWINDOWS__
-struct wxErrorHandler : public ErrorHandler {
-  void HandleError(Type type, const char *msg, va_list ap);
-};
-#endif
 
 // An error handler for Qt.
 #ifdef QT_CORE_LIB

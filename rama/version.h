@@ -1,3 +1,15 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+
 // Version and application information that is shared by the app and the Inno
 // Setup Compiler. Only preprocessor directives can go here.
 
@@ -8,8 +20,9 @@
 // the Inno Setup Compiler does not understand the full C preprocessor syntax
 // and can not stringify the major and minor numbers.
 #define __APP_VERSION_MAJOR__ 0
-#define __APP_VERSION_MINOR__ 33
-#define __APP_VERSION__ "0.33"
+#define __APP_VERSION_MINOR__ 35
+// The followning line is grepped for by the Makefile, keep this format:
+#define __APP_VERSION__ "0.35"
 #define __APP_NAME__ "Rama"
 #define __APP_EXE_NAME__ "rama.exe"
 #define __APP_PUBLISHER__ ""
@@ -20,5 +33,6 @@
 #define __APP_LATEST_MAC_DOWNLOAD_PATH__ "/Rama.dmg"
 #define __APP_LATEST_VERSION_PATH_WIN__ "/latest_version.txt"
 #define __APP_LATEST_VERSION_PATH_MAC__ "/latest_version_mac.txt"
+#define __APP_LATEST_VERSION_PATH_LINUX__ "/latest_version_linux.txt"
 
 #endif

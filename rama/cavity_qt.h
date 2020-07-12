@@ -1,3 +1,14 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #ifndef __CAVITY_H__
 #define __CAVITY_H__
@@ -7,6 +18,7 @@
 #include "solver.h"
 
 class QDial;
+class MatFile;
 
 class Cavity : public LuaModelViewer {
  public:
@@ -17,7 +29,7 @@ class Cavity : public LuaModelViewer {
   bool IsModelEmpty();
   void ResetModel();
   void ScriptJustRan(bool only_compute_derivatives);
-  void CreateArgumentsToOptimize(bool optimize_output_requested);
+  void CreateArgumentsToOptimize(bool real_invocation);
   void DrawModel();
   bool PlotSweepResults(int plot_type,
       const std::string &sweep_parameter_name,
@@ -32,10 +44,12 @@ class Cavity : public LuaModelViewer {
   // Handling for menu and control commands.
   void ToggleShowBoundaryVertices();
   void ToggleShowBoundaryDerivatives();
-  void ToggleShowBoundary();
+  void ToggleShowBoundaryLines();
+  void ToggleShowBoundaryPorts();
   void ToggleGrid();
   void ToggleWidebandPulse();
-  void ToggleShowSParams();
+  void ToggleShowSParamsGraph();
+  void ToggleShowSParameters();
   bool GetWidebandPulse() const { return show_wideband_pulse_; }
   void SetFrequencyIndex(int n);
   int GetNumFrequencies() const;
@@ -48,6 +62,7 @@ class Cavity : public LuaModelViewer {
   void SetDisplayStyle(int style);
   bool IsEzCavity() const { return config_.type == ScriptConfig::EZ; }
   bool IsExyCavity() const { return config_.type == ScriptConfig::EXY; }
+  bool IsESCavity() const { return config_.type == ScriptConfig::ELECTROSTATICS; }
   bool IsTEMode() const { return config_.type == ScriptConfig::TE; }
   bool IsTMMode() const { return config_.type == ScriptConfig::TM; }
   int NumWaveguideModes() const {
@@ -78,6 +93,16 @@ class Cavity : public LuaModelViewer {
   void PlotSParams(bool force_update = false);
   void SelectSParamPlot(int sparams_plot_type);
 
+  // Compute and export the antenna pattern. The following vectors are saved:
+  //   azimuth - the azimuths at which the far field is evaluated (radians)
+  //   field - the complex values of the far field at each azimuth
+  //   xcorrection, ycorrection - used for phase center correction, as below.
+  // To plot the beam pattern magnitude in dB:
+  //   plot(azimuth,20*log10(abs(field)))
+  // To plot the beam phase, assuming a phase center at cx,cy (in config units):
+  //   plot(azimuth,angle(field.*(xcorrection.^cx.*ycorrection.^cy)))
+  void ExportAntennaPatternMatlab(const char *filename);
+
  private:
   // More connections to external controls.
   qtPlot *antenna_pattern_plot_, *sparam_plot_;
@@ -93,7 +118,7 @@ class Cavity : public LuaModelViewer {
   Solvers solver_;                // One solver per frequency, for cd_
   Solver::DrawMode solver_draw_mode_static_;      // DrawMode when not animated
   Solver::DrawMode solver_draw_mode_animating_;   // DrawMode when animating
-  bool show_boundary_lines_and_ports_;
+  bool show_boundary_lines_, show_boundary_ports_;
   bool show_boundary_vertices_, show_boundary_derivatives_;
   bool show_grid_;
   Mesh::MeshDrawType mesh_draw_type_;
@@ -105,7 +130,8 @@ class Cavity : public LuaModelViewer {
   int displayed_soln_;       // Solution frequency index to display
   int optimizer_soln_;       // Solution frequency index selected in optimizer
   int sparams_plot_type_;
-  bool show_sparams_;
+  bool show_sparameters_;
+  bool show_sparams_graph_;
   vector<vector<JetComplex>> sparam_results_;   // Cached results
 
   // Create solver_ from cd_ and config_ (unless it already exists). This
@@ -138,6 +164,10 @@ class Cavity : public LuaModelViewer {
   bool WillCreateSolverInDraw() const {
     return mesh_draw_type_ != Mesh::MESH_HIDE || show_field_;
   }
+
+  // Utility to write a vector of JetComplex to a matlab file.
+  void WriteJetComplexVector(MatFile &mat, const char *name,
+                             const vector<JetComplex> &v);
 };
 
 #endif

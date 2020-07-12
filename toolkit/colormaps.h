@@ -1,3 +1,14 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #ifndef __TOOLKIT_COLORMAPS_H__
 #define __TOOLKIT_COLORMAPS_H__
@@ -10,7 +21,7 @@ namespace ColorMap {
   // with all components in the range 0..1.
   typedef void (*Function)(float x, float rgb[3]);
 
-  // Some specific colormaps (the names match matlab color maps).
+  // Some specific colormaps (some names match matlab color maps).
   void Jet(float x, float rgb[3]);
   void Hot(float x, float rgb[3]);
   void Gray(float x, float rgb[3]);
@@ -18,6 +29,7 @@ namespace ColorMap {
   void Bone(float x, float rgb[3]);
   void Copper(float x, float rgb[3]);
   void Wheel(float x, float rgb[3]);
+  void Wave(float x, float rgb[3]);
 
   // Utility function that computes a 24 bit palette from a colormap function.
   inline void ComputePalette(Function colormap, uint8_t palette[256][3]) {

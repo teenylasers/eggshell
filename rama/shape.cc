@@ -1,3 +1,14 @@
+// Rama Simulator, Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
 
 #include <math.h>
 #include <algorithm>
@@ -24,11 +35,8 @@ using ClipperLib::ctXor;
 using Eigen::Vector3f;
 
 // All clipper coordinates are 64 bit integers. Our double precision
-// coordinates are scaled to use about 32 of those bits. We used to use 55 bits
-// here, but that resulted in some kind of problem that caused invalid polygons
-// to be generated in some cases. 32 bits is not a problem: for a polygon with
-// a 1m x 1m boundary the quantization size (1/2^32) is 233 pm, on the order of
-// the atomic spacing in a crystal lattice.
+// coordinates are scaled to use 32 of those bits to the left and right of the
+// decimal point. See comments in Shape::ClipperBounds.
 const double kCoordScale = 4294967296;  // =2^32
 
 // Geometry tolerances
@@ -352,7 +360,13 @@ void AnyPointInPoly(const vector<RPoint> &poly,
       best_ia = ia;
     }
   }
-  CHECK(best_ia >= 0);        // If can't find convex vertex (never happens)
+  if (best_ia < 0) {
+    // If we can't find a convex vertex the polygon is probably zero area. In
+    // this case there is no vertex inside the polygon so we just return the
+    // first vertex, which is as good as any other.
+    *point = poly[0].p;
+    return;
+  }
   int ia = best_ia;
   int iv = (ia + 1) % poly_size;
   int ib = (ia + 2) % poly_size;
@@ -381,7 +395,7 @@ void AnyPointInPoly(const vector<RPoint> &poly,
     }
   }
 
-  // Return q if we found it or the abv midpoint otherwise.
+  // Return the midpoint of qv if we found q, or the abv centroid otherwise.
   if (found_q) {
     *point = (min_q + poly[iv].p) * 0.5;
   } else {
@@ -527,23 +541,8 @@ bool EdgeInfo::SetUnused(EdgeKind new_kind, float new_dist) {
 //***************************************************************************
 // Material.
 
-void Material::SetCallbackToRegistry(lua_State *L) {
-  CHECK(lua_type(L, -1) == LUA_TFUNCTION);
-  CHECK(callback.empty());                      // Should only do this once
-  LuaGetObject(L)->Hash(&callback, true);       // Does not pop function
-  lua_pushlstring (L, callback.data(), callback.size());
-  lua_rotate(L, -2, 1);                         // Swap top 2 elements
-  lua_rawset(L, LUA_REGISTRYINDEX);
-}
-
-void Material::GetCallbackFromRegistry(lua_State *L) {
-  CHECK(callback.size() == 16);                 // Make sure it's an MD5 hash
-  lua_pushlstring (L, callback.data(), callback.size());
-  lua_rawget(L, LUA_REGISTRYINDEX);
-  CHECK(lua_type(L, -1) == LUA_TFUNCTION);
-}
-
-bool Material::RunCallback(Lua *lua, LuaVector *result[2]) {
+bool Material::RunCallback(Lua *lua, bool within_lua,
+                           vector<MaterialParameters> *result) {
   // Check that we have the callback function and two vector arguments on the
   // stack.
   int n = lua_gettop(lua->L()) - 2;     // First return argument slot
@@ -558,18 +557,54 @@ bool Material::RunCallback(Lua *lua, LuaVector *result[2]) {
     return false;
   }
   int nret = lua_gettop(lua->L()) - n + 1;
-  if (nret < 1 || nret > 2) {
-    LuaError(lua->L(),"Callback should return 1 or 2 values");
+  if (nret != 1 && nret != 4 && nret != 5) {
+    if (nret == 2) {
+      Error("Two material parameters were returned so you might "
+            "be using a deprecated complex number API. Use Complex() instead.");
+    }
+    Error("Callback should return 1, 4 or 5 material parameters");
+    if (within_lua) {
+      LuaError(lua->L(), "Bad material callback");
+    }
     return false;
   }
-  result[0] = 0;
-  result[1] = 0;
+  vector<vector<JetComplex>> vec(nret);
   for (int i = 0; i < nret; i++) {
-    result[i] = LuaCastTo<LuaVector>(lua->L(), n + i);
-    if (!result[i] || result[i]->size() != x->size()) {
-      LuaError(lua->L(), "Callback should return vectors of the same size as "
-                         "the x,y arguments");
+    if (!ToJetComplexVector(lua->L(), n + i, &vec[i])) {
+      Error("Invalid vectors (or complex vectors) returned");
+      if (within_lua) {
+        LuaError(lua->L(), "Bad material callback");
+      }
       return false;
+    }
+    if (vec[i].size() != x->size()) {
+      Error("Callback should return vectors (or complex vectors) "
+            "of the same size as the x,y arguments");
+      if (within_lua) {
+        LuaError(lua->L(), "Bad material callback");
+      }
+      return false;
+    }
+    for (int j = 0; j < vec[i].size(); j++) {
+      if (IsNaNValue(vec[i][j].real()) || IsNaNValue(vec[i][j].imag())) {
+        Error("A NaN (not-a-number) was returned by a callback, "
+              "in position %d of return value %d", j+1, i+1);
+        if (within_lua) {
+          LuaError(lua->L(), "Bad material callback");
+        }
+        return false;
+      }
+    }
+  }
+  result->clear();
+  result->resize(x->size());    // Sets material parameters to their defaults
+  for (int i = 0; i < x->size(); i++) {
+    (*result)[i].epsilon = vec[0][i];
+    if (vec.size() >= 4) {
+      (*result)[i].SetSigmas(vec[1][i], vec[2][i], vec[3][i]);
+    }
+    if (vec.size() >= 5) {
+      (*result)[i].excitation = vec[4][i];
     }
   }
   lua_settop(lua->L(), n - 1);
@@ -598,6 +633,8 @@ const char *Shape::GeometryError(bool enforce_positive_area) const {
     holecount += (area < 0);
   }
   if (enforce_positive_area && holecount >= NumPieces()) {
+    //@@@ It doesn't seem possible to trigger this problem, and I can't even
+    //@@@ remember what this check is for. Discard? Ditch the argument too.
     return "Shape has more holes than outer boundaries. "
            "Have you used the correct vertex winding order for outer "
            "boundaries and holes?";
@@ -619,14 +656,20 @@ void Shape::SetLuaGlobals(lua_State *L) {
 
 void Shape::Clear() {
   polys_.clear();
+  port_callbacks_.clear();
 }
 
 void Shape::Dump() const {
   for (int i = 0; i < polys_.size(); i++) {
-    printf("Poly %d:\n", i);
+    printf("Poly %d (color=0x%x, area=%.4g):\n", i, polys_[i].material.color,
+           ToDouble(Area(i)));
     for (int j = 0; j < polys_[i].p.size(); j++) {
-      printf("\t(%g, %g)\n", ToDouble(polys_[i].p[j].p[0]),
-                             ToDouble(polys_[i].p[j].p[1]));
+      printf("\t(pt=%g,%g, kind=%d,%d, dist=%.2g,%.2g)\n",
+             ToDouble(polys_[i].p[j].p[0]), ToDouble(polys_[i].p[j].p[1]),
+             polys_[i].p[j].e.kind[0].IntegerForDebugging(),
+             polys_[i].p[j].e.kind[1].IntegerForDebugging(),
+             polys_[i].p[j].e.dist[0],
+             polys_[i].p[j].e.dist[1]);
     }
   }
 }
@@ -670,10 +713,10 @@ void Shape::DrawInterior() const {
 }
 
 void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
-                         bool show_lines_and_ports, bool show_vertices,
+                         bool show_lines, bool show_ports, bool show_vertices,
                          double boundary_derivatives_scale) const {
   // First pass: regular polygon outline, regardless of edge kinds.
-  if (show_lines_and_ports) {
+  if (show_lines) {
     gl::SetUniform("color", 0, 0, 0);
     vector<Vector3f> points;
     for (int i = 0; i < polys_.size(); i++) {
@@ -693,7 +736,7 @@ void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
   }
 
   // Second pass: highlight port edges and draw port numbers.
-  if (show_lines_and_ports) {
+  if (show_ports) {
     gl::PushShader push_shader(gl::SmoothShader());
     vector<Vector3f> points, colors;
     for (int i = 0; i < polys_.size(); i++) {
@@ -803,10 +846,24 @@ void Shape::SetToPiece(int n, const Shape &p) {
   new_polys_.swap(polys_);
 }
 
-bool Shape::AssignPort(int piece, int edge, EdgeKind kind) {
+bool Shape::AssignPort(int piece, int edge, EdgeKind kind, PointMap *pmap) {
   int n = polys_[piece].p.size();
-  return polys_[piece].p[ edge         ].e.SetUnused(kind, 1) &&
-         polys_[piece].p[(edge + 1) % n].e.SetUnused(kind, 0);
+  if (pmap) {
+    bool valid = true;
+    for (int i = 0; i < 2; i++) {
+      auto &p = polys_[piece].p[(edge + i) % n].p;      // i'th point of edge
+      auto & pivector = (*pmap)[std::make_pair(p[0], p[1])];
+      for (int j = 0; j < pivector.size(); j++) {
+        int piece_index = pivector[j].first;
+        int poly_index = pivector[j].second;
+        valid |= polys_[piece_index].p[poly_index].e.SetUnused(kind, 1-i);
+      }
+    }
+    return valid;
+  } else {
+    return polys_[piece].p[ edge         ].e.SetUnused(kind, 1) &&
+           polys_[piece].p[(edge + 1) % n].e.SetUnused(kind, 0);
+  }
 }
 
 JetNum Shape::Area(int n) const {
@@ -866,7 +923,7 @@ void Shape::ExtremeSideLengths(JetNum *ret_length_max,
 }
 
 void Shape::SetRectangle(JetNum x1, JetNum y1, JetNum x2, JetNum y2) {
-  polys_.clear();
+  Clear();
   polys_.resize(1);
   // Sort coordinates so that we always have a positive area:
   polys_[0].p.push_back(RPoint(std::min(x1,x2), std::min(y1,y2)));
@@ -876,7 +933,7 @@ void Shape::SetRectangle(JetNum x1, JetNum y1, JetNum x2, JetNum y2) {
 }
 
 void Shape::SetCircle(JetNum x, JetNum y, JetNum radius, int npoints) {
-  polys_.clear();
+  Clear();
   polys_.resize(1);
   for (int i = 0; i < npoints; i++) {
     double angle = double(i) / double(npoints) * 2.0 * M_PI;
@@ -901,6 +958,25 @@ void Shape::SetXOR(const Shape &c1, const Shape &c2) {
 }
 
 void Shape::Paint(const Shape &s, const Material &mat) {
+  // We can't simply run the clipper to subtract 's' from all pieces of 'this',
+  // since that would unrecoverably merge pieces with different materials
+  // (since clipper doesn't understand anything about polygon materials).
+  // Instead we group the pieces by material and then deal with these 'material
+  // shapes' separately, taking care to preserve the material of each piece.
+  //
+  // The documentation insists that painting be the last step in model
+  // creation, because shape boolean operators will erase material types.
+  // Therefore we can assume that the individual shapes for each material are
+  // disjoint (because that's enforced here). We can also assume that the
+  // interior holes will have the same materials as the outer boundaries that
+  // they are holes for, or in other words, holes are specific to material
+  // shapes and are not holes for the entire shape (because that's also
+  // enforced here).
+  std::map<Material, vector<int>> matmap;  // Material -> indexes into polys_
+  for (int i = 0; i < polys_.size(); i++) {
+    matmap[polys_[i].material].push_back(i);
+  }
+
   // Compute the coordinate conversion that we're going to use for all
   // clipping. It's important to be consistent so that this shape and the area
   // to paint will end up sharing coincident vertices that will be
@@ -910,38 +986,27 @@ void Shape::Paint(const Shape &s, const Material &mat) {
     return;
   }
 
-  // Subtract 's' separately from each non-hole polygon piece, taking care to
-  // preserve the polygon material (color etc) of each piece. We can't simply
-  // run the clipper to subtract 's' from all pieces of 'this', since that
-  // would unrecoverably merge pieces with different materials.
-  Shape holes, not_holes, result;
-  for (int i = 0; i < polys_.size(); i++) {
-    if (PolyArea(polys_[i].p) > 0) {
-      not_holes.polys_.push_back(polys_[i]);
-    } else {
-      holes.polys_.push_back(polys_[i]);
+  // We deal with each material shape separately.
+  Shape result;
+  for (auto matshape : matmap) {
+    Shape a;                    // Shape for just this material
+    for (int i = 0; i < matshape.second.size(); i++) {
+      a.polys_.push_back(polys_[matshape.second[i]]);
     }
-  }
-  for (int i = 0; i < not_holes.polys_.size(); i++) {
-    // Each piece we subtract from is one of the not-holes combined with all of
-    // the holes. This works because the pftPositive fill type allows the
-    // polygon to have external holes that are invisible.
-    Shape a, b;
-    a.polys_.push_back(not_holes.polys_[i]);
-    a.polys_.insert(a.polys_.end(), holes.polys_.begin(), holes.polys_.end());
+    Shape b;                    // Material shape minus painted shape s
     b.RunClipper(&a, &s, ctDifference, offset_x, offset_y, scale);
     for (int j = 0; j < b.polys_.size(); j++) {
-      b.polys_[j].material = not_holes.polys_[i].material;
+      b.polys_[j].material = matshape.first;
     }
-    result.polys_.insert(result.polys_.end(), b.polys_.begin(), b.polys_.end());
+    result.polys_.insert(result.polys_.end(),
+                         b.polys_.begin(), b.polys_.end());
   }
 
-  // Compute the area to paint and add it to the result as a separate
-  // (non-merged) polygon piece.
+  // The area to paint is 's' intersected with the entire current polygon.
   Shape area_to_paint;
   area_to_paint.RunClipper(this, &s, ctIntersection, offset_x, offset_y, scale);
-  if (IsEmpty()) {
-    return;
+  if (area_to_paint.IsEmpty()) {
+    return;  // Throw away all the work above if nothing to paint.
   }
   for (int i = 0; i < area_to_paint.polys_.size(); i++) {
     area_to_paint.polys_[i].material = mat;
@@ -952,6 +1017,7 @@ void Shape::Paint(const Shape &s, const Material &mat) {
 }
 
 void Shape::SetMerge(const Shape &s) {
+  // This merges everything regardless of material:
   RunClipper(&s, NULL, ctUnion);
 }
 
@@ -1059,7 +1125,9 @@ void Shape::Grow(JetNum delta, CornerStyle style, JetNum limit,
   steps = std::min(steps, kMaxStepsAllowed);
   for (int i = 0; i < polys_.size(); i++) {
     const int n = polys_[i].p.size();
-    if (n < 3) {
+    // The following code will work even for just 2 points, which represents a
+    // two point polyline.
+    if (n < 2) {
       continue;
     }
     vector<RPoint> new_poly;
@@ -1175,6 +1243,16 @@ void Shape::Clean(JetNum threshold) {
     threshold = kTolClean * length_max;
   }
 
+  // We don't delete points that are shared by multiple pieces, as these are
+  // topologically important and might be referenced by different material's
+  // polygons.
+  std::map<RPoint, int> use_count;
+  for (int i = 0; i < polys_.size(); i++) {
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      use_count[polys_[i].p[j]]++;
+    }
+  }
+
   for (int i = 0; i < polys_.size(); i++) {
     if (polys_[i].p.size() < 3) {
       continue;
@@ -1185,42 +1263,96 @@ void Shape::Clean(JetNum threshold) {
       // the best chance of cleaning up the shape without modifying the
       // boundary. On the second pass delete all points that are closer to
       // their neighbors than the threshold.
-      const int n = polys_[i].p.size();
-      vector<bool> to_delete(n);
-      if (pass == 0) {
-        for (int j1 = 0; j1 < n; j1++) {
-          int j2 = (j1 + 1) % n;
-          int j3 = (j1 + 2) % n;
+      int n = polys_[i].p.size();
+      for (int j1 = 0; j1 < n; j1++) {
+        int j2 = (j1 + 1) % n;        // We consider deleting j2
+        int j3 = (j1 + 2) % n;
+        if (use_count[polys_[i].p[j2]] <= 1) {
           JetPoint delta1 = polys_[i].p[j2].p - polys_[i].p[j1].p;
           JetPoint delta2 = polys_[i].p[j3].p - polys_[i].p[j2].p;
           JetNum length1 = delta1.norm();
           JetNum length2 = delta2.norm();
           JetNum sin_theta = Cross2(delta1, delta2) / (length1 * length2);
-          if (fabs(sin_theta) < kTolColinear) {
-            // j1-j2-j3 are colinear, delete j2 if it's too close to j1 or j2.
-            to_delete[j2] = (length1 < threshold || length2 < threshold);
-          }
-        }
-      } else {
-        int j1 = n - 1;         // Index of previous undeleted point
-        for (int j2 = 0; j2 < n; j2++) {
-          JetNum length = (polys_[i].p[j2].p - polys_[i].p[j1].p).norm();
-          if (length < threshold) {
-            to_delete[j2] = true;
-          } else {
-            j1 = j2;
+          if (pass == 1 || fabs(sin_theta) < kTolColinear) {
+            // If fabs(sin_theta) is small, j1-j2-j3 are colinear.
+            // Delete j2 if it's too close to j1 or j2:
+            if (length1 < threshold || length2 < threshold) {
+              polys_[i].p.erase(polys_[i].p.begin() + j2);
+              j1--;
+              n--;
+            }
           }
         }
       }
+    }
+  }
+}
 
-      // Actually delete the points.
-      int dest = 0;
-      for (int src = 0; src < n; src++) {
-        if (!to_delete[src]) {
-          polys_[i].p[dest++] = polys_[i].p[src];
+void Shape::SplitPolygonsAtNecks() {
+  // Make a stack of piece indices to process. We keep processing pieces until
+  // there's nothing left on the stack.
+  vector<int> stack(polys_.size());
+  for (int i = 0; i < polys_.size(); i++) {
+    stack[i] = i;
+  }
+
+  while (!stack.empty()) {
+    // Process piece 'i'.
+    int i = stack.back();
+    stack.pop_back();
+
+    // This piece will have necks if there are shared points. Multiple shared
+    // points could require that the piece be split into an arbitrary number of
+    // pieces. Creating all the splits in one go requires a lot of book
+    // keeping. Instead we solve the much simpler problem of identifying just
+    // *one* split, and then adding the two resulting pieces to the stack for
+    // further analysis. Since the common case is just one split, this
+    // algorithm does not sacrifice much speed. So, first make an index of all
+    // the points, stopping when we have found a duplicate.
+    std::map<std::pair<JetNum, JetNum>, int> point_map;  // x,y --> one index
+    int dup1 = -1, dup2 = -1;   // Indexes of two duplicated points
+    {
+      auto &p = polys_[i].p;
+      for (int j = 0; j < p.size(); j++) {
+        auto key = std::make_pair(p[j].p[0], p[j].p[1]);
+        if (point_map.count(key) > 0) {
+          dup1 = point_map[key];
+          dup2 = j;
+          break;
         }
+        point_map[key] = j;
       }
-      polys_[i].p.resize(dest);
+    }
+    if (dup1 == -1) {
+      continue;                 // No necks in this piece
+    }
+
+    // Make two polygons from dup1 -> dup2 and dup2 -> dup1. But zero-area
+    // slivers (where two edges are coincident) are discarded and not created
+    // as separate pieces.
+    auto &p = polys_[i].p;
+    vector<RPoint> newp1,newp2;
+    for (int j = dup2; j != dup1; j = (j + 1) % p.size()) {
+      newp1.push_back(p[j]);
+    }
+    for (int j = dup1; j != dup2; j = (j + 1) % p.size()) {
+      newp2.push_back(p[j]);
+    }
+    if (newp1.size() > 2 && newp2.size() > 2) {
+      polys_.resize(polys_.size() + 1);
+      polys_.back().material = polys_[i].material;
+      polys_[i].p.swap(newp1);
+      polys_.back().p.swap(newp2);
+      stack.push_back(i);
+      stack.push_back(polys_.size() - 1);
+    } else if (newp1.size() > 2) {
+      polys_[i].p.swap(newp1);
+      stack.push_back(i);
+    } else if (newp2.size() > 2) {
+      polys_[i].p.swap(newp2);
+      stack.push_back(i);
+    } else {
+      polys_.erase(polys_.begin() + i);
     }
   }
 }
@@ -1267,38 +1399,39 @@ void Shape::FindClosestVertex(JetNum x, JetNum y, int *piece, int *index) {
   CHECK(*piece >= 0 && *index >= 0);     // Make sure shape not empty
 }
 
-bool Shape::APointInside(double *x, double *y) {
+bool Shape::APointInside(int i, double *x, double *y) {
   if (GeometryError(false)) {
     return false;       // AnyPointInPoly() needs good geometry
   }
 
-  // Handle a nonempty single piece polygon of any orientation.
-  JetPoint point;
-  if (polys_.size() == 1 && polys_[0].p.size() >= 3) {
-    AnyPointInPoly(polys_[0].p, -1, &point);
-    *x = ToDouble(point[0]);
-    *y = ToDouble(point[1]);
-    return true;
+  // If i == -1 find the single positive area polygon, or if there is just one
+  // polygon then use that.
+  if (i == -1) {
+    if (polys_.size() == 1) {
+      i = 0;
+    } else {
+      for (int j = 0; j < polys_.size(); j++) {
+        if (Area(j) > 0) {
+          if (i >= 0) {
+            return false;       // Found more than one positive area piece
+          }
+          i = j;
+        }
+      }
+      if (i == -1) {
+        return false;           // Found no positive area pieces
+      }
+    }
   }
 
-  // Handle a single positive area polygon with any number of negative area
-  // holes.
-  int posindex = -1;
-  for (int i = 0; i < polys_.size(); i++) {
-    if (Area(i) > 0) {
-      if (posindex >= 0) {
-        return false;           // Found more than one positive area piece
-      }
-      posindex = i;
+  vector<RPoint> poly = polys_[i].p;
+  for (int j = 0; j < polys_.size(); j++) {
+    if (j != i) {
+      poly.insert(poly.end(), polys_[j].p.begin(), polys_[j].p.end());
     }
   }
-  vector<RPoint> poly = polys_[posindex].p;
-  for (int i = 0; i < polys_.size(); i++) {
-    if (i != posindex) {
-      poly.insert(poly.end(), polys_[i].p.begin(), polys_[i].p.end());
-    }
-  }
-  AnyPointInPoly(poly, polys_[posindex].p.size(), &point);
+  JetPoint point;
+  AnyPointInPoly(poly, polys_[i].p.size(), &point);
   *x = ToDouble(point[0]);
   *y = ToDouble(point[1]);
   return true;
@@ -1443,6 +1576,101 @@ void Shape::SaveBoundaryAsXY(const char *filename) {
   fclose(fout);
 }
 
+bool Shape::LoadSTL(const char *filename) {
+  // STL file parameters.
+  const int kHeaderSize = 80;
+  const int kVertexSize = 50;
+  const double kTolerance = 1e-6;
+
+  Clear();
+
+  // Load the STL file data into 'v'. Each group of three vertices in 'v' is a
+  // single triangle. The right hand rule defines the triangle normal that
+  // points out of the solid. The vertices are ordered by just the X,Y part.
+  struct STLPoint : public Vector3f {
+    bool operator<(const STLPoint &p) const {
+      return (*this)[0] < p[0] || ((*this)[0] == p[0] && (*this)[1] < p[1]);
+    }
+  };
+  std::vector<STLPoint> v;
+  {
+    FILE *fin = fopen(filename, "rb");
+    if (!fin) {
+      Error("Can't open STL file '%s' (%s)", filename, strerror(errno));
+      return false;
+    }
+    // Get file size, read header.
+    fseek(fin, 0, SEEK_END);
+    long size = ftell(fin);
+    fseek(fin, kHeaderSize, SEEK_SET);      // Unused header
+    uint32_t num_triangles = 0;
+    size_t nr = fread(&num_triangles, sizeof(num_triangles), 1, fin);
+    // Check that the file size matches 'num_triangles'.
+    if (nr != 1 || size < 84 || size != (84 + num_triangles * kVertexSize)) {
+      Error("STL file '%s' has unexpected size", filename);
+      return false;
+    }
+    // Read just the vertex part of the file data, discard the normals.
+    vector<uint8_t> bytes(num_triangles * kVertexSize);
+    nr = fread(bytes.data(), kVertexSize, num_triangles, fin);
+    if (nr != num_triangles || ferror(fin)) {
+      Error("Error reading STL file '%s'", filename);
+      return false;
+    }
+    v.resize(num_triangles * 3);
+    for (int i = 0; i < num_triangles; i++) {
+      for (int j = 0; j < 3; j++) {
+        v[i*3+j] = *reinterpret_cast<STLPoint*>(bytes.data() + i * kVertexSize +
+                                                (j+1) * 3 * sizeof(float));
+      }
+    }
+    fclose(fin);
+  }
+
+  // Identify the edges that are referenced by just one of the triangles in the
+  // z=0 plane. This is the boundary of the polygons we will create.
+  std::map<std::pair<STLPoint, STLPoint>, int> edge_map;
+  for (int i = 0; i < v.size() / 3; i++) {
+    if (fabs(v[i*3+0][2]) < kTolerance && fabs(v[i*3+1][2]) < kTolerance &&
+        fabs(v[i*3+2][2]) < kTolerance) {
+      // Triangle is in the z=0 plane, add its edges to edge_map.
+      for (int j = 0; j < 3; j++) {
+        int j2 = (j + 1) % 3;
+        std::pair<STLPoint, STLPoint> key2(v[i*3+j2], v[i*3+j]);
+        if (edge_map.count(key2) > 0) {
+          edge_map[key2]++;
+        } else  {
+          std::pair<STLPoint, STLPoint> key1(v[i*3+j], v[i*3+j2]);
+          edge_map[key1]++;
+        }
+      }
+    }
+  }
+
+  // Map all exterior vertices to the next vertex in the polygon.
+  std::map<STLPoint, STLPoint> next_vertex;
+  for (auto it : edge_map) {
+    if (it.second == 1) {
+      next_vertex[it.first.second] = it.first.first;
+    }
+  }
+
+  // Emit all exterior vertices to polygons.
+  while (!next_vertex.empty()) {
+    polys_.resize(polys_.size() + 1);
+    STLPoint first_vertex = next_vertex.begin()->first;
+    STLPoint v = first_vertex;
+    do {
+      polys_.back().p.push_back(RPoint(v[0], v[1]));
+      assert(next_vertex[v].count() == 1);
+      STLPoint next_v = next_vertex[v];
+      next_vertex.erase(v);
+      v = next_v;
+    } while (v != first_vertex);
+  }
+  return true;
+}
+
 // Update coordinate bounds. Return the number of coordinates processed.
 
 int Shape::UpdateBounds(JetNum *min_x, JetNum *min_y,
@@ -1484,7 +1712,7 @@ void Shape::ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
 
 void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
                       const Paths &paths) {
-  polys_.clear();
+  Clear();
   polys_.resize(paths.size());
   for (int i = 0; i < paths.size(); i++) {
     polys_[i].p.resize(paths[i].size());
@@ -1503,6 +1731,8 @@ void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
 }
 
 void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type) {
+  // @@@ Now that ClipperBounds returns constants we can probably ditch this
+  //     function and just move the other RunClipper's body here.
   JetNum offset_x, offset_y, scale;
   if (!ClipperBounds(c1, c2, &offset_x, &offset_y, &scale)) {
     Clear();
@@ -1513,23 +1743,45 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type) {
 
 bool Shape::ClipperBounds(const Shape *c1, const Shape *c2, JetNum *offset_x,
                           JetNum *offset_y, JetNum *scale) const {
-  // Compute bounds of c1, c2 or both.
-  CHECK(c1 || c2);
-  JetNum min_x = __DBL_MAX__, min_y = __DBL_MAX__;
-  JetNum max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
-  if ((c1 ? c1->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) +
-      (c2 ? c2->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) == 0) {
-    // No coordinates in either c1 or c2. The min/max wont be valid and the
-    // result will have to be empty anyway.
-    return false;
-  }
-
-  // Compute the scale factor from doubles to clipper integer coordinates.
-  *offset_x = (max_x + min_x) / 2.0;
-  *offset_y = (max_y + min_y) / 2.0;
-  JetNum max_bound = std::max(max_x - min_x, max_y - min_y);
-  *scale = kCoordScale / max_bound;
+  // Compute the coordinate scaling to used when running Clipper on shapes 'c1'
+  // and 'c2'. We used to scale and offset things so that we used exactly 32 of
+  // the bits in the integer coordinates passed to clipper. This has the
+  // advantage of working despite the user's own weird scaling (e.g. if there's
+  // a circle the diameter of the Earth, in microns, that's ~1.3e+13). However
+  // it means that the same shape may get different scalings when combined with
+  // different pieces, which can lead to slivers being generated in Clipper as
+  // different integer coordinates are used to represent the same points. So
+  // now we use a constant scaling that gives us 32 bits to the left and right
+  // of the decimal point. This quantizes coordinates to 2.3e-10 and gives us a
+  // maximum of 2.1e9. This is generally not a problem: for config.unit set to
+  // 'meters', the quantization size is on the order of the atomic spacing in a
+  // crystal lattice.
+  *offset_x = 0;
+  *offset_y = 0;
+  *scale = kCoordScale;
   return true;
+
+  /*
+   * The old way of doing things:
+   *
+   *  // Compute bounds of c1, c2 or both.
+   *  CHECK(c1 || c2);
+   *  JetNum min_x = __DBL_MAX__, min_y = __DBL_MAX__;
+   *  JetNum max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
+   *  if ((c1 ? c1->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) +
+   *      (c2 ? c2->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) == 0) {
+   *    // No coordinates in either c1 or c2. The min/max wont be valid and the
+   *    // result will have to be empty anyway.
+   *    return false;
+   *  }
+   *
+   *  // Compute the scale factor from doubles to clipper integer coordinates.
+   *  *offset_x = (max_x + min_x) / 2.0;
+   *  *offset_y = (max_y + min_y) / 2.0;
+   *  JetNum max_bound = std::max(max_x - min_x, max_y - min_y);
+   *  *scale = kCoordScale / max_bound;
+   *  return true;
+   */
 }
 
 void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
@@ -1541,6 +1793,40 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
   }
   if (c2) {
     c2->ToPaths(scale, offset_x, offset_y, &p2);
+  }
+
+  // When clipper runs on two shapes with coincident vertices, there doesn't
+  // seem to be any properly defined behavior for which of the vertex Z values
+  // will end up in the final shape. This is a problem when two shapes that
+  // both contain port definitions are combined.
+  //
+  // If c1 and c2 have coincident vertices then we want the EdgeInfo (e.g. port
+  // definitions) to come from c1. This is the behavior defined in the manual
+  // for the boolean shape operators, and it also prevents painting from
+  // accidentally erasing port definitons (because in painting, c2 is always
+  // the dielectric shape to paint, which shouldn't have ports). Achieve this
+  // behavior by setting c2 EdgeInfo from c1 where ever there are coincident
+  // vertices. We could have attempted to fix the behavior in clipper itself,
+  // but the snippet of code below is way simpler.
+  //
+  // If there are coincident vertices in c1 (e.g. because of multiple
+  // dielectrics or necked polygons) this will take just one of them at each
+  // point. However this is not an allowed case yet as boolean operations on
+  // dielectric-containing shapes are not allowed.
+  using ClipperLib::cInt;
+  std::map<std::pair<cInt,cInt>, ClipperEdgeInfo> point_map;
+  for (int i = 0; i < p1.size(); i++) {
+    for (int j = 0; j < p1[i].size(); j++) {
+      point_map[std::make_pair(p1[i][j].X, p1[i][j].Y)] = p1[i][j].Z;
+    }
+  }
+  for (int i = 0; i < p2.size(); i++) {
+    for (int j = 0; j < p2[i].size(); j++) {
+      auto it = point_map.find(std::make_pair(p2[i][j].X, p2[i][j].Y));
+      if (it != point_map.end()) {
+        p2[i][j].Z = it->second;
+      }
+    }
   }
 
   // Run the clipper. Use the pftPositive fill type so that a polygon can have
@@ -1556,12 +1842,23 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
   Paths result;
   clipper.Execute(clip_type, result, pftPositive, pftPositive);
 
-  // Sometimes the clipper leaves vertices that are very close together or
-  // duplicated. Clean these out because these shapes can not be meshed.
-  Clean();
-
   // Convert the result back into JetPoint coordinates.
   FromPaths(scale, offset_x, offset_y, result);
+
+  // Combine the port callbacks from both shapes. Generate an error if there
+  // are conflicts.
+  port_callbacks_.clear();
+  if (c1) {
+    port_callbacks_ = c1->port_callbacks_;
+  }
+  if (c2) {
+    for (auto it : c2->port_callbacks_) {
+      if (port_callbacks_.count(it.first) > 0) {
+        Error("Merged shapes contain port callbacks for the same port.");
+      }
+      port_callbacks_[it.first] = it.second;
+    }
+  }
 }
 
 const Shape &Shape::LuaCheckShape(lua_State *L, int argument_index) const {
@@ -1619,8 +1916,14 @@ int Shape::Index(lua_State *L) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaFilletVertex>));
     } else if (strcmp(s, "ChamferVertex") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaChamferVertex>));
-    } else if (strcmp(s, "Paint") == 0) {
+    } else if (strcmp(s, "Paint") == 0) {  // __Paint__ in user_script_util.lua
+      lua_getglobal(L, "__Paint__");       // calls RawPaint defined here.
+    } else if (strcmp(s, "RawPaint") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaPaint>));
+    } else if (strcmp(s, "HasPorts") == 0) {
+      lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaHasPorts>));
+    } else if (strcmp(s, "LoadSTL") == 0) {
+      lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaLoadSTL>));
     } else if (strcmp(s, "empty") == 0) {
       lua_pushboolean(L, IsEmpty());
     } else if (strcmp(s, "pieces") == 0) {
@@ -1648,6 +1951,20 @@ int Shape::Index(lua_State *L) {
       LuaRawSetField(L, -2, "max_x");
       lua_pushnumber(L, max_y);
       LuaRawSetField(L, -2, "max_y");
+    } else if (strcmp(s, "material") == 0) {
+      if (polys_.size() != 1) {
+        LuaError(L, "material requested for shape without exactly one piece");
+      }
+      lua_newtable(L);
+      lua_pushstring(L, "color");
+      lua_pushnumber(L, polys_[0].material.color);
+      lua_rawset(L, -3);
+      lua_pushstring(L, "epsilon");
+      lua_getglobal(L, "Complex");
+      lua_pushnumber(L, polys_[0].material.epsilon.real());
+      lua_pushnumber(L, polys_[0].material.epsilon.imag());
+      lua_call(L, 2, 1);
+      lua_rawset(L, -3);
     } else {
       LuaError(L, "Unknown shape field '%s'", s);
     }
@@ -1667,6 +1984,14 @@ int Shape::Index(lua_State *L) {
     LuaRawSetField(L, -2, "x");
     lua_pushnumber(L, polys_[0].p[i - 1].p[1]);
     LuaRawSetField(L, -2, "y");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.kind[0].IntegerForDebugging());
+    LuaRawSetField(L, -2, "kind0");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.kind[1].IntegerForDebugging());
+    LuaRawSetField(L, -2, "kind1");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.dist[0]);
+    LuaRawSetField(L, -2, "dist0");
+    lua_pushnumber(L, polys_[0].p[i - 1].e.dist[1]);
+    LuaRawSetField(L, -2, "dist1");
   } else {
     LuaError(L, "Shape must be indexed with string not %s",
              luaL_typename(L, -1));
@@ -1741,6 +2066,7 @@ int Shape::LuaClone(lua_State *L) {
 }
 
 int Shape::LuaAddPoint(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 3, "AddPoint");
   AddPoint(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
   lua_settop(L, 1);
@@ -1755,12 +2081,14 @@ int Shape::LuaMakePolyline(lua_State *L) {
 }
 
 int Shape::LuaClean(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "Clean");
   Clean(luaL_checknumber(L, 2));
   return 1;
 }
 
 int Shape::LuaContains(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 3, "Contains");
   lua_pushboolean(L,
       Contains(luaL_checknumber(L, 2), luaL_checknumber(L, 3)) != 0);
@@ -1768,6 +2096,7 @@ int Shape::LuaContains(lua_State *L) {
 }
 
 int Shape::LuaOffset(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 3, "Offset");
   Offset(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
   lua_settop(L, 1);
@@ -1775,6 +2104,7 @@ int Shape::LuaOffset(lua_State *L) {
 }
 
 int Shape::LuaScale(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   if (lua_gettop(L) == 2) {
     Scale(luaL_checknumber(L, 2), luaL_checknumber(L, 2));
   } else if (lua_gettop(L) == 3) {
@@ -1787,6 +2117,7 @@ int Shape::LuaScale(lua_State *L) {
 }
 
 int Shape::LuaRotate(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "Rotate");
   Rotate(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -1794,6 +2125,7 @@ int Shape::LuaRotate(lua_State *L) {
 }
 
 int Shape::LuaMirrorX(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "MirrorX");
   MirrorX(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -1801,6 +2133,7 @@ int Shape::LuaMirrorX(lua_State *L) {
 }
 
 int Shape::LuaMirrorY(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "MirrorY");
   MirrorY(luaL_checknumber(L, 2));
   lua_settop(L, 1);
@@ -1815,6 +2148,7 @@ int Shape::LuaReverse(lua_State *L) {
 }
 
 int Shape::LuaGrow(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   CornerStyle endcap_style = BUTT;
   if (lua_gettop(L) == 5) {
     endcap_style = CheckStyle(L, 5, true, "Grow");
@@ -1832,6 +2166,7 @@ int Shape::LuaGrow(lua_State *L) {
 }
 
 int Shape::LuaSelect(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   if (lua_gettop(L) != 3 && lua_gettop(L) != 5) {
     LuaError(L, "Shape:Select() expecting 2 or 4 arguments");
   }
@@ -1890,11 +2225,23 @@ int Shape::LuaSelectAll(lua_State *L) {
 enum { MAGIC_ABC_PORT = -15485863 };
 
 int Shape::LuaPort(lua_State *L) {
-  // This is called with the arguments:
+  // Trim off nils at the end before we start counting arguments.
+  LuaErrorIfNaNOrInfs(L);
+  while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
+    lua_pop(L, 1);
+  }
+
+  // Check that this is called with the arguments:
   //   1: {p=#, e=#} table (piece and edge), or an array of such tables
   //   2: port number
+  //   3: optional callback function
   // to mark the edge from vertex e to vertex e+1 as a port.
-  Expecting(L, 3, "Port");
+  if (lua_gettop(L) < 3 || lua_gettop(L) > 4) {
+    LuaError(L, "Shape:Port() expecting 2 or 3 arguments");
+  }
+  if (lua_gettop(L) == 4 && lua_type(L, 4) != LUA_TFUNCTION) {
+    LuaError(L, "Shape:Port() third argument must be a function");
+  }
   EdgeKind edge_kind;
   int port_number = ToDouble(luaL_checknumber(L, 3));
   if (port_number >= 1 && port_number <= EdgeKind::MaxPort() &&
@@ -1906,6 +2253,10 @@ int Shape::LuaPort(lua_State *L) {
     LuaError(L, "Invalid port number (should be an integer in the range 1..%d)",
              EdgeKind::MaxPort());
   }
+  if (lua_gettop(L) == 4) {
+    // Save the port callback, if any.
+    port_callbacks_[port_number] = LuaCallback(L);
+  }
   vector<int> piece(1), edge(1);
   if (!GetPieceEdge(L, 2, &piece[0], &edge[0])) {
     if (!GetPieceEdgeArray(L, 2, &piece, &edge)) {
@@ -1913,6 +2264,21 @@ int Shape::LuaPort(lua_State *L) {
                   "of such tables");
     }
   }
+
+  // Map point coordinates to all piece,index values that have those
+  // coordinates.
+  std::map<std::pair<JetNum, JetNum>, vector<std::pair<int,int>>> point_map;
+  for (int i = 0; i < polys_.size(); i++) {
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      auto &p = polys_[i].p[j].p;
+      point_map[std::make_pair(p[0], p[1])].push_back(std::make_pair(i, j));
+    }
+  }
+
+  // Assign ports for all piece,edge values. It is possible to have coincident
+  // (duplicate) points where unmerged polygons with different material types
+  // come together. AssignPort() will make sure that all coincident vertices
+  // have the same EdgeInfo.
   for (int i = 0; i < piece.size(); i++) {
     if (piece[i] < 1 || piece[i] > polys_.size()) {
       LuaError(L, "Argument to Port() has p=%d but there are only %d pieces",
@@ -1925,7 +2291,7 @@ int Shape::LuaPort(lua_State *L) {
     }
     // By the definition of EdgeInfo, both vertices that bound the edge have to
     // be marked.
-    if (!AssignPort(piece[i] - 1, edge[i] - 1, edge_kind)) {
+    if (!AssignPort(piece[i] - 1, edge[i] - 1, edge_kind, &point_map)) {
       LuaError(L, "Piece %d edge %d already has a port number",
                piece[i], edge[i]);
     }
@@ -1936,15 +2302,17 @@ int Shape::LuaPort(lua_State *L) {
 
 int Shape::LuaABC(lua_State *L) {
   // Like LuaPort(), but use the special port number that designates an ABC.
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "ABC");
   lua_pushnumber(L, MAGIC_ABC_PORT);
   return LuaPort(L);
 }
 
 int Shape::LuaAPointInside(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 1, "APointInside");
   double x, y;
-  if (!APointInside(&x, &y)) {
+  if (!APointInside(-1, &x, &y)) {
     LuaError(L, "APointInside() requires a nonempty single piece polygon of "
                 "any orientation, or a single positive area polygon with any "
                 "number of negative area holes.");
@@ -1955,6 +2323,7 @@ int Shape::LuaAPointInside(lua_State *L) {
 }
 
 int Shape::LuaFilletVertex(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 5, "FilletVertex");
   if (IsEmpty()) {
     LuaError(L, "FilletVertex() requires a nonempty shape");
@@ -1966,6 +2335,7 @@ int Shape::LuaFilletVertex(lua_State *L) {
 }
 
 int Shape::LuaChamferVertex(lua_State *L) {
+  LuaErrorIfNaNOrInfs(L);
   Expecting(L, 5, "ChamferVertex");
   if (IsEmpty()) {
     LuaError(L, "ChamferVertex() requires a nonempty shape");
@@ -1977,6 +2347,11 @@ int Shape::LuaChamferVertex(lua_State *L) {
 }
 
 int Shape::LuaPaint(lua_State *L) {
+  // Trim off nils at the end before we start counting arguments.
+  LuaErrorIfNaNOrInfs(L);
+  while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
+    lua_pop(L, 1);
+  }
   if (lua_gettop(L) < 4) {
     LuaError(L, "Expecting shape1:Paint(shape2, color, param, ...)");
   }
@@ -1994,7 +2369,8 @@ int Shape::LuaPaint(lua_State *L) {
     // Store the function to the registry and add the registry key to the
     // material.
     lua_pushvalue(L, -1);
-    mat.SetCallbackToRegistry(L);
+    CHECK(!mat.callback.Valid());       // Should only do this once
+    mat.callback = LuaCallback(L);
 
     // Run the callback function once to verify it can work. This gives an
     // early indication for some (though not all) runtime errors.
@@ -2002,22 +2378,55 @@ int Shape::LuaPaint(lua_State *L) {
     LuaVector *y = LuaUserClassCreateObj<LuaVector>(L);
     x->resize(10);
     y->resize(10);
-    LuaVector *result[2];
-    if (!Material::RunCallback(LuaGetObject(L), result)) {
+    vector<MaterialParameters> result;
+    if (!Material::RunCallback(LuaGetObject(L), true, &result)) {
       LuaError(L, "Callback function can not be run");
     }
   } else {
     int num_params = lua_gettop(L) - 3;
-    if (num_params > Material::MaxParameters()) {
-      LuaError(L, "Too many material parameters");
+    if (num_params != 1 && num_params != 4 && num_params != 5) {
+      if (num_params == 2) {
+        LuaError(L, "Two material parameters were given so you might be using "
+            "a deprecated complex number API. Use Complex() instead.");
+      } else {
+        LuaError(L, "Expecting 1, 4 or 5 material parameters");
+      }
     }
-    vector<JetNum> list;
+    vector<JetComplex> list;
     for (int i = 0; i < num_params; i++) {
-      list.push_back(luaL_checknumber(L, i + 4));
+      JetComplex value;
+      if (!ToJetComplex(L, i + 4, &value)) {
+        LuaError(L, "Material parameter %d is not a real or complex number",
+                 i + 1);
+      }
+      list.push_back(value);
     }
     mat.SetParameters(list);
   }
   Paint(*s2, mat);
+  lua_settop(L, 1);
+  return 1;
+}
+
+int Shape::LuaHasPorts(lua_State *L) {
+  for (int i = 0; i < polys_.size(); i++) {
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      if (!polys_[i].p[j].e.IsDefault()) {
+        lua_pushboolean(L, 1);
+        return 1;
+      }
+    }
+  }
+  lua_pushboolean(L, 0);
+  return 1;
+}
+
+int Shape::LuaLoadSTL(lua_State *L) {
+  if (lua_gettop(L) != 2) {
+    LuaError(L, "Expecting shape:LoadSTL(filename)");
+  }
+  const char *filename = lua_tostring(L, -1);
+  LoadSTL(filename);
   lua_settop(L, 1);
   return 1;
 }
@@ -2079,6 +2488,16 @@ static void RandomShape2(Shape *s, int H) {
       return;
     }
   }
+}
+
+// Check if the centroid of piece 'i' is the expected value
+static bool CentroidIs(const Shape &s, int i, double x, double y) {
+  JetPoint c(0, 0);
+  for (int j = 0; j < s.Piece(i).size(); j++) {
+    c += s.Piece(i)[j].p;
+  }
+  c /= double(s.Piece(i).size());
+  return c[0] == x && c[1] == y;
 }
 
 TEST_FUNCTION(Area) {
@@ -2185,7 +2604,7 @@ TEST_FUNCTION(APointInside) {
 
       // Test APointInside.
       double px, py;
-      CHECK(s.APointInside(&px, &py));
+      CHECK(s.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
     }
 
@@ -2196,14 +2615,14 @@ TEST_FUNCTION(APointInside) {
 
       // Test APointInside.
       double px, py;
-      CHECK(s.APointInside(&px, &py));
+      CHECK(s.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
 
       // Test reverse orientation polys too.
       Shape s2;
       s2 = s;
       s2.Reverse();
-      CHECK(s2.APointInside(&px, &py));
+      CHECK(s2.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
     }
 
@@ -2212,12 +2631,12 @@ TEST_FUNCTION(APointInside) {
       Shape s;
       RandomShape1(&s, 3, true);
       double px, py;
-      CHECK(s.APointInside(&px, &py));
+      CHECK(s.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
       Shape s2;
       s2 = s;
       s2.Reverse();
-      CHECK(s2.APointInside(&px, &py));
+      CHECK(s2.APointInside(-1, &px, &py));
       CHECK(s.Contains(px, py) == 1);
     }
   }
@@ -2253,5 +2672,89 @@ TEST_FUNCTION(TriangleIntersectsBox) {
     // Check that TriangleIntersectsBox() gives the same result.
     bool intersects = TriangleIntersectsBox(pp, xmin, xmax, ymin, ymax);
     CHECK(intersects == !trirect.IsEmpty());
+  }
+}
+
+TEST_FUNCTION(SplitPolygonsAtNecks) {
+  {
+    // Two squares in a row.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(2, 1);
+    s.AddPoint(2, 2);
+    s.AddPoint(1, 2);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(0, 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 2);
+    CHECK(s.Area(0) == 1);
+    CHECK(s.Area(1) == 1);
+    CHECK(CentroidIs(s, 0, 0.5, 0.5));
+    CHECK(CentroidIs(s, 1, 1.5, 1.5));
+  }
+  {
+    // Three squares in a row.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(2, 1);
+    s.AddPoint(2, 2);     // Duplicated point
+    s.AddPoint(3, 2);
+    s.AddPoint(3, 3);
+    s.AddPoint(2, 3);
+    s.AddPoint(2, 2);     // Duplicated point
+    s.AddPoint(1, 2);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(0, 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 3);
+    CHECK(s.Area(0) == 1);
+    CHECK(s.Area(1) == 1);
+    CHECK(s.Area(2) == 1);
+    CHECK(CentroidIs(s, 0, 1.5, 1.5));
+    CHECK(CentroidIs(s, 1, 2.5, 2.5));
+    CHECK(CentroidIs(s, 2, 0.5, 0.5));
+  }
+  {
+    // Three squares in a star.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(2, 1);
+    s.AddPoint(2, 2);
+    s.AddPoint(1, 2);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(1.5, 0);
+    s.AddPoint(2, 0.5);
+    s.AddPoint(1, 1);     // Duplicated point
+    s.AddPoint(0, 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 3);
+    CHECK(s.Area(0) == 1);
+    CHECK(s.Area(1) == 1);
+    CHECK(s.Area(2) == 0.375);
+    CHECK(CentroidIs(s, 0, 0.5, 0.5));
+    CHECK(CentroidIs(s, 1, 1.5, 1.5));
+    CHECK(CentroidIs(s, 2, 1.5, 0.5));
+  }
+  {
+    // Square with sliver.
+    Shape s;
+    s.AddPoint(0, 0);
+    s.AddPoint(1, 0);
+    s.AddPoint(1, 1);
+    s.AddPoint(2, 1);
+    s.AddPoint(1, 1);
+    s.AddPoint(0, 1);
+    CHECK(s.Area(0) == 1);
+    s.SplitPolygonsAtNecks();
+    CHECK(s.NumPieces() == 1);
+    CHECK(s.Piece(0).size() == 4);
+    CHECK(s.Area(0) == 1);
+    CHECK(CentroidIs(s, 0, 0.5, 0.5));
   }
 }

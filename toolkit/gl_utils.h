@@ -1,3 +1,15 @@
+// Copyright (C) 2014-2020 Russell Smith.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+
 // Include OpenGL headers and provide various utility functions.
 
 #ifndef __TOOLKIT_GL_UTILS_H__
@@ -20,7 +32,6 @@
     #include <GL/gl.h>
     #include <GL/glext.h>
   #endif
-  #define GL(fn) gl##fn
 #endif
 
 #include "Eigen/Dense"
@@ -39,26 +50,14 @@ namespace gl {
 
 #ifdef QT_CORE_LIB
   extern QOpenGLFunctions_3_3_Core gl_functions;
-  #ifdef __WINNT__
-    #define GL(fn) gl::gl_functions.gl##fn
-  #else
+  #ifdef __APPLE__
     #define GL(fn) gl##fn
+  #else
+    #define GL(fn) gl::gl_functions.gl##fn
   #endif
   void SetDefaultOpenGLSurfaceFormat();
   void InitializeOpenGLFunctions(QOpenGLContext *context);
 #endif
-
-// Return an attribute list that can be passed to the constructor of
-// wxGLContext. The 'type' is an OR of the buffer type constants below. This
-// function hides various platform bugs in wxWidgets. The returned array is
-// valid until the next call to this function.
-enum {
-  DoubleBuffer      = 1,
-  DepthBuffer       = 2,
-  AlphaBuffer       = 4,
-  MultiSampleBuffer = 8
-};
-const int *GetAttributeList(int type);
 
 // Return the current program, it's a runtime error if there isn't one.
 GLint CurrentProgram();

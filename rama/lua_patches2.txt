@@ -1,0 +1,188 @@
+diff -r -u -w lua-5.4.0-original/src/lauxlib.c lua-5.4.0/src/lauxlib.c
+--- lua-5.4.0-original/src/lauxlib.c	2020-05-08 03:46:20.000000000 -0700
++++ lua-5.4.0/src/lauxlib.c	2020-05-23 12:57:28.000000000 -0700
+@@ -867,7 +867,7 @@
+         if (lua_isinteger(L, idx))
+           lua_pushfstring(L, "%I", (LUAI_UACINT)lua_tointeger(L, idx));
+         else
+-          lua_pushfstring(L, "%f", (LUAI_UACNUMBER)lua_tonumber(L, idx));
++          lua_pushfstring(L, "%f", (LUAI_UACNUMBER)ToDouble(lua_tonumber(L, idx)));
+         break;
+       }
+       case LUA_TSTRING:
+@@ -1050,6 +1050,6 @@
+     luaL_error(L, "core and library have incompatible numeric types");
+   else if (v != ver)
+     luaL_error(L, "version mismatch: app. needs %f, Lua core provides %f",
+-                  (LUAI_UACNUMBER)ver, (LUAI_UACNUMBER)v);
++                  (LUAI_UACNUMBER)ToDouble(ver), (LUAI_UACNUMBER)ToDouble(v));
+ }
+ 
+diff -r -u -w lua-5.4.0-original/src/lbaselib.c lua-5.4.0/src/lbaselib.c
+--- lua-5.4.0-original/src/lbaselib.c	2020-05-06 04:33:35.000000000 -0700
++++ lua-5.4.0/src/lbaselib.c	2020-05-23 12:12:20.000000000 -0700
+@@ -199,7 +199,7 @@
+     case LUA_GCCOUNT: {
+       int k = lua_gc(L, o);
+       int b = lua_gc(L, LUA_GCCOUNTB);
+-      lua_pushnumber(L, (lua_Number)k + ((lua_Number)b/1024));
++      lua_pushnumber(L, (lua_Number)k + ((lua_Number)b/1024.0));
+       return 1;
+     }
+     case LUA_GCSTEP: {
+diff -r -u -w lua-5.4.0-original/src/liolib.c lua-5.4.0/src/liolib.c
+--- lua-5.4.0-original/src/liolib.c	2020-05-06 04:33:35.000000000 -0700
++++ lua-5.4.0/src/liolib.c	2020-05-23 12:55:43.000000000 -0700
+@@ -653,7 +653,7 @@
+                 ? fprintf(f, LUA_INTEGER_FMT,
+                              (LUAI_UACINT)lua_tointeger(L, arg))
+                 : fprintf(f, LUA_NUMBER_FMT,
+-                             (LUAI_UACNUMBER)lua_tonumber(L, arg));
++                             (LUAI_UACNUMBER)ToDouble(lua_tonumber(L, arg)));
+       status = status && (len > 0);
+     }
+     else {
+diff -r -u -w lua-5.4.0-original/src/lobject.c lua-5.4.0/src/lobject.c
+--- lua-5.4.0-original/src/lobject.c	2020-05-06 04:33:36.000000000 -0700
++++ lua-5.4.0/src/lobject.c	2020-05-30 10:10:49.000000000 -0700
+@@ -540,8 +540,8 @@
+ 
+ 
+ #define RETS	"..."
+-#define PRE	"[string \""
+-#define POS	"\"]"
++#define PRE	""
++#define POS	""
+ 
+ #define addstr(a,b,l)	( memcpy(a,b,(l) * sizeof(char)), a += (l) )
+ 
+diff -r -u -w lua-5.4.0-original/src/lstrlib.c lua-5.4.0/src/lstrlib.c
+--- lua-5.4.0-original/src/lstrlib.c	2020-05-06 04:33:36.000000000 -0700
++++ lua-5.4.0/src/lstrlib.c	2020-05-23 12:57:45.000000000 -0700
+@@ -1266,7 +1266,7 @@
+         case 'e': case 'E': case 'g': case 'G': {
+           lua_Number n = luaL_checknumber(L, arg);
+           addlenmod(form, LUA_NUMBER_FRMLEN);
+-          nb = l_sprintf(buff, maxitem, form, (LUAI_UACNUMBER)n);
++          nb = l_sprintf(buff, maxitem, form, (LUAI_UACNUMBER)ToDouble(n));
+           break;
+         }
+         case 'p': {
+@@ -1584,11 +1584,11 @@
+         break;
+       }
+       case Kfloat: {  /* floating-point options */
+-        volatile Ftypes u;
++        Ftypes u;
+         char *buff = luaL_prepbuffsize(&b, size);
+         lua_Number n = luaL_checknumber(L, arg);  /* get argument */
+-        if (size == sizeof(u.f)) u.f = (float)n;  /* copy it into 'u' */
+-        else if (size == sizeof(u.d)) u.d = (double)n;
++        if (size == sizeof(u.f)) u.f = (float)ToDouble(n);  /* copy it into 'u' */
++        else if (size == sizeof(u.d)) u.d = (double)ToDouble(n);
+         else u.n = n;
+         /* move 'u' to final result, correcting endianness if needed */
+         copywithendian(buff, u.buff, size, h.islittle);
+@@ -1717,7 +1717,7 @@
+         break;
+       }
+       case Kfloat: {
+-        volatile Ftypes u;
++        Ftypes u;
+         lua_Number num;
+         copywithendian(u.buff, data + pos, size, h.islittle);
+         if (size == sizeof(u.f)) num = (lua_Number)u.f;
+diff -r -u -w lua-5.4.0-original/src/ltable.c lua-5.4.0/src/ltable.c
+--- lua-5.4.0-original/src/ltable.c	2020-05-06 04:33:36.000000000 -0700
++++ lua-5.4.0/src/ltable.c	2020-05-23 12:11:30.000000000 -0700
+@@ -114,7 +114,7 @@
+ static int l_hashfloat (lua_Number n) {
+   int i;
+   lua_Integer ni;
+-  n = l_mathop(frexp)(n, &i) * -cast_num(INT_MIN);
++  n = l_mathop(frexp)(ToDouble(n), &i) * -cast_num(INT_MIN);
+   if (!lua_numbertointeger(n, &ni)) {  /* is 'n' inf/-inf/NaN? */
+     lua_assert(luai_numisnan(n) || l_mathop(fabs)(n) == cast_num(HUGE_VAL));
+     return 0;
+diff -r -u -w lua-5.4.0-original/src/lua.h lua-5.4.0/src/lua.h
+--- lua-5.4.0-original/src/lua.h	2020-05-06 04:33:37.000000000 -0700
++++ lua-5.4.0/src/lua.h	2020-05-23 11:14:23.000000000 -0700
+@@ -219,9 +219,10 @@
+ 
+ LUA_API void  (lua_arith) (lua_State *L, int op);
+ 
+-#define LUA_OPEQ	0
+-#define LUA_OPLT	1
+-#define LUA_OPLE	2
++#define LUA_OPEQ	14  // Was 0, but we want all LUA_OP constants together
++#define LUA_OPLT	15  // Was 1
++#define LUA_OPLE	16  // Was 2
++#define LUA_OPCONCAT	17  // New value to support LuaUserClass::Operator()
+ 
+ LUA_API int   (lua_rawequal) (lua_State *L, int idx1, int idx2);
+ LUA_API int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);
+diff -r -u -w lua-5.4.0-original/src/luaconf.h lua-5.4.0/src/luaconf.h
+--- lua-5.4.0-original/src/luaconf.h	2020-05-06 04:33:37.000000000 -0700
++++ lua-5.4.0/src/luaconf.h	2020-05-31 16:59:01.000000000 -0700
+@@ -8,6 +8,8 @@
+ #ifndef luaconf_h
+ #define luaconf_h
+ 
++#include "../../my_jet.h"
++
+ #include <limits.h>
+ #include <stddef.h>
+ 
+@@ -414,7 +416,7 @@
+ #define l_floor(x)		(l_mathop(floor)(x))
+ 
+ #define lua_number2str(s,sz,n)  \
+-	l_sprintf((s), sz, LUA_NUMBER_FMT, (LUAI_UACNUMBER)(n))
++	l_sprintf((s), sz, LUA_NUMBER_FMT, (LUAI_UACNUMBER)(ToDouble(n)))
+ 
+ /*
+ @@ lua_numbertointeger converts a float number with an integral value
+@@ -426,9 +428,9 @@
+ ** may have an ill-defined value.)
+ */
+ #define lua_numbertointeger(n,p) \
+-  ((n) >= (LUA_NUMBER)(LUA_MININTEGER) && \
+-   (n) < -(LUA_NUMBER)(LUA_MININTEGER) && \
+-      (*(p) = (LUA_INTEGER)(n), 1))
++  (ToDouble(n) >= (double)(LUA_MININTEGER) && \
++   ToDouble(n) < -(double)(LUA_MININTEGER) && \
++      (*(p) = (LUA_INTEGER)(ToDouble(n)), 1))
+ 
+ 
+ /* now the variable definitions */
+@@ -466,7 +468,7 @@
+ 
+ #elif LUA_FLOAT_TYPE == LUA_FLOAT_DOUBLE	/* }{ double */
+ 
+-#define LUA_NUMBER	double
++#define LUA_NUMBER	JetNum
+ 
+ #define l_floatatt(n)		(DBL_##n)
+ 
+@@ -609,9 +611,7 @@
+ ** leave 'lua_strx2number' undefined and Lua will provide its own
+ ** implementation.
+ */
+-#if !defined(LUA_USE_C89)
+ #define lua_strx2number(s,p)		lua_str2number(s,p)
+-#endif
+ 
+ 
+ /*
+@@ -627,10 +627,8 @@
+ ** Otherwise, you can leave 'lua_number2strx' undefined and Lua will
+ ** provide its own implementation.
+ */
+-#if !defined(LUA_USE_C89)
+ #define lua_number2strx(L,b,sz,f,n)  \
+-	((void)L, l_sprintf(b,sz,f,(LUAI_UACNUMBER)(n)))
+-#endif
++	((void)L, l_sprintf(b,sz,f,(LUAI_UACNUMBER)(ToDouble(n))))
+ 
+ 
+ /*
