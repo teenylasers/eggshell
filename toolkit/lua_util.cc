@@ -326,6 +326,22 @@ void Lua::UseStandardLibraries(bool safe) {
     luaopen_string(L_); lua_setglobal(L_, "string");
     luaopen_utf8(L_);   lua_setglobal(L_, "utf8");
     luaopen_math(L_);   lua_setglobal(L_, "math");
+
+    // Use just the time related functions in the OS library.
+    lua_newtable(L_);                   // {}
+    luaopen_os(L_);                     // {} OStable
+    #define TRANSFER(key) \
+      lua_pushstring(L_, key);          /* {} OStable key */ \
+      lua_pushstring(L_, key);          /* {} OStable key key */ \
+      lua_rawget(L_, -3);               /* {} OStable key value */ \
+      lua_rawset(L_, -4);               /* {} OStable */
+    TRANSFER("clock")
+    TRANSFER("date")
+    TRANSFER("difftime")
+    TRANSFER("time")
+    #undef TRANSFER
+    lua_pop(L_, 1);                     // {}
+    lua_setglobal(L_, "os");
   } else {
     luaL_openlibs(L_);
   }

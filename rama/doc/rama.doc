@@ -949,8 +949,9 @@ another function, so for example the following is a convenient idiom:
 @subsection{@label{luafnvars} Global functions and variables available to the script}
 
 The following @link{http://www.lua.org/manual/5.4/manual.html}{Lua standard libraries}
-can be used: base, table, string, utf8 and
-math. The standard Lua @c{print()} function sends text to the ``script messages''
+can be used: @c{base}, @c{table}, @c{string}, @c{utf8}, @c{math}, and the time
+related functions in the @c{os} library.
+The standard Lua @c{print()} function sends text to the ``script messages''
 tab. The standard Lua @c{error()} function will output its error message to this
 tab also. The following extra miscellaneous functions are defined:
 
@@ -2001,4 +2002,5 @@ Here is what is added in each new version.
 @* Slightly improved display scaling of vector fields.
 @* Added examples: @c{capacitor_electrostatics.lua}, @c{photonic_nanojet.lua}
 @* Fixed waveguide mode vector scaling.
+@* Make available the time related functions in the @c{os} library.
 }

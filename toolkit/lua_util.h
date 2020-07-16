@@ -87,7 +87,8 @@ class Lua {
 
   // Use the lua standard libraries. If safe is true then only use the
   // libraries that are sandboxed, i.e. no I/O, OS, coroutines or debug
-  // libraries. Add a few extra functions: math.log10.
+  // libraries (however the time related functions in the OS library are
+  // available). Add a few extra functions: math.log10.
   void UseStandardLibraries(bool safe);
 
   // Load (and optionally run) a lua script, either directly from a string or
