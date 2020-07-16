@@ -583,15 +583,17 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
   //     strength in the cavity.
   double est_max_gradient = 0;  // Estimated max gradient, in 1/meters
   double min_dimension = std::min(cd_width_, cd_height_);  // In config units
-  if (config_.TypeIsElectrodynamic()) {
-    if (config_.type == ScriptConfig::ELECTROSTATICS) {
-      est_max_gradient = 1.0 / (min_dimension * config_.unit);
-      // Completely arbitrary fudge factor to compensate for field strength
-      // enhancements at any corners we might have:
-      est_max_gradient *= 5;
-    } else {
-      est_max_gradient = (2 * sqrt(5) * M_PI * frequency_) / (3*kSpeedOfLight);
-    }
+  if (config_.type == ScriptConfig::ELECTROSTATICS) {
+    est_max_gradient = 1.0 / (min_dimension * config_.unit);
+    // Completely arbitrary fudge factor to compensate for field strength
+    // enhancements at any corners we might have:
+    est_max_gradient *= 5;
+  } else if (config_.TypeIsWaveguideMode()) {
+    // Modes are scaled elsewhere so the maximum gradient vector has
+    // amplitude=1.
+    est_max_gradient = 1;
+  } else {
+    est_max_gradient = (2 * sqrt(5) * M_PI * frequency_) / (3*kSpeedOfLight);
   }
   // Scale the gradient so that the longest gradient vectors are about 1/20th
   // of the minimum dimension.
