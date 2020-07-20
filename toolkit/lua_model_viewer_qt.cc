@@ -551,6 +551,9 @@ void LuaModelViewer::Sweep(const string &parameter_name,
     for (int i = 0; i < num_steps; i++) {
       ih_.sweep_values[i] = double(i) / double(num_steps - 1) *
                             (end_value - start_value) + start_value;
+      if (p.integer) {
+        ih_.sweep_values[i] = round(ih_.sweep_values[i]);
+      }
     }
   }
   ih_.state = InvisibleHand::SWEEPING;
@@ -948,7 +951,13 @@ int LuaModelViewer::LuaCreateParameter(lua_State *L) {
   JetNum the_min = lua_tonumber(L, 2);
   JetNum the_max = lua_tonumber(L, 3);
   if (p.label.empty()) {
-    // Previously unseen parameters get default values.
+    // Previously unseen parameters get default values. This should only happen
+    // when we're rebuilding parameters.
+    if (!rebuild_parameters_) {
+      LuaError(L, "Unexpected new parameter. The parameters created by the "
+                  "script shoud be stable\nand e.g. parameter creation should "
+                  "not depend on the value of other parameters.");
+    }
     p.the_min = ToDouble(the_min);
     p.the_max = ToDouble(the_max);
     p.the_default = ToDouble(lua_tonumber(L, 4));
