@@ -968,6 +968,7 @@ void Cavity::SetConfigFromTable() {
   GET_FIELD(max_modes, config_.TypeIsWaveguideMode(), ToDouble, lua_tonumber,
             LUA_TNUMBER, 1, 1)
   #undef GET_FIELD
+  config_.schrodinger = false;                  // Default
   if (config_.type == ScriptConfig::SCHRODINGER) {
     config_.type = ScriptConfig::EZ;
     config_.schrodinger = true;
