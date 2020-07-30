@@ -157,6 +157,9 @@ class MyLua : public Lua {
 
   // Note: this must be thread safe as it's called by LuaErrorHandler.
   void Output(const char *message, int icon_number) {
+    if (!message) {
+      return;
+    }
     // If the message contains multiple lines separated by \n's then insert
     // each one separately.
     if (strchr(message, '\n')) {

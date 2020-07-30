@@ -35,7 +35,8 @@ static const char *LuaStrerror(int err) {
     case LUA_ERRERR: return "Script error while running the message handler";
     case LUA_ERRFILE: return "Script file can not be read";
     case LUA_YIELD: return "The thread (coroutine) yields";
-    default: return "Unknown error while running Lua";
+    default: return "Unknown error while running Lua (possibly a CFunction "
+                    "threw an exception)";
   }
 }
 

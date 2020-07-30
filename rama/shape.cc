@@ -1831,16 +1831,20 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
 
   // Run the clipper. Use the pftPositive fill type so that a polygon can have
   // external invisible holes (the Paint() function can generate these).
-  Clipper clipper;
-  clipper.ZFillFunction(MyZFillCallback);
-  if (c1) {
-    clipper.AddPaths(p1, ptSubject, true);
-  }
-  if (c2) {
-    clipper.AddPaths(p2, ptClip, true);
-  }
   Paths result;
-  clipper.Execute(clip_type, result, pftPositive, pftPositive);
+  try {
+    Clipper clipper;
+    clipper.ZFillFunction(MyZFillCallback);
+    if (c1) {
+      clipper.AddPaths(p1, ptSubject, true);
+    }
+    if (c2) {
+      clipper.AddPaths(p2, ptClip, true);
+    }
+    clipper.Execute(clip_type, result, pftPositive, pftPositive);
+  } catch(const ClipperLib::clipperException &e) {
+    Error("Clipper says: %s", e.what());
+  }
 
   // Convert the result back into JetPoint coordinates.
   FromPaths(scale, offset_x, offset_y, result);
