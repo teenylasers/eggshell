@@ -682,7 +682,7 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
   // deleted all those controls.
   for (ParamMap::iterator it = param_map_.begin();
        it != param_map_.end(); ++it) {
-    it->second.text_ctrl = 0;
+    it->second.checkbox = 0;
     it->second.slider = 0;
     it->second.text_ctrl = 0;
   }
