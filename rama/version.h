@@ -20,9 +20,9 @@
 // the Inno Setup Compiler does not understand the full C preprocessor syntax
 // and can not stringify the major and minor numbers.
 #define __APP_VERSION_MAJOR__ 0
-#define __APP_VERSION_MINOR__ 35
+#define __APP_VERSION_MINOR__ 37
 // The followning line is grepped for by the Makefile, keep this format:
-#define __APP_VERSION__ "0.35"
+#define __APP_VERSION__ "0.37"
 #define __APP_NAME__ "Rama"
 #define __APP_EXE_NAME__ "rama.exe"
 #define __APP_PUBLISHER__ ""

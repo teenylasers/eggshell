@@ -2006,4 +2006,5 @@ Here is what is added in each new version.
 @* Fix but that caused sweep integer parameter values to sometimes be slightly
    non-integer.
 @* Warn about parameter creation that depends on other parameters.
+@* Fix @c{math.random()} on windows.
 }
