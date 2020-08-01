@@ -1997,7 +1997,7 @@ Here is what is added in each new version.
 @* Added the @c{conj} field to complex numbers.
 @* Added @c{LoadSTL} functions to shape and @c{util}.
 @* Fix crashing bug for necked zero area polygons (in @c{SplitPolygonsAtNecks}).
-@* It's now an error if infinity is passed as a numerical arguments to a shape
+@* It's now an error if infinity is passed as a numerical argument to a shape
    function.
 @* Slightly improved display scaling of vector fields.
 @* Added examples: @c{capacitor_electrostatics.lua}, @c{photonic_nanojet.lua}
