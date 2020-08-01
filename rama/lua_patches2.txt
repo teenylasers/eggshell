@@ -123,7 +123,7 @@ diff -r -u -w lua-5.4.0-original/src/lua.h lua-5.4.0/src/lua.h
  LUA_API int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);
 diff -r -u -w lua-5.4.0-original/src/luaconf.h lua-5.4.0/src/luaconf.h
 --- lua-5.4.0-original/src/luaconf.h	2020-05-06 04:33:37.000000000 -0700
-+++ lua-5.4.0/src/luaconf.h	2020-05-31 16:59:01.000000000 -0700
++++ lua-5.4.0/src/luaconf.h	2020-07-31 20:24:49.000000000 -0700
 @@ -8,6 +8,8 @@
  #ifndef luaconf_h
  #define luaconf_h
@@ -186,3 +186,12 @@ diff -r -u -w lua-5.4.0-original/src/luaconf.h lua-5.4.0/src/luaconf.h
  
  
  /*
+@@ -639,7 +637,7 @@
+ ** availability of these variants. ('math.h' is already included in
+ ** all files that use these macros.)
+ */
+-#if defined(LUA_USE_C89) || (defined(HUGE_VAL) && !defined(HUGE_VALF))
++#if 0  // Make sure this doesn't happen on Windows, where it breaks math.random()
+ #undef l_mathop  /* variants not available */
+ #undef lua_str2number
+ #define l_mathop(op)		(lua_Number)op  /* no variant */
