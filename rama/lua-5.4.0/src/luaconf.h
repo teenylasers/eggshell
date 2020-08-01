@@ -637,7 +637,7 @@
 ** availability of these variants. ('math.h' is already included in
 ** all files that use these macros.)
 */
-#if defined(LUA_USE_C89) || (defined(HUGE_VAL) && !defined(HUGE_VALF))
+#if 0
 #undef l_mathop  /* variants not available */
 #undef lua_str2number
 #define l_mathop(op)		(lua_Number)op  /* no variant */
