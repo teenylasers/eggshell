@@ -2003,8 +2003,9 @@ Here is what is added in each new version.
 @* Added examples: @c{capacitor_electrostatics.lua}, @c{photonic_nanojet.lua}
 @* Fixed waveguide mode vector scaling.
 @* Make available the time related functions in the @c{os} library.
-@* Fix but that caused sweep integer parameter values to sometimes be slightly
-   non-integer.
+@* Fix bug that caused sweep integer parameter values to sometimes be slightly
+   non integer.
 @* Warn about parameter creation that depends on other parameters.
 @* Fix @c{math.random()} on windows.
+@* Various minor stability improvement.
 }
