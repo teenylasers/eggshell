@@ -470,6 +470,46 @@ void MyZFillCallback(IntPoint &e1bot, IntPoint &e1top,
   pt.Z = new_et;
 }
 
+// Given two unit length vectors (v1,v2) that describe rays starting from the
+// origin, return a positive 'beta' such that an arc of the given radius is
+// tangent to the rays at beta*v1 and beta*v2
+static JetNum ArcTwoTangents(JetNum radius, const JetPoint &v1,
+                             const JetPoint &v2) {
+  return abs(radius * 2.0 * Cross2(v2, v1) / (v1 - v2).squaredNorm());
+}
+
+// Given a unit length vector 'v' that describes a ray starting from the
+// origin, return a positive 'beta' such that an arc of the given radius goes
+// through point 'p' and is tangent to the ray at beta*v. Return -1 if no
+// solution can be found. Set 'lr' to +/- 1 depending on whether p is to the
+// left or right of v.
+static JetNum ArcOneTangent(JetNum radius, const JetPoint &p,
+                            const JetPoint &v, double *lr) {
+  // See if p is to the left or right of v.
+  *lr = ToDouble(Cross2(v, p));  // lr positive if p to the left of v
+  *lr = (*lr >= 0) ? 1 : -1;
+
+  JetPoint q = -p + radius * Rotate90(v) * (*lr);
+  JetNum sqrt_arg = sqr(radius) + sqr(q.dot(v)) - q.dot(q);
+  if (sqrt_arg < 0) {
+    return -1;
+  }
+  // Of the two possible solutions for beta return the smallest positive
+  // answer that is larger than pv.
+  JetNum pv = p.dot(v);
+  if (pv < 0) pv = 0;
+  JetNum qv = -q.dot(v);
+  JetNum beta1 = qv + sqrt(sqrt_arg);
+  JetNum beta2 = qv - sqrt(sqrt_arg);
+  if (beta1 < pv && beta2 < pv) {
+    return -1;
+  } else if (beta1 >= pv && beta2 >= pv) {
+    return std::min(beta1, beta2);
+  } else {
+    return (beta1 >= pv) ? beta1 : beta2;
+  }
+}
+
 //***************************************************************************
 // Lua global functions.
 
@@ -1450,31 +1490,44 @@ void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
   JetPoint p1 = poly[i1].p;
   JetPoint p2 = poly[i2].p;
 
-  // Compute center of fillet and other geometry.
+  // Compute tangent points to arc.
   JetPoint v1 = p1 - pt;
   JetPoint v2 = p2 - pt;
   JetNum len1 = v1.norm();
   JetNum len2 = v2.norm();
   v1 /= len1;                   // Unit vector to prior vertex
   v2 /= len2;                   // Unit vector to next vertex
-  JetPoint v = (v1 + v2) / 2;   // Vector to center
-  if (v.norm() < 1e-9) {        //              @@@ THRESHOLD CORRECT?
+  JetNum beta = ArcTwoTangents(radius, v1, v2);
+  if (beta < 1e-6) {
     return;                     // Lines are (almost) colinear, nothing to do
   }
-  v /= v.norm();                // Center is along pt + alpha*v
-  JetNum alpha = abs(radius / (v1(1)*v(0) - v1(0)*v(1)));
-  JetNum beta = alpha * (v1.dot(v));    // Start/end = beta*v1 or beta*v2
-  if (beta >= len1 || beta >= len2) {
-    // Fillet radius is too large, so limit it.
-    JetNum minlen = std::min(len1, len2);
-    JetNum ratio = minlen / beta;
-    beta = minlen;
-    alpha *= ratio;
-    radius *= ratio;
+
+  JetPoint c(0,0);              // Set to arc center point
+  if (beta <= len1 && beta <= len2) {
+    // Arc tangent to v1 and v2.
+    c = pt + beta/(1.0 + v1.dot(v2))*(v1 + v2);
+    p1 = pt + beta*v1;          // Start point
+    p2 = pt + beta*v2;          // End point
+  } else {
+    // Try arc fixed to p1 but tangent to v2.
+    double lr;
+    beta = ArcOneTangent(radius, p1 - pt, v2, &lr);
+    if (beta > 0 && beta < len2) {
+      p2 = pt + beta*v2;          // End point
+      c = p2 + lr * radius * Rotate90(v2);
+    } else {
+      // Try arc fixed to p2 but tangent to v1.
+      beta = ArcOneTangent(radius, p2 - pt, v1, &lr);
+      if (beta > 0 && beta < len1) {
+        p1 = pt + beta*v1;          // Start point
+        c = p1 + lr * radius * Rotate90(v1);
+      }
+    }
   }
-  JetPoint c = pt + alpha*v;            // Center point
-  p1 = pt + beta*v1;                    // Start point
-  p2 = pt + beta*v2;                    // End point
+  if (c[0] == 0.0 && c[1] == 0.0) {
+    // Can not satisfy fillet radius on either segment, so do nothing.
+    return;
+  }
 
   // Compute angular extent of the fillet.
   JetNum a1 = atan2(p1(1) - c(1), p1(0) - c(0));
@@ -1487,7 +1540,7 @@ void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
   }
 
   // Compute the number of steps in the fillet.
-  JetNum steps = M_PI / acos(1.0 - limit / radius);     // In a circle
+  JetNum steps = M_PI / acos(1.0 - limit / radius);     // In a full circle
   steps = std::min(steps, kMaxStepsAllowed);
   int num_steps = ToInt64(ceil(abs(a2 - a1) * steps / (2.0 * M_PI))) + 1;
   if (num_steps <= 1) {
