@@ -157,7 +157,7 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
       toolkit/lua_vector.o toolkit/trace.o \
       toolkit/shaders.o \
       common.o shape.o mesh.o solver.o \
-      clipper.o triangle.o user_script_util.o license_text.o
+      clipper.o triangle.o user_script_util.o license_text.o my_jet.o
 
 OBJ += toolkit/thread.o cavity_qt.o qt/main.o qt/main_window.o qt/about.o \
        qt/sweep.o qt/error_window.o toolkit/lua_model_viewer_qt.o \
