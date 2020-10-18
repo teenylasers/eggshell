@@ -909,13 +909,15 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
         return;
       }
       for (int j = 0; j < vec[i].size(); j++) {
-        if (IsNaNValue(vec[i][j].real()) || IsNaNValue(vec[i][j].imag())) {
-          Error("A NaN (not-a-number) was returned by a callback, "
+        if (IsNaNOrInfValue(vec[i][j].real()) ||
+            IsNaNOrInfValue(vec[i][j].imag())) {
+          Error("A NaN (not-a-number) or infinity was returned by a callback, "
                 "in position %d of return value %d", j+1, i+1);
           return;
-        } else if (isnan(vec[i][j].real()) || isnan(vec[i][j].imag())) {
-          Warning("A NaN (not-a-number) derivative was returned by a callback, "
-                  "in position %d of return value %d\n"
+        } else if (IsNaNOrInfDerivative(vec[i][j].real()) ||
+                   IsNaNOrInfDerivative(vec[i][j].imag())) {
+          Warning("A NaN (not-a-number) or infinity derivative was returned by "
+                  "a callback, in position %d of return value %d\n"
                   "This will prevent the optimizer from working.", j+1, i+1);
         }
       }
