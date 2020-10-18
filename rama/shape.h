@@ -258,7 +258,7 @@ class Shape : public LuaUserClass {
   JetNum SharpestAngle() const;
 
   // Return the largest and smallest side lengths.
-  void ExtremeSideLengths(JetNum *length_max, JetNum *length_min) const;
+  void ExtremeSideLengths(double *length_max, double *length_min) const;
 
   // Add a point to the last piece in the shape.
   void AddPoint(JetNum x, JetNum y);

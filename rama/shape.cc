@@ -946,14 +946,14 @@ JetNum Shape::SharpestAngle() const {
   return fabs(M_PI - sharpest);
 }
 
-void Shape::ExtremeSideLengths(JetNum *ret_length_max,
-                               JetNum *ret_length_min) const {
-  JetNum length_max = 0;
-  JetNum length_min = __DBL_MAX__;
+void Shape::ExtremeSideLengths(double *ret_length_max,
+                               double *ret_length_min) const {
+  double length_max = 0;
+  double length_min = __DBL_MAX__;
   for (int i = 0; i < polys_.size(); i++) {
     for (int j1 = 0; j1 < polys_[i].p.size(); j1++) {
       int j2 = (j1 + 1) % polys_[i].p.size();
-      JetNum length = (polys_[i].p[j2].p - polys_[i].p[j1].p).norm();
+      double length = ToDouble((polys_[i].p[j2].p - polys_[i].p[j1].p).norm());
       length_max = std::max(length_max, length);
       length_min = std::min(length_min, length);
     }
@@ -1278,18 +1278,25 @@ void Shape::Grow(JetNum delta, CornerStyle style, JetNum limit,
 void Shape::Clean(JetNum threshold) {
   // The default threshold is the maximum side length * kTolClean.
   if (threshold == 0) {
-    JetNum length_max, length_min;
+    double length_max, length_min;
     ExtremeSideLengths(&length_max, &length_min);
     threshold = kTolClean * length_max;
   }
 
   // We don't delete points that are shared by multiple pieces, as these are
   // topologically important and might be referenced by different material's
-  // polygons.
-  std::map<RPoint, int> use_count;
+  // polygons. But make sure we *do* consider repeated points in the same
+  // piece. The use_count maps a point to piece number and use count.
+  std::map<RPoint, std::pair<int, int>> use_count;
   for (int i = 0; i < polys_.size(); i++) {
     for (int j = 0; j < polys_[i].p.size(); j++) {
-      use_count[polys_[i].p[j]]++;
+      std::pair<int, int> &uc = use_count[polys_[i].p[j]];
+      if (uc.second == 0) {
+        uc.first = i;           // First use detected on this piece
+        uc.second = 1;
+      } else if (uc.first != i) {
+        uc.second++;            // N'th use detected on a different piece
+      }
     }
   }
 
@@ -1307,7 +1314,7 @@ void Shape::Clean(JetNum threshold) {
       for (int j1 = 0; j1 < n; j1++) {
         int j2 = (j1 + 1) % n;        // We consider deleting j2
         int j3 = (j1 + 2) % n;
-        if (use_count[polys_[i].p[j2]] <= 1) {
+        if (use_count[polys_[i].p[j2]].second <= 1) {
           JetPoint delta1 = polys_[i].p[j2].p - polys_[i].p[j1].p;
           JetPoint delta2 = polys_[i].p[j3].p - polys_[i].p[j2].p;
           JetNum length1 = delta1.norm();

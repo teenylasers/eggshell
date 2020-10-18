@@ -1402,7 +1402,9 @@ rotate @c{s} about (3,4) you could do this:
   @| Add a fillet of the given @c{radius} to the vertex closest to @c{x},@c{y}.
      The @c{limit} is the maximum distance allowed between a polygon
      approximation of an arc and a true circle. It is a runtime error if the
-     shape is empty.
+     shape is empty. Fillets that are tangent to both edges of the vertex are
+     preferred, otherwise fillets that are tangent to just one edge are used.
+     If no fillet of the given radius can be constructed, nothing will be done.
 
   @* @c{s:Grow(delta,style,limit)} @_
      or @_
@@ -2008,4 +2010,11 @@ Here is what is added in each new version.
 @* Warn about parameter creation that depends on other parameters.
 @* Fix @c{math.random()} on windows.
 @* Various minor stability improvement.
+}
+
+@b{v0.37}
+@list{
+@* @c{FilletVertex} can now construct fillets that are tangent to just one
+   edge of the vertex if it is impossible to make it tangent to both edges.
+@* Fix a bug in @c{Clean} where duplicate points were not removed.
 }

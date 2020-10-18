@@ -112,13 +112,8 @@ void Cavity::ScriptJustRan(bool only_compute_derivatives) {
     return;
   }
 
-  // Clean up the shape by removing edges that are too small to matter. The
-  // assumption is that if the shape was meshed with triangles about the size
-  // of the smallest edge and if that resulted in more than
-  // kMaxReasonableTriangles then the simulation would be unreasonably slow.
+  // Clean up the shape by removing edges that are too small to matter.
   {
-    JetNum length_max, length_min;
-    cd_.ExtremeSideLengths(&length_max, &length_min);
     JetNum h = sqrt(cd_.TotalArea() / kMaxReasonableTriangles);
     cd_.Clean(ToDouble(h));
   }

@@ -748,7 +748,7 @@ bool Solver::ComputePortOutgoingField2(vector<JetComplex> *result) {
   // ComputePortOutgoingPower() will correspond to the power exiting the port.
   // We compute this field amplitude by integrating the field^2 across the port
   // and scaling. When the field is a well behaved TE10 this gives the same
-  // result as ComputePortOutgoingField2(). When the field is more complex,
+  // result as ComputePortOutgoingField1(). When the field is more complex,
   // this method tends to produce a less nonsensical number that is more in
   // line with the actual field strength at the port. Note that it will not be
   // the actual power exiting the port as we are not really integrating the
