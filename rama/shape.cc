@@ -19,6 +19,7 @@
 #include "../toolkit/shaders.h"
 #include "../toolkit/gl_font.h"
 #include "../toolkit/testing.h"
+#include "../toolkit/dxf.h"
 
 using ClipperLib::IntPoint;
 using ClipperLib::Clipper;
@@ -1592,27 +1593,22 @@ void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist) {
   Clean();
 }
 
-void Shape::SaveBoundaryAsDXF(const char *filename) {
+void Shape::SaveBoundaryAsDXF(const char *filename,
+                              double arc_dist, double arc_angle) {
   FILE *fout = fopen(filename, "wb");
   if (!fout) {
     Error("Can not write to '%s' (%s)", filename, strerror(errno));
     return;
   }
-  fprintf(fout, "0\nSECTION\n2\nENTITIES\n");
+  vector<vector<dxf::Point>> p(polys_.size());
   for (int i = 0; i < polys_.size(); i++) {
-    for (int j1 = 0; j1 < polys_[i].p.size(); j1++) {
-      int j2 = (j1 + 1) % polys_[i].p.size();
-      double x1 = ToDouble(polys_[i].p[j1].p[0]);
-      double y1 = ToDouble(polys_[i].p[j1].p[1]);
-      double x2 = ToDouble(polys_[i].p[j2].p[0]);
-      double y2 = ToDouble(polys_[i].p[j2].p[1]);
-      fprintf(fout, "0\nLINE\n5\n0\n100\nAcDbEntity\n8\nCavity\n"
-                    "100\nAcDbLine\n");
-      fprintf(fout, "10\n%.10e\n20\n%.10e\n30\n0\n", x1, y1);
-      fprintf(fout, "11\n%.10e\n21\n%.10e\n31\n0\n", x2, y2);
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      p[i].push_back(dxf::Point(ToDouble(polys_[i].p[j].p[0]),
+                                ToDouble(polys_[i].p[j].p[1])));
     }
   }
-  fprintf(fout, "0\nENDSEC\n0\nEOF\n");
+  const double kArcTolerance = 1e-6;
+  dxf::WriteDXF(p, arc_dist, arc_angle, kArcTolerance, fout);
   fclose(fout);
 }
 

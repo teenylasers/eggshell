@@ -363,7 +363,8 @@ class Shape : public LuaUserClass {
   void ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist);
 
   // Save the shape to various file formats.
-  void SaveBoundaryAsDXF(const char *filename);
+  void SaveBoundaryAsDXF(const char *filename,
+                         double arc_dist, double arc_angle);
   void SaveBoundaryAsXY(const char *filename);
 
   // Load a binary STL file and convert it to a Shape that traces the edges of

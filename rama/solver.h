@@ -70,6 +70,8 @@ struct ScriptConfig {
   AntennaPattern antenna_pattern;  // How antenna pattern computed
   int max_modes;                // TE or TM: Number of modes to compute
   Window wideband_window;       // A WINDOW_nnn constant
+  double dxf_arc_dist;          // For DXF export
+  double dxf_arc_angle;         // For DXF export
 
   ScriptConfig() {
     type = UNKNOWN;
@@ -81,6 +83,8 @@ struct ScriptConfig {
     antenna_pattern = AT_ABC;
     max_modes = 1;
     wideband_window = RECTANGLE;
+    dxf_arc_dist = 0;
+    dxf_arc_angle = 0;
   }
 
   bool operator==(const ScriptConfig &c) const {
@@ -94,7 +98,9 @@ struct ScriptConfig {
         && boresight        == c.boresight
         && antenna_pattern  == c.antenna_pattern
         && max_modes        == c.max_modes
-        && wideband_window  == c.wideband_window;
+        && wideband_window  == c.wideband_window
+        && dxf_arc_dist     == c.dxf_arc_dist
+        && dxf_arc_angle    == c.dxf_arc_angle;
   }
   bool operator!=(const ScriptConfig &c) const { return !operator==(c); }
 

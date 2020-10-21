@@ -411,7 +411,9 @@ vectors) can be changed with the brightness slider.
       The coordinates in the DXF are in the @c{config.unit} units, but the
       value of @c{config.unit} is not saved in the DXF file. Therefore you must
       set the units manually or scale the model when importing into a CAD
-      program.
+      program. The values @c{config.dxf_arc_dist} and @c{config.dxf_arc_angle}
+      can be set to detect and export boundary arcs, otherwise the DXF will
+      only contain line segments.
    @* @b{Export boundary as x,y list} Export the model boundary shape
       (@c{config.cd}) as text file list of coordinates.
    @* @b{Export field as matlab data}. Save the mesh and current field
@@ -835,10 +837,18 @@ the following fields:
   @* @c{max_modes}
   @| For @c{TE} and @c{TM} type, this is the number of modes to compute.
 
-  @* @c{wideband_window}
+  @* @c{wideband_window} (optional)
   @| For a multi-frequency simulation this is the scaling window that is used
      to display wideband pulses. Valid values are @c{rectangle} and @c{hamming}.
      If this field is missing then a rectangular window is assumed.
+
+  @* @c{dxf_arc_dist} (optional)
+  @| For DXF export, concentric points closer than this distance to their
+     neighbors are potentially considered to be part of arcs.
+
+  @* @c{dxf_arc_angle} (optional)
+  @| For DXF export, concentric points with angles less than this to their
+     neighbors are potentially considered to be part of arcs (degrees).
 }
 
 @subsection{Parameters}
@@ -2017,4 +2027,6 @@ Here is what is added in each new version.
 @* @c{FilletVertex} can now construct fillets that are tangent to just one
    edge of the vertex if it is impossible to make it tangent to both edges.
 @* Fix a bug in @c{Clean} where duplicate points were not removed.
+@* Added @c{dxf_arc_dist} and @c{dxf_arc_angle} to allow DXF files to contain
+   arcs.
 }

@@ -706,7 +706,7 @@ void Cavity::ExportFieldMatlab(const char *filename) {
 }
 
 void Cavity::ExportBoundaryDXF(const char *filename) {
-  cd_.SaveBoundaryAsDXF(filename);
+  cd_.SaveBoundaryAsDXF(filename, config_.dxf_arc_dist, config_.dxf_arc_angle);
 }
 
 void Cavity::ExportBoundaryXY(const char *filename) {
@@ -962,6 +962,8 @@ void Cavity::SetConfigFromTable() {
   GET_FIELD(boresight, false, ToDouble, lua_tonumber, LUA_TNUMBER, -1e99, 0)
   GET_FIELD(max_modes, config_.TypeIsWaveguideMode(), ToDouble, lua_tonumber,
             LUA_TNUMBER, 1, 1)
+  GET_FIELD(dxf_arc_dist, false, ToDouble, lua_tonumber, LUA_TNUMBER, 0, 0)
+  GET_FIELD(dxf_arc_angle, false, ToDouble, lua_tonumber, LUA_TNUMBER, 0, 0)
   #undef GET_FIELD
   config_.schrodinger = false;                  // Default
   if (config_.type == ScriptConfig::SCHRODINGER) {
