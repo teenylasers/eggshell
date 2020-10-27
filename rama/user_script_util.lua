@@ -160,7 +160,8 @@ end
 
 -- Create a table that returns a zero for every index. This is sometimes useful
 -- as arguments to config.optimize().
-__ZeroTable__ = setmetatable({}, {__index = function(T,k) return 0 end })
+__ZeroTable__ = setmetatable({}, {__index = function(T,k) return 0 end,
+                                  __len = function(T) return 1 end})
 
 -- The third argument to optimize, a table which contains field lookup
 -- functions.
