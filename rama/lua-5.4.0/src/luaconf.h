@@ -637,7 +637,7 @@
 ** availability of these variants. ('math.h' is already included in
 ** all files that use these macros.)
 */
-#if 0
+#if 0  // Make sure this doesn't happen on Windows, where it breaks math.random()
 #undef l_mathop  /* variants not available */
 #undef lua_str2number
 #define l_mathop(op)		(lua_Number)op  /* no variant */
