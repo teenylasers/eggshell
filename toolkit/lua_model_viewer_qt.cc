@@ -412,7 +412,7 @@ LuaModelViewer::LuaModelViewer(QWidget *parent)
   // Setup the idle event processing mechanism.
   auto *dispatcher = QAbstractEventDispatcher::instance();
   connect(dispatcher, SIGNAL(aboutToBlock()),
-          this, SLOT(ScheduleIdleProcessing()));
+          this, SLOT(AboutToBlock()));
 }
 
 LuaModelViewer::~LuaModelViewer() {
@@ -421,6 +421,19 @@ LuaModelViewer::~LuaModelViewer() {
   delete error_icon_;
   delete warning_icon_;
   delete info_icon_;
+}
+
+void LuaModelViewer::AboutToBlock() {
+  // This is called before the event loop calls a function that could block. We
+  // do idle processing here to make sure that the invisible-hand mechanism has
+  // a minimal level of responsiveness. One subtlety: if we call
+  // ScheduleIdleProcessing() here it will call QTimer::singleShot(), which
+  // will lead to another call to AboutToBlock(), resulting in an infinite loop
+  // that takes 100% of the CPU. Instead, call IdleProcessing() directly if
+  // necessary and skip the timer.
+  if (!idle_processing_pending_) {
+    IdleProcessing();
+  }
 }
 
 void LuaModelViewer::ScheduleIdleProcessing() {

@@ -73,6 +73,7 @@ class LuaModelViewer : public GLViewer {
   ~LuaModelViewer();
 
  public slots:
+  void AboutToBlock();
   // Do background sweeps and optimization when idle.
   void IdleProcessing();
   // Schedule IdleProcessing() if it is not currently scheduled.
