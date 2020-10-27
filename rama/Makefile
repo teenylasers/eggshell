@@ -161,11 +161,13 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
 
 OBJ += toolkit/thread.o cavity_qt.o qt/main.o qt/main_window.o qt/about.o \
        qt/sweep.o qt/error_window.o toolkit/lua_model_viewer_qt.o \
+       qt/nelder_mead.o \
        qt/moc_main_window.o qt/moc_about.o  qt/moc_sweep.o \
+       qt/moc_nelder_mead.o \
        qt/moc_error_window.o qt/moc_lua_model_viewer_qt.o \
        qt/plugin_import.o
 UI_HEADERS = qt/ui_about.h qt/ui_error_window.h qt/ui_main_window.h \
-             qt/ui_sweep.h
+             qt/ui_sweep.h qt/ui_nelder_mead.h
 
 APP = rama.exe
 
@@ -258,6 +260,11 @@ CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare
 CCFLAGS += $(ENGINE_EXTRA_CFLAGS) $(ZLIB_CFLAGS) \
   -D__TOOLKIT_USE_CERES__ \
   $(EIGEN_FLAGS) $(CERES_INC) -I../../toolkit
+
+# Use the LLVM address sanitizer to find memory bugs on MacOS, since valgrind
+# does not work well there:
+# CFLAGS += -fsanitize=address
+# CCFLAGS += -fsanitize=address
 
 #############################################################################
 # Extra configuration for application files.
