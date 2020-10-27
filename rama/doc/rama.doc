@@ -41,6 +41,7 @@
 @spelling{Atacama} @spelling{utf} @spelling{false} @spelling{JetComplex}
 @spelling{ZFillCallback} @spelling{PNG} @spelling{linux} @spelling{matlab}
 @spelling{Poisson's} @spelling{quasi-static} @spelling{isovoltage}
+@spelling{Nelder-Mead}
 
 
 @title{Rama}
@@ -490,8 +491,8 @@ vectors) can be changed with the brightness slider.
    @* @b{Sweep}. Plot S-parameters or other values over parameter values.
       See the section on @link{sweeps}{sweeps}.
    @* @b{Select optimizer}. Select the numerical technique that will be used to
-      perform optimizations. For certain problems some techniques perform
-      better than others. Options are Levenberg-Marquardt, and Subspace dogleg.
+      perform optimizations. The options are discussed in the section on
+      @link{optimization}{optimization}.
    @* @b{Start optimization}. Adjust the selected parameters to improve the
       output of the @c{config.optimize} function.
       See the section on @link{optimization}{optimization}.
@@ -1680,8 +1681,26 @@ To use the optimizer, here are the steps:
    solution looks across a range of parameter values, and start with parameter
    values near to where you think a reasonable configuration is.
 @* (Optionally) select the optimization method with the ``Solve / Select
-   optimizer'' menu. For certain problems some techniques perform better than
-   others. The default Levenberg-Marquardt technique works for most problems.
+   optimizer'' menu. The options are:
+   @list{
+   @* Levenberg-Marquardt: a gradient based technique that works for most
+      problems. This is a fast optimization technique, but it is local, in the
+      sense that it will find a locally optimal solution that is close to the
+      starting parameters but can leave unexplored better solutions that are
+      further away.
+   @* Subspace Dogleg: a gradient based local optimization technique that has
+      similar performance to Levenberg-Marquardt. This can be a better choice
+      for a small number of problems.
+   @* @link{https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method}{Nelder-Mead}
+      / @link{https://en.wikipedia.org/wiki/Simulated_annealing}{Simulated annealing}:
+      a hybrid of those two techniques, that first does a global optimization
+      that gradually reduces temperature, then does a downhill only
+      optimization to find the final solution. Selecting this will pop up a
+      dialog box allowing the technique's many parameters to be configured.
+   @* Random search: this just randomly tries solutions until the optimization
+      is stopped, whereupon the best solution found so far is used. This is
+      usually not an efficient choice.
+   }
 @* Run the optimizer with the ``Solve / Start optimization'' menu command.
    The parameters will be adjusted and the field will be solved repeatedly as
    the optimizer searches for a solution. If the process is taking too long

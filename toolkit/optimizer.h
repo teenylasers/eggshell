@@ -15,29 +15,13 @@
 
 #include "myvector"
 #include "error.h"
+#include "Eigen/Dense"
 
-// Most optimizer libraries (e.g. ceres) have their own main loop that wants to
-// take control of your app. You call some solver function that in turn calls
-// your objective function callback a bunch of times, and eventually the answer
-// is returned to you when the solver exits. This is simple but not convenient
-// in single threaded interactive applications, i.e. if the solver takes a long
-// time it will block the user interface. This class provides a workaround: the
-// solver is run in a separate thread, and each time the objective function
-// needs to be evaluated control is returned to the user. This is only
-// efficient when the objective function cost is larger than the small overhead
-// of communicating between threads.
+// An abstract interface to an optimizer.
 
-class InteractiveOptimizer {
+class AbstractOptimizer {
  public:
-  explicit InteractiveOptimizer();
-  virtual ~InteractiveOptimizer();
-
-  // Set optimization termination criteria. The optimization will terminate
-  // when the fractional change in function/parameter is less than the given
-  // tolerance, or the gradient magnitude is is less than the given tolerance.
-  void SetFunctionTolerance(double x) { function_tolerance_  = x; }
-  void SetParameterTolerance(double x) { parameter_tolerance_ = x; }
-  void SetGradientTolerance(double x) { gradient_tolerance_  = x; }
+  virtual ~AbstractOptimizer() = 0;
 
   // Initialize the optimizer with a starting set of parameters. Parameters()
   // will now return the first set of parameters to evaluate the objective
@@ -53,10 +37,10 @@ class InteractiveOptimizer {
     // computed:
     double gradient_step;
   };
-  void Initialize(const std::vector<Parameter> &start);
+  virtual void Initialize(const std::vector<Parameter> &start) = 0;
 
   // Return true if Initialize() has been called (successfully or not).
-  bool IsInitialized() const { return impl_ != 0; }
+  virtual bool IsInitialized() const = 0;
 
   // Return the current set of parameters, updated by Initialize() or
   // DoOneIteration(). These are empty() until initialization, or upon error.
@@ -86,14 +70,54 @@ class InteractiveOptimizer {
   bool DoOneIteration(const std::vector<double> &errors,
                       const std::vector<double> &jacobians) MUST_USE_RESULT;
 
+  // The best parameters (and the corresponding error) found so far.
+  const std::vector<double>& BestParameters() const { return best_parameters_; }
+  double BestError() const { return best_error_; }
+
+ protected:
+  // The version of DoOneIteration implement by the subclass. DoOneIteration()
+  // updates the best solution found so far and then calls this.
+  virtual bool DoOneIteration2(const std::vector<double> &errors,
+                               const std::vector<double> &jacobians)
+                               MUST_USE_RESULT = 0;
+
+  std::vector<double> parameters_;
+  bool jacobians_needed_ = false;
+
+ private:
+  std::vector<double> best_parameters_;         // Best found so far
+  double best_error_ = __DBL_MAX__;             // Best |error|^2 so far
+};
+
+// Most optimizer libraries (e.g. ceres) have their own main loop that wants to
+// take control of your app. You call some solver function that in turn calls
+// your objective function callback a bunch of times, and eventually the answer
+// is returned to you when the solver exits. This is simple but not convenient
+// in single threaded interactive applications, i.e. if the solver takes a long
+// time it will block the user interface. This class provides a workaround: the
+// solver is run in a separate thread, and each time the objective function
+// needs to be evaluated control is returned to the user. This is only
+// efficient when the objective function cost is larger than the small overhead
+// of communicating between threads.
+
+class InteractiveOptimizer : public AbstractOptimizer {
+ public:
+  virtual ~InteractiveOptimizer();
+
+  // The functions required by AbstractOptimizer.
+  void Initialize(const std::vector<Parameter> &start) override;
+  bool IsInitialized() const override;
+  bool DoOneIteration2(const std::vector<double> &errors,
+                       const std::vector<double> &jacobians) override;
+
   struct ErrorsAndJacobians {
     std::vector<double> errors, jacobians;
   };
 
  protected:
-  // Run a particular optimizer library. This will be run in a separate thread
-  // and returns when optimization is finished, so it is allowed to take a long
-  // time. Return true on success or false on failure.
+  // Run a particular optimizer library. This will be called in a separate
+  // thread and returns when optimization is finished, so it is allowed to take
+  // a long time. Return true on success or false on failure.
   virtual bool Optimize(const std::vector<Parameter> &start,
                         std::vector<double> *optimized_parameters)
                         MUST_USE_RESULT = 0;
@@ -101,32 +125,128 @@ class InteractiveOptimizer {
   // An implementation of Optimize() should call this function to compute the
   // errors (i.e. residuals) and jacobians for a given set of parameters. This
   // function handles the details of returning the parameters through
-  // DoOneIteration().
+  // DoOneIteration(). The 'errors_and_jacobians' is a pointer that is updated
+  // with the returned value, you must delete it when you are finished with the
+  // data.
   void Evaluate(const std::vector<double> &parameters, bool jacobians_needed,
                 ErrorsAndJacobians **errors_and_jacobians) const;
 
-  struct Implementation;
-  Implementation *impl_;
-  std::vector<double> parameters_;
-  bool jacobians_needed_;
+  // Return true if the optimizer should shut down, i.e. because Shutdown() has
+  // been called. This should be checked once per iteration in Optimize().
+  bool Aborting() const;
 
-  // Optimization parameters.
-  double function_tolerance_, parameter_tolerance_, gradient_tolerance_;
+  // Show down the optimizer thread. This should be called in each subclass
+  // destructor, to make sure that the thread is not using subclass data after
+  // it is deleted.
+  void Shutdown();
+
+  // Return a copy of the parameter info vector passed to Initialize().
+  const std::vector<Parameter> &ParameterInfo() const;
+
+ private:
+  struct Implementation;
+  Implementation *impl_ = 0;
 };
+
+// The dumbest optimizer that just keeps guessing the answer. This can run for
+// ever as DoOneIteration() always return false, so the caller should give up
+// at some point and call BestError().
+
+class RandomSearchOptimizer : public AbstractOptimizer {
+ public:
+  ~RandomSearchOptimizer();
+  void Initialize(const std::vector<Parameter> &start) override;
+  bool IsInitialized() const override;
+  bool DoOneIteration2(const std::vector<double> &errors,
+                       const std::vector<double> &jacobians) override;
+ private:
+  std::vector<Parameter> parameter_info_;
+};
+
+// The classic Nelder-Mead algorithm with support for simulated annealing.
+
+class NelderMeadOptimizer : public InteractiveOptimizer {
+ public:
+  ~NelderMeadOptimizer();
+  bool Optimize(const std::vector<Parameter> &start,
+                std::vector<double> *optimized_parameters) override;
+
+  struct Settings {
+    // The optimization will terminate if the fractional range from the best to
+    // worst point in the simplex is less than the given tolerance.
+    double convergence_ratio = 1e-2;
+    // The optimization will terminate if the best point has error <= this. We
+    // can't only rely on convergence_ratio because that will never accept
+    // convergence if the minimal error is 0. The good value here is very
+    // problem dependent.
+    double convergence_error = 1e-6;
+    // In addition, only accept convergence if the simplex is less than this
+    // fraction of the parameter bounds.
+    double convergence_parameter = 1e-3;
+    // Seconds to spend in the annealing phase.
+    double annealing_time = 0;
+    // Set the (approximate) size of the initial simplex, as a fraction of the
+    // parameter bounds.
+    double initial_fraction = 0.1;
+    // Initial and final temperatures (0 is cold, T>0 explores the space with
+    // energy ~= T).
+    double initial_temperature = 1;
+    double final_temperature = 0.001;   // This fraction of the initial temp
+  };
+
+  // Set optimization parameters.
+  void SetSettings(Settings &p) {
+    settings_ = p;
+  }
+
+ private:
+  Settings settings_;
+  double temperature_ = 0;
+  Eigen::VectorXd best_parameters_;
+  double best_error_ = 0;
+
+  // An error and its associated thermal fluctuation.
+  struct Error {
+    double actual, thermal;
+    bool operator<(const Error &v) const { return thermal < v.thermal; }
+    bool operator<=(const Error &v) const { return thermal <= v.thermal; }
+  };
+
+  Error ObjectiveFunction(const Eigen::VectorXd &p);
+  Eigen::VectorXd ClipParameters(const Eigen::VectorXd &p,
+                                 const Eigen::VectorXd &delta,
+                                 const std::vector<Parameter> &start);
+  double Thermal() const;
+};
+
+// An optimizer factory.
+
+enum class OptimizerType {
+  LEVENBERG_MARQUARDT,          // Implemented by CeresInteractiveOptimizer
+  SUBSPACE_DOGLEG,              // Implemented by CeresInteractiveOptimizer
+  RANDOM_SEARCH,
+  NELDER_MEAD,
+};
+
+AbstractOptimizer *OptimizerFactory(int num_errors, OptimizerType type);
+
 
 // Interface to the Ceres optimizer. This is only included if
 // __TOOLKIT_USE_CERES__ is defined.
 
 #ifdef __TOOLKIT_USE_CERES__
 
-enum OptimizerType {
-  LEVENBERG_MARQUARDT,
-  SUBSPACE_DOGLEG
-};
-
 class CeresInteractiveOptimizer : public InteractiveOptimizer {
  public:
   explicit CeresInteractiveOptimizer(int num_errors, OptimizerType type);
+  ~CeresInteractiveOptimizer();
+
+  // Set optimization termination criteria. The optimization will terminate
+  // when the fractional change in function/parameter is less than the given
+  // tolerance, or the gradient magnitude is less than the given tolerance.
+  void SetFunctionTolerance(double x) { function_tolerance_  = x; }
+  void SetParameterTolerance(double x) { parameter_tolerance_ = x; }
+  void SetGradientTolerance(double x) { gradient_tolerance_  = x; }
 
  protected:
   bool Optimize(const std::vector<Parameter> &start,
@@ -135,6 +255,12 @@ class CeresInteractiveOptimizer : public InteractiveOptimizer {
  private:
   int num_parameters_, num_errors_;     // Problem size
   OptimizerType type_;                  // Optimizer type
+
+  // Optimization parameters.
+  double function_tolerance_ = 1e-6;
+  double parameter_tolerance_ = 1e-8;
+  double gradient_tolerance_ = 1e-10;
+
   friend class CeresCostFunction;
 };
 

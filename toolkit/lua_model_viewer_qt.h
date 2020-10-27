@@ -72,10 +72,13 @@ class LuaModelViewer : public GLViewer {
   explicit LuaModelViewer(QWidget *parent);
   ~LuaModelViewer();
 
-  // Do background sweeps and optimization when idle.
  public slots:
+  // Do background sweeps and optimization when idle.
   void IdleProcessing();
-public:
+  // Schedule IdleProcessing() if it is not currently scheduled.
+  void ScheduleIdleProcessing();
+
+ public:
   // Is the model good enough to simulate?
   bool IsModelValid() { return valid_; }
 
@@ -98,6 +101,8 @@ public:
   void StopSweepOrOptimize();
   void ToggleEmitTraceReport();
   void SetOptimizer(OptimizerType type) { ih_.optimizer_type = type; }
+  void SetNelderMeadParameters(NelderMeadOptimizer::Settings p)
+    { ih_.nmop = p; }
   void CopyParametersToClipboard();
   void ToggleRunTestAfterSolve();
   void ScriptTestMode();
@@ -256,6 +261,7 @@ public:
   char **copy_of_argv_ = 0;             // Copy of argument given to main()
   bool switch_to_model_after_each_solve_;
   bool disable_idle_processing_ = false;
+  bool idle_processing_pending_ = false;
 
   // Connections to external controls.
   QListWidget *script_messages_;
@@ -299,13 +305,14 @@ public:
     bool sweep_over_test_output;              // Plot test() output?
     std::vector<std::vector<JetComplex> > sweep_output;
     OptimizerType optimizer_type;             // Algorithm to use
-    CeresInteractiveOptimizer *optimizer;     // Nonzero if currently optimizing
+    AbstractOptimizer *optimizer;             // Nonzero if currently optimizing
+    NelderMeadOptimizer::Settings nmop;
     std::vector<std::string> opt_parameter_names;  // Parameter names optimizing
     bool optimizer_done_;                     // true if found optimal solution
     std::string image_filename;               // nonempty to save model images
 
     InvisibleHand() {
-      optimizer_type = LEVENBERG_MARQUARDT;
+      optimizer_type = OptimizerType::LEVENBERG_MARQUARDT;
       optimizer = 0;
       sweep_over_test_output = false;
       Start();
@@ -319,10 +326,11 @@ public:
       sweep_output.clear();
       sweep_parameter_name.clear();
     }
+
     void Stop() {
       state = OFF;
       sweep_index = 0;
-      delete optimizer;
+      delete optimizer;         // Will shut down any optimizer threads running
       optimizer = 0;
       opt_parameter_names.clear();
       optimizer_done_ = false;

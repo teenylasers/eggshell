@@ -26,6 +26,7 @@
 #include "ui_main_window.h"
 #include "about.h"
 #include "sweep.h"
+#include "nelder_mead.h"
 #include "../version.h"
 #include "../../toolkit/error.h"
 
@@ -319,15 +320,40 @@ void MainWindow::on_actionEmitTrace_triggered() {
 }
 
 void MainWindow::on_actionSelectLevenbergMarquardt_triggered() {
-  ui->model->SetOptimizer(LEVENBERG_MARQUARDT);
+  ui->model->SetOptimizer(OptimizerType::LEVENBERG_MARQUARDT);
+  UncheckSimulationMethods();
   ui->actionSelectLevenbergMarquardt->setChecked(true);
-  ui->actionSelectSubspaceDogleg->setChecked(false);
 }
 
 void MainWindow::on_actionSelectSubspaceDogleg_triggered() {
-  ui->model->SetOptimizer(SUBSPACE_DOGLEG);
-  ui->actionSelectLevenbergMarquardt->setChecked(false);
+  ui->model->SetOptimizer(OptimizerType::SUBSPACE_DOGLEG);
+  UncheckSimulationMethods();
   ui->actionSelectSubspaceDogleg->setChecked(true);
+}
+
+void MainWindow::on_actionSelectNelderMead_triggered() {
+  NelderMead neldermead(this);
+  if (neldermead.exec() == QDialog::Accepted) {
+    UncheckSimulationMethods();
+    ui->actionSelectNelderMead->setChecked(true);
+    ui->model->SetOptimizer(OptimizerType::NELDER_MEAD);
+    ui->model->SetNelderMeadParameters(neldermead.GetParameters());
+  } else {
+    ui->actionSelectNelderMead->setChecked(false);
+  }
+}
+
+void MainWindow::on_actionSelectRandomSearch_triggered() {
+  ui->model->SetOptimizer(OptimizerType::RANDOM_SEARCH);
+  UncheckSimulationMethods();
+  ui->actionSelectRandomSearch->setChecked(true);
+}
+
+void MainWindow::UncheckSimulationMethods() {
+  ui->actionSelectLevenbergMarquardt->setChecked(false);
+  ui->actionSelectSubspaceDogleg->setChecked(false);
+  ui->actionSelectNelderMead->setChecked(false);
+  ui->actionSelectRandomSearch->setChecked(false);
 }
 
 void MainWindow::on_actionStartOptimization_triggered() {

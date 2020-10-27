@@ -22,6 +22,7 @@
 #include "trace.h"
 #include "platform.h"
 #include "shaders.h"
+#include "testing.h"
 
 #include <QCheckBox>
 #include <QLineEdit>
@@ -411,7 +412,7 @@ LuaModelViewer::LuaModelViewer(QWidget *parent)
   // Setup the idle event processing mechanism.
   auto *dispatcher = QAbstractEventDispatcher::instance();
   connect(dispatcher, SIGNAL(aboutToBlock()),
-          this, SLOT(IdleProcessing()));
+          this, SLOT(ScheduleIdleProcessing()));
 }
 
 LuaModelViewer::~LuaModelViewer() {
@@ -422,7 +423,20 @@ LuaModelViewer::~LuaModelViewer() {
   delete info_icon_;
 }
 
+void LuaModelViewer::ScheduleIdleProcessing() {
+  // Call this to make sure IdleProcessing() is eventually called. Don't call
+  // QTimer::singleShot() directly in various places, because that seems to
+  // result in multiple timer events in the event queue which causes a gradual
+  // loss of responsiveness in the UI when optimizing.
+  if (!idle_processing_pending_) {
+    idle_processing_pending_ = true;
+    QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+  }
+}
+
 void LuaModelViewer::IdleProcessing() {
+  idle_processing_pending_ = false;
+
   // This is called from a single shot QTimer or when the event loop is about
   // to block (i.e. when there is no other work to do in the system. It's a
   // good place to start traces and to collect trace reports.
@@ -453,7 +467,7 @@ void LuaModelViewer::IdleProcessing() {
     want_more_idles = OnInvisibleHandOptimize();
   }
   if (want_more_idles) {
-    QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+    ScheduleIdleProcessing();
   } else {
     // ih_.Stop() makes sure that future idle processing does nothing as the
     // state will be OFF.
@@ -561,7 +575,7 @@ void LuaModelViewer::Sweep(const string &parameter_name,
   }
   ih_.state = InvisibleHand::SWEEPING;
   // Run IdleProcessing() to kick off the actual sweep.
-  QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+  ScheduleIdleProcessing();
 }
 
 void LuaModelViewer::Optimize() {
@@ -599,21 +613,56 @@ void LuaModelViewer::Optimize() {
     return;
   }
 
-  // Create the optimizer if necessary.
-  ih_.optimizer = new CeresInteractiveOptimizer(num_optimize_outputs_,
-                                                ih_.optimizer_type);
-  ih_.optimizer->SetFunctionTolerance(1e-6);    //@@@ revisit
-  ih_.optimizer->SetParameterTolerance(1e-4);   //@@@ revisit
-  // Gradients computed from mesh derivatives are not perfectly accurate, so:
-  ih_.optimizer->SetGradientTolerance(0);
+  // Create the optimizer.
+  ih_.optimizer = OptimizerFactory(num_optimize_outputs_, ih_.optimizer_type);
+  {
+    auto *opt = dynamic_cast<CeresInteractiveOptimizer*>(ih_.optimizer);
+    if (opt) {
+      opt->SetFunctionTolerance(1e-6);    //@@@ revisit
+      opt->SetParameterTolerance(1e-4);   //@@@ revisit
+      // Gradients computed from mesh derivatives are not perfectly accurate, so:
+      opt->SetGradientTolerance(0);
+    }
+  }
+  {
+    auto *opt = dynamic_cast<NelderMeadOptimizer*>(ih_.optimizer);
+    if (opt) {
+      opt->SetSettings(ih_.nmop);
+    }
+  }
 
   // Start optimization.
   ih_.state = InvisibleHand::OPTIMIZING;
   // Run IdleProcessing() to kick off the actual optimization.
-  QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+  ScheduleIdleProcessing();
 }
 
 void LuaModelViewer::StopSweepOrOptimize() {
+  // The optimization is being aborted before it has converged. The last set of
+  // parameters evaluated is not necessarily the best one found so far, so
+  // update the parameters and the model to the best found. For some kinds of
+  // optimization (such as random search) this is the only way to retrieve a
+  // solution.
+  if (ih_.optimizer) {
+    CHECK(ih_.optimizer->BestParameters().size() ==
+          ih_.opt_parameter_names.size());
+    for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
+      if (!SetParameter(ih_.opt_parameter_names[i],
+                        ih_.optimizer->BestParameters()[i])) {
+        Error("Optimizer interrupted (could not set final parameter value)");
+        ih_.Stop();
+        return;
+      }
+    }
+
+    // Rerun the script with the new parameter values.
+    PrepareForOptimize();
+    if (!RerunScript(true)) {
+      Error("Optimizer interrupted (final script failed)");
+      ih_.Stop();
+      return;
+    }
+  }
   ih_.Stop();
 }
 
@@ -1403,7 +1452,7 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
 
   // Initialize optimizer if necessary.
   if (!ih_.optimizer->IsInitialized()) {
-    vector<InteractiveOptimizer::Parameter>
+    vector<AbstractOptimizer::Parameter>
         start(ih_.opt_parameter_names.size());
     for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
       const Parameter &p = GetParameter(ih_.opt_parameter_names[i]);
@@ -1420,8 +1469,8 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
     CHECK(ih_.optimizer->Parameters().size() == ih_.opt_parameter_names.size());
   }
 
-  // Copy optimizer parameters so RerunScript() can pick them up, also also
-  // update all parameter controls so the user can see evidence of progress.
+  // Copy optimizer parameters so RerunScript() can pick them up, also update
+  // all parameter controls so the user can see evidence of progress.
   for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
     if (!SetParameter(ih_.opt_parameter_names[i],
                       ih_.optimizer->Parameters()[i])) {
@@ -1490,8 +1539,9 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
   }
   if (ih_.optimizer_done_) {
     // Optimization is complete. The optimizer does not guarantee that the last
-    // model evaluated is the optimal one, so we need to do a final iteration
-    // with the optimal parameters.
+    // model evaluated is the optimal one, so we return true he so that this
+    // function will be called again to do a final iteration with the optimal
+    // parameters.
     return true;
   }
 
@@ -1500,4 +1550,12 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
 
   // Schedule the next iteration of the optimization.
   return true;
+}
+
+//***************************************************************************
+
+TEST_FUNCTION(DynamicCast) {
+  // Make sure dynamic_cast<> works, i.e. RTTI is enabled.
+  auto *opt = OptimizerFactory(10, OptimizerType::LEVENBERG_MARQUARDT);
+  CHECK(dynamic_cast<CeresInteractiveOptimizer*>(opt));
 }

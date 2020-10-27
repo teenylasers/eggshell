@@ -215,6 +215,8 @@
      </property>
      <addaction name="actionSelectLevenbergMarquardt"/>
      <addaction name="actionSelectSubspaceDogleg"/>
+     <addaction name="actionSelectNelderMead"/>
+     <addaction name="actionSelectRandomSearch"/>
     </widget>
     <addaction name="actionSweep"/>
     <addaction name="menuSelect_optimizer"/>
@@ -1236,6 +1238,9 @@
    <property name="text">
     <string>Stop sweep or optimization</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Y</string>
+   </property>
   </action>
   <action name="actionRamaManual">
    <property name="text">
@@ -1333,6 +1338,22 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Left</string>
+   </property>
+  </action>
+  <action name="actionSelectRandomSearch">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Random search</string>
+   </property>
+  </action>
+  <action name="actionSelectNelderMead">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Nelder-Mead / Simulated annealing...</string>
    </property>
   </action>
  </widget>
