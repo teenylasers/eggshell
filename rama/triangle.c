@@ -9,6 +9,8 @@
 // * Fixup various printf specifiers.
 // * Connect printf() and triexit() to externally defined functions, as this
 //   is how this library exports errors.
+// * Fixed a bug in fast_expansion_sum_zeroelim() found by the llvm address
+//   sanitizer.
 
 typedef unsigned long long int PTRINT;
 #define printf(args...) triprintf(args)
@@ -5002,7 +5004,7 @@ REAL *h;
     fnow = f[++findex];
   }
   hindex = 0;
-  if ((eindex < elen) && (findex < flen)) {
+  if ((eindex < elen-1) && (findex < flen-1)) {
     if ((fnow > enow) == (fnow > -enow)) {
       Fast_Two_Sum(enow, Q, Qnew, hh);
       enow = e[++eindex];
@@ -5014,7 +5016,7 @@ REAL *h;
     if (hh != 0.0) {
       h[hindex++] = hh;
     }
-    while ((eindex < elen) && (findex < flen)) {
+    while ((eindex < elen-1) && (findex < flen-1)) {
       if ((fnow > enow) == (fnow > -enow)) {
         Two_Sum(Q, enow, Qnew, hh);
         enow = e[++eindex];
@@ -5028,7 +5030,7 @@ REAL *h;
       }
     }
   }
-  while (eindex < elen) {
+  while (eindex < elen-1) {
     Two_Sum(Q, enow, Qnew, hh);
     enow = e[++eindex];
     Q = Qnew;
@@ -5036,7 +5038,7 @@ REAL *h;
       h[hindex++] = hh;
     }
   }
-  while (findex < flen) {
+  while (findex < flen-1) {
     Two_Sum(Q, fnow, Qnew, hh);
     fnow = f[++findex];
     Q = Qnew;
