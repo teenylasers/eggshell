@@ -2049,4 +2049,5 @@ Here is what is added in each new version.
 @* Added @c{dxf_arc_dist} and @c{dxf_arc_angle} to allow DXF files to contain
    arcs.
 @* Added Nelder-Mead and simulated annealing optimization techniques.
+@* Upgrade to Lua 5.4.1.
 }
