@@ -96,7 +96,8 @@ typedef struct TValue {
 /*
 ** Any value being manipulated by the program either is non
 ** collectable, or the collectable object has the right tag
-** and it is not dead.
+** and it is not dead. The option 'L == NULL' allows other
+** macros using this one to be used where L is not available.
 */
 #define checkliveness(L,obj) \
 	((void)L, lua_longassert(!iscollectable(obj) || \
@@ -356,7 +357,7 @@ typedef struct GCObject {
 
 
 /*
-** Header for string value; string bytes follow the end of this structure.
+** Header for a string value.
 */
 typedef struct TString {
   CommonHeader;
@@ -367,16 +368,15 @@ typedef struct TString {
     size_t lnglen;  /* length for long strings */
     struct TString *hnext;  /* linked list for hash table */
   } u;
+  char contents[1];
 } TString;
 
 
 
 /*
 ** Get the actual string (array of bytes) from a 'TString'.
-** (Access to 'extra' ensures that value is really a 'TString'.)
 */
-#define getstr(ts)  \
-  check_exp(sizeof((ts)->extra), cast_charp((ts)) + sizeof(TString))
+#define getstr(ts)  ((ts)->contents)
 
 
 /* get the actual string (array of bytes) from a Lua value */
@@ -704,9 +704,9 @@ typedef union Node {
 */
 
 #define BITRAS		(1 << 7)
-#define isrealasize(t)		(!((t)->marked & BITRAS))
-#define setrealasize(t)		((t)->marked &= cast_byte(~BITRAS))
-#define setnorealasize(t)	((t)->marked |= BITRAS)
+#define isrealasize(t)		(!((t)->flags & BITRAS))
+#define setrealasize(t)		((t)->flags &= cast_byte(~BITRAS))
+#define setnorealasize(t)	((t)->flags |= BITRAS)
 
 
 typedef struct Table {

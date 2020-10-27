@@ -52,6 +52,12 @@ static int l_checkmode (const char *mode) {
 ** =======================================================
 */
 
+#if !defined(l_checkmodep)
+/* By default, Lua accepts only "r" or "w" as mode */
+#define l_checkmodep(m)	((m[0] == 'r' || m[0] == 'w') && m[1] == '\0')
+#endif
+
+
 #if !defined(l_popen)		/* { */
 
 #if defined(LUA_USE_POSIX)	/* { */
@@ -270,6 +276,7 @@ static int io_open (lua_State *L) {
 */
 static int io_pclose (lua_State *L) {
   LStream *p = tolstream(L);
+  errno = 0;
   return luaL_execresult(L, l_pclose(L, p->f));
 }
 
@@ -278,6 +285,7 @@ static int io_popen (lua_State *L) {
   const char *filename = luaL_checkstring(L, 1);
   const char *mode = luaL_optstring(L, 2, "r");
   LStream *p = newprefile(L);
+  luaL_argcheck(L, l_checkmodep(mode), 2, "invalid mode");
   p->f = l_popen(L, filename, mode);
   p->closef = &io_pclose;
   return (p->f == NULL) ? luaL_fileresult(L, 0, filename) : 1;
