@@ -1569,7 +1569,8 @@ void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
   Clean();
 }
 
-void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist) {
+void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist,
+                          JetPoint *p1_ret, JetPoint *p2_ret) {
   // Find the piece/vertex that is closest to x,y.
   int piece, index;
   FindClosestVertex(x, y, &piece, &index);
@@ -1591,6 +1592,12 @@ void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist) {
   poly[index].p = p1;
   poly[index + 1].p = p2;
   Clean();
+
+  // Optionally return the coordinates of the new vertices.
+  if (p1_ret)
+    *p1_ret = p1;
+  if (p2_ret)
+    *p2_ret = p2;
 }
 
 void Shape::SaveBoundaryAsDXF(const char *filename,
@@ -2400,10 +2407,14 @@ int Shape::LuaChamferVertex(lua_State *L) {
   if (IsEmpty()) {
     LuaError(L, "ChamferVertex() requires a nonempty shape");
   }
+  JetPoint p1, p2;
   ChamferVertex(luaL_checknumber(L, 2), luaL_checknumber(L, 3),
-                luaL_checknumber(L, 4), luaL_checknumber(L, 5));
-  lua_settop(L, 1);
-  return 1;
+                luaL_checknumber(L, 4), luaL_checknumber(L, 5), &p1, &p2);
+  lua_pushnumber(L, p1[0]);
+  lua_pushnumber(L, p1[1]);
+  lua_pushnumber(L, p2[0]);
+  lua_pushnumber(L, p2[1]);
+  return 4;
 }
 
 int Shape::LuaPaint(lua_State *L) {

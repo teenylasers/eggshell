@@ -359,8 +359,10 @@ class Shape : public LuaUserClass {
   void FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit);
 
   // Add a chamfer of the given pre- and post-vertex distances to the vertex
-  // closest to x,y. It is a runtime error if the shape is empty.
-  void ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist);
+  // closest to x,y. It is a runtime error if the shape is empty. Optionally
+  // return the coordinates of the new vertices that are created.
+  void ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist,
+                     JetPoint *p1=0, JetPoint *p2=0);
 
   // Save the shape to various file formats.
   void SaveBoundaryAsDXF(const char *filename,
