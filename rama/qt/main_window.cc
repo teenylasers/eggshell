@@ -110,13 +110,22 @@ void MainWindow::ScriptTestMode() {
 }
 
 void MainWindow::LoadFile(const QString &full_path) {
+  // Remove any current file watchers.
   {
     auto list = watcher_.files();
     if (!list.empty()) {
       watcher_.removePaths(list);   // Generates a warning if list empty
     }
   }
-  script_filename_ = full_path;
+
+  // Change the directory to where the file is, so that if it does 'dofile' or
+  // similar it can refer to relative paths. This also makes the default save
+  // location that directory.
+  QFileInfo info(full_path);
+  QDir::setCurrent(info.path());
+  script_filename_ = info.fileName();
+
+  // Reload the file and watcher for further changes to it.
   if (ReloadScript(true)) {
     // Watch this file for changes.
     if (!watcher_.addPath(script_filename_)) {

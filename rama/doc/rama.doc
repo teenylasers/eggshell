@@ -1394,6 +1394,7 @@ rotate @c{s} about (3,4) you could do this:
   @* @c{s:ChamferVertex(x,y, @_@~@~predist,postdist)}
   @| Add a chamfer of the given pre- and post- vertex distances to the vertex
      closest to @c{x},@c{y}. It is a runtime error if the shape is empty.
+     return @c{x1,y1,x2,y2} the coordinates of the new pre- and post- vertices.
 
   @* @c{s:Clean(threshold)}
   @| Remove all vertices from shape polygons that are closer than @c{threshold}
@@ -2041,7 +2042,7 @@ Here is what is added in each new version.
 @* Various minor stability improvement.
 }
 
-@b{v0.37}
+@b{v0.38}
 @list{
 @* @c{FilletVertex} can now construct fillets that are tangent to just one
    edge of the vertex if it is impossible to make it tangent to both edges.
@@ -2050,4 +2051,6 @@ Here is what is added in each new version.
    arcs.
 @* Added Nelder-Mead and simulated annealing optimization techniques.
 @* Upgrade to Lua 5.4.1.
+@* Changed the return value of @c{ChamferVertex}.
+@* Default directory for @c{dofile} and saves is the script directory.
 }
