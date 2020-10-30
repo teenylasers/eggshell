@@ -256,7 +256,7 @@ ifdef MATLAB_INC
 endif
 
 # More compiler configuration.
-CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare
+CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare $(EIGEN_FLAGS)
 CCFLAGS += $(ENGINE_EXTRA_CFLAGS) $(ZLIB_CFLAGS) \
   -D__TOOLKIT_USE_CERES__ \
   $(EIGEN_FLAGS) $(CERES_INC) -I../../toolkit

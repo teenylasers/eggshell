@@ -195,6 +195,11 @@ endif
 # use.
 EIGEN_FLAGS += -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int
 
+# Turn off some compiler warnings for Eigen.
+ifeq ($(PLATFORM), osx)
+  EIGEN_FLAGS += -Wno-int-in-bool-context
+endif
+
 # Dead code elimination.  This only works on non-OSX platforms if
 # -ffunction-sections is used.
 ifeq ($(PLATFORM), osx)
