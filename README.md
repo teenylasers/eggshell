@@ -101,5 +101,5 @@ export TOOLS_DIR="/c/where/you/put/the/tools"
 ```
 cd $TOOLS_DIR
 mkdir qt5_build ; cd qt5_build
-../qt5/configure -prefix $TOOLS_DIR/qt5_install -platform win32-g++ -static -make-tool make -opensource -release -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -skip qtlocation -skip qtmultimedia -nomake examples -nomake tests -confirm-license QMAKE_LFLAGS_CONSOLE+=-static-libstdc++
+../qt5/configure -prefix $TOOLS_DIR/qt5_install -platform win32-g++ -static -make-tool make -opensource -release -no-icu -no-openssl -opengl desktop -no-angle -skip qtwebengine -skip qtlocation -skip qtmultimedia -skip qtdeclarative -nomake examples -nomake tests -confirm-license QMAKE_LFLAGS_CONSOLE+=-static-libstdc++
 ```
