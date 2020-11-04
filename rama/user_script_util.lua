@@ -208,10 +208,6 @@ __DummyOptimize3rdArg__ = {
 
 -- Utility functions.
 
-function MakeMachinable(shape, radius, limit)
-  return shape:Grow(-radius, 'round', limit):Grow(radius, 'round', limit)
-end
-
 function LinearRange(start, stop, n)
   local T = {}
   for i = 1,n do
@@ -594,4 +590,8 @@ end
 
 util.LoadSTL = function(filename)
   return Shape():LoadSTL(filename):Scale(0.001 / util.DistanceScale())
+end
+
+util.MakeMachinable = function(shape, radius, limit)
+  return shape:Grow(-radius, 'round', limit):Grow(radius, 'round', limit)
 end

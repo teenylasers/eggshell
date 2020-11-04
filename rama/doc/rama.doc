@@ -1205,6 +1205,14 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
   @* @c{LoadSTL(filename)}
   @| Uses @link{shapegeomfn}{@c{Shape():LoadSTL}} to read an STL file, assuming
      that the STL coordinates are in mm.
+
+  @* @c{MakeMachinable(shape, @_@~@~radius, limit)}
+  @| Returns a ``machinable'' version of shape, assuming a cutting tool of the
+     given @c{radius}. If @c{radius} > 0 then the shape is assumed to be a
+     pocket machined out of some larger slab. If @c{radius} < 0 then the shape
+     is assumed to be a plate machined from the outside. The @c{limit} is the
+     maximum distance allowed between a polygon approximation of an arc and a
+     true circle.
 }
 
 #############################################################################
@@ -1576,13 +1584,6 @@ should generally be one of the last steps in model creation.}
 @subsection{Utility functions}
 
 @table{
-  @* @c{MakeMachinable(shape, @_@~@~radius, limit)}
-  @| Returns a ``machinable'' version of shape, assuming a cutting tool of the
-     given @c{radius}. If @c{radius} > 0 then the shape is assumed to be a
-     pocket machined out of some larger slab. If @c{radius} < 0 then the shape
-     is assumed to be a plate machined from the outside. The @c{limit} is the
-     maximum distance allowed between a polygon approximation of an arc and a
-     true circle.
   @* @c{LinearRange(start,stop,n)}
   @| Return an array of @c{n} numbers linearly distributed between @c{start}
      and @c{stop}.
@@ -2053,4 +2054,5 @@ Here is what is added in each new version.
 @* Upgrade to Lua 5.4.1.
 @* Changed the return value of @c{ChamferVertex}.
 @* Default directory for @c{dofile} and saves is the script directory.
+@* Move @c{MakeMachinable} to the @c{util} table.
 }
