@@ -107,12 +107,12 @@ endif
 STUFF_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 QT_DIR := $(TOOLS_DIR)/qt5_install
-EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.4
+EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.8
 CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
 ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
 LAPACK_DIR := $(TOOLS_DIR)/lapack-3.7.1
 EIGEN_BLAS_LAPACK_LIB := $(STUFF_DIR)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
-EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-3.3.4
+EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-3.3.8
 DOCCER := $(STUFF_DIR)/doccer/doccer.exe -t $(STUFF_DIR)/doccer/template.html
 FFTW_INC := $(TOOLS_DIR)/fftw-3.3.6/api
 FFTW_LIB := $(TOOLS_DIR)/fftw-3.3.6/.libs/libfftw3.a
