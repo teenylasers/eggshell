@@ -16,6 +16,7 @@
 #define __TOOLKIT_DXF_H__
 
 #include <stdio.h>
+#include <myvector>
 #include "Eigen/Dense"
 
 namespace dxf {

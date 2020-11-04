@@ -212,7 +212,7 @@ void WriteDXF(const vector<vector<Point>> &p,
 const double kTolerance = 1e-9;
 
 static double RandDouble() {
-  return double(random()) / double(RAND_MAX);
+  return 0.5 + 0.5*Eigen::Matrix<double,1,1>::Random()[0];
 }
 
 static vector<string> LineOrArcListToStringList(const vector<LineOrArc> &a) {
