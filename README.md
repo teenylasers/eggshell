@@ -23,8 +23,8 @@ to the need to patch many of those things. Build automation would be nice!
 * Download and unpack the following into `~/tools`
   - arpack-ng: `git clone https://github.com/opencollab/arpack-ng.git`
   - ceres-solver-1.13.0: `wget http://ceres-solver.org/ceres-solver-1.13.0.tar.gz`
-  - eigen-3.3.4: `wget http://bitbucket.org/eigen/eigen/get/3.3.4.tar.bz2`.
-    Unpack and rename the directory to `eigen-3.3.4`.
+  - eigen-3.3.8: `wget http://bitbucket.org/eigen/eigen/get/3.3.8.tar.bz2`.
+    Unpack and rename the directory to `eigen-3.3.8`.
   - Qt5. `git clone git://code.qt.io/qt/qt5.git`
   - lapack-3.7.1: `wget http://www.netlib.org/lapack/lapack-3.7.1.tgz`
 * Adjust the variables in `~/stuff/config.mk` if your library versions differ
@@ -78,6 +78,7 @@ The procedure:
 * Install [MSYS2](https://www.msys2.org/)
 * From the MSYS2 shell, install some extra packages that are required:
 ```
+pacman -Syu
 pacman -S --needed base-devel mingw-w64-i686-toolchain mingw-w64-x86_64-toolchain
 pacman -S git patch
 ```
@@ -85,7 +86,12 @@ pacman -S git patch
 * Install [Inno Setup](https://jrsoftware.org/isinfo.php) if you plan to make
   Windows installers.
 * Add to your path: `/c/Strawberry/perl/bin` and `/mingw64/bin`.
-  Remove any other Perl distributions from your path.
+  Remove any other Perl distributions from your path. Here is what I do in my
+  `.bashrc`:
+```
+export PATH=`echo $PATH | sed 's/[^:]*[Pp]erl[^:]*//g' | sed 's/::*/:/g' | sed 's/:$//'`
+export PATH="/mingw64/bin:/c/Strawberry/perl/bin:$PATH"
+```
 * Set the following environment variable in the MSYS2 shell:
 ```
 export TOOLS_DIR="/c/where/you/put/the/tools"
