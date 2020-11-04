@@ -884,6 +884,9 @@ static void OptimizerTest(AbstractOptimizer *opt, bool early_termination,
 TEST_FUNCTION(NelderMeadOptimizer) {
   for (int early_termination = 0; early_termination < 2; early_termination++) {
     auto *opt = new NelderMeadOptimizer();
+    NelderMeadOptimizer::Settings s;
+    s.convergence_error = 1e-9;
+    opt->SetSettings(s);
     OptimizerTest(opt, early_termination, false, 1000);
   }
 }
