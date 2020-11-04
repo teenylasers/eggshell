@@ -55,10 +55,10 @@ int main(int argc, char *argv[]) {
   // but setting this attribute is easier.
   QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
   QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
-  QApplication app(argc, argv);
   #if defined(__WINNT__)
-    app.setStyle("fusion");
+    QApplication::setStyle("fusion");
   #endif
+  QApplication app(argc, argv);
 
   // Setup the qt error handler. This must be done after the QApplication is
   // constructed.
