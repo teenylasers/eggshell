@@ -2055,4 +2055,6 @@ Here is what is added in each new version.
 @* Changed the return value of @c{ChamferVertex}.
 @* Default directory for @c{dofile} and saves is the script directory.
 @* Move @c{MakeMachinable} to the @c{util} table.
+@* @c{Parameter@{@}} called again with identical arguments returns the same
+   value as last time.
 }

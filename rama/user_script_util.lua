@@ -14,6 +14,11 @@
 
 Infinity = 1.7976931348623157e+308  -- Close enough, this is the maximum double
 
+-- Parameters created so far by Parameter().
+local __Parameters__ = {}
+
+-- A front end to the C++-implemented _CreateParameter(), that checks the
+-- arguments and handles duplicate labels.
 function Parameter(T)
   -- Check that all keys in T have valid type.
   local keys = {label='string', min='number', max='number', default='number',
@@ -57,7 +62,7 @@ function Parameter(T)
     error("In argument table, you must have default between min and max")
   end
 
-  -- Create the parameter and return its current value.
+  -- Check the label.
   local label = tostring(T.label)
   if label == '' then
     error('The label can not be the empty string')
@@ -66,7 +71,22 @@ function Parameter(T)
     error("The label can not using the single quote character: '")
     -- ...since we don't escape it when copying parameters to the clipboard
   end
-  return _CreateParameter(label, min, max, default, integer)
+
+  -- Before we create a new parameter, check to see if this exact parameter has
+  -- already been created. If so return the existing value.
+  local P = __Parameters__[label]
+  if P then
+    if min ~= P.min or max ~= P.max or default ~= P.default or integer ~= P.integer then
+      error('Parameter{} called with the same label should have the same '..
+            'min,max,default,integer')
+    end
+    return P.value
+  end
+
+  -- Create the parameter and return its current value.
+  local value = _CreateParameter(label, min, max, default, integer)
+  __Parameters__[label] = {min=min, max=max, default=default, integer=integer, value=value}
+  return value
 end
 
 function ParameterMarker(T)
