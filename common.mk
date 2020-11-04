@@ -126,7 +126,7 @@ ifeq ($(PLATFORM), osx)
   # since homebrew gfortran appears to have a bug that prevents passing this
   # flag. If the flag is not passed the object files will not have the correct
   # version.
-  FORTRAN_COMPILER := gfortran-8 -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
+  FORTRAN_COMPILER := gfortran-10 -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9 -fallow-argument-mismatch
 endif
 ifeq ($(PLATFORM), windows)
   INNO_SETUP := '/c/Program Files (x86)/Inno Setup 6/Compil32.exe'
