@@ -52,8 +52,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>289</width>
-         <height>676</height>
+         <width>286</width>
+         <height>661</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,1">
@@ -792,31 +792,69 @@
      </property>
      <item>
       <widget class="qtPlot" name="plot" native="true">
-       <widget class="QComboBox" name="plot_type">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>10</y>
-          <width>141</width>
-          <height>26</height>
-         </rect>
+       <layout class="QVBoxLayout" name="verticalLayout_10">
+        <property name="leftMargin">
+         <number>5</number>
+        </property>
+        <property name="topMargin">
+         <number>5</number>
+        </property>
+        <property name="rightMargin">
+         <number>5</number>
+        </property>
+        <property name="bottomMargin">
+         <number>5</number>
         </property>
         <item>
-         <property name="text">
-          <string>Magnitude</string>
-         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_6">
+          <item>
+           <widget class="QComboBox" name="plot_type">
+            <item>
+             <property name="text">
+              <string>Magnitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Phase</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Group delay</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_4">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
         </item>
         <item>
-         <property name="text">
-          <string>Phase</string>
-         </property>
+         <spacer name="verticalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
         </item>
-        <item>
-         <property name="text">
-          <string>Group delay</string>
-         </property>
-        </item>
-       </widget>
+       </layout>
       </widget>
      </item>
     </layout>
@@ -848,44 +886,76 @@
      </property>
      <item>
       <widget class="qtPlot" name="sparam_plot" native="true">
-       <widget class="QComboBox" name="sparam_plot_type">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>10</y>
-          <width>141</width>
-          <height>26</height>
-         </rect>
+       <layout class="QVBoxLayout" name="verticalLayout_9" stretch="0,0">
+        <property name="leftMargin">
+         <number>5</number>
+        </property>
+        <property name="topMargin">
+         <number>5</number>
+        </property>
+        <property name="rightMargin">
+         <number>5</number>
+        </property>
+        <property name="bottomMargin">
+         <number>5</number>
         </property>
         <item>
-         <property name="text">
-          <string>Magnitude</string>
-         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_5">
+          <item>
+           <widget class="QComboBox" name="sparam_plot_type">
+            <item>
+             <property name="text">
+              <string>Magnitude</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Phase</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Group delay</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="show_sparams">
+            <property name="text">
+             <string>Show</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_3">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
         </item>
         <item>
-         <property name="text">
-          <string>Phase</string>
-         </property>
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
         </item>
-        <item>
-         <property name="text">
-          <string>Group delay</string>
-         </property>
-        </item>
-       </widget>
-       <widget class="QCheckBox" name="show_sparams">
-        <property name="geometry">
-         <rect>
-          <x>160</x>
-          <y>10</y>
-          <width>87</width>
-          <height>20</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Show</string>
-        </property>
-       </widget>
+       </layout>
       </widget>
      </item>
     </layout>
@@ -917,32 +987,64 @@
      </property>
      <item>
       <widget class="qtPlot" name="antenna_plot" native="true">
-       <widget class="QCheckBox" name="antenna_show">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>10</y>
-          <width>71</width>
-          <height>20</height>
-         </rect>
+       <layout class="QVBoxLayout" name="verticalLayout_11">
+        <property name="leftMargin">
+         <number>5</number>
         </property>
-        <property name="text">
-         <string>Show</string>
+        <property name="topMargin">
+         <number>5</number>
         </property>
-       </widget>
-       <widget class="QCheckBox" name="antenna_scale_max">
-        <property name="geometry">
-         <rect>
-          <x>90</x>
-          <y>10</y>
-          <width>171</width>
-          <height>20</height>
-         </rect>
+        <property name="rightMargin">
+         <number>5</number>
         </property>
-        <property name="text">
-         <string>Scale max to 0dB</string>
+        <property name="bottomMargin">
+         <number>5</number>
         </property>
-       </widget>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_7">
+          <item>
+           <widget class="QCheckBox" name="antenna_show">
+            <property name="text">
+             <string>Show</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="antenna_scale_max">
+            <property name="text">
+             <string>Scale max to 0dB</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_5">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <spacer name="verticalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
       </widget>
      </item>
     </layout>
