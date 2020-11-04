@@ -23,7 +23,7 @@ to the need to patch many of those things. Build automation would be nice!
 * Download and unpack the following into `~/tools`
   - arpack-ng: `git clone https://github.com/opencollab/arpack-ng.git`
   - ceres-solver-1.13.0: `wget http://ceres-solver.org/ceres-solver-1.13.0.tar.gz`
-  - eigen-3.3.8: `wget http://bitbucket.org/eigen/eigen/get/3.3.8.tar.bz2`.
+  - eigen-3.3.8: `https://gitlab.com/libeigen/eigen/-/archive/3.3.8/eigen-3.3.8.tar.gz`.
     Unpack and rename the directory to `eigen-3.3.8`.
   - Qt5. `git clone git://code.qt.io/qt/qt5.git`
   - lapack-3.7.1: `wget http://www.netlib.org/lapack/lapack-3.7.1.tgz`
