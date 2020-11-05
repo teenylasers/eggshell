@@ -22,7 +22,7 @@ local __Parameters__ = {}
 function Parameter(T)
   -- Check that all keys in T have valid type.
   local keys = {label='string', min='number', max='number', default='number',
-                integer='boolean'}
+                defaults='table', integer='boolean'}
   for k,v in pairs(T) do
     if keys[k] then
       if type(v) ~= keys[k] then
@@ -38,6 +38,7 @@ function Parameter(T)
   -- Check that all necessary keys are present).
   keys.integer = nil            -- Optional field
   keys.default = nil            -- Optional field
+  keys.defaults = nil           -- Optional field
   if next(keys) ~= nil then
     error("In argument table, missing '"..next(keys).."' key")
   end
@@ -45,8 +46,8 @@ function Parameter(T)
   -- Check numerical values.
   local min = tonumber(T.min)
   local max = tonumber(T.max)
-  local def_params = rawget(_G, 'default_parameters') or {}
-  local default = tonumber(T.default or def_params[T.label]) or min
+  local defaults = T.defaults or rawget(_G, 'default_parameters') or {}
+  local default = tonumber(T.default or defaults[T.label]) or min
   local integer = T.integer or false
   if integer then
     if min ~= math.floor(min) or max ~= math.floor(max) or
@@ -614,4 +615,12 @@ end
 
 util.MakeMachinable = function(shape, radius, limit)
   return shape:Grow(-radius, 'round', limit):Grow(radius, 'round', limit)
+end
+
+local __included_files__ = {}
+util.include = function(filename)
+  if not __included_files__[filename] then
+    __included_files__[filename] = true
+    dofile(filename)
+  end
 end

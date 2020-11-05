@@ -910,11 +910,20 @@ are consistent).
 
 @subsection{Parameter defaults}
 
-The @c{default} argument to the @c{Parameter@{@}} function is actually optional.
-If it is not given, the default value will be read from the global
-@c{default_parameters} table using the parameter label as a key, if that table
-and key exists. If that table or key doesn't exist the parameter will take the
-@c{min} value. This mechanism allows easy copying of the current parameter
+Parameter defaults can come from a variety of places. The rules used to
+determine the default are:
+
+@numlist{
+@* If the @c{default} argument to the @c{Parameter@{@}} function is present,
+   use that number as the default, otherwise:
+@* If the @c{defaults} argument is a table then look up the default in that
+   table using the parameter label as a key, otherwise:
+@* If the global @c{default_parameters} table exists then look up the default
+   in that table using the parameter label as a key, otherwise:
+@* Use the @c{min} value as the default.
+}
+
+Reading defaults from tables allows easy copying of the current parameter
 values back into the script: simply select ``Edit / Copy'' from the menu and
 the current parameters will be copied to the clipboard in this form:
 
@@ -1213,6 +1222,11 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
      is assumed to be a plate machined from the outside. The @c{limit} is the
      maximum distance allowed between a polygon approximation of an arc and a
      true circle.
+
+  @* @c{include(filename)}
+  @| This is like the standard Lua @c{dofile} except that it does nothing for
+     files that have been previously passed to @c{include}. You can use this to
+     run utility code in separate files that should be executed only once.
 }
 
 #############################################################################
@@ -2057,4 +2071,6 @@ Here is what is added in each new version.
 @* Move @c{MakeMachinable} to the @c{util} table.
 @* @c{Parameter@{@}} called again with identical arguments returns the same
    value as last time.
+@* Added @c{util.include}.
+@* Added the @c{defaults} argument to @c{Parameter}.
 }
