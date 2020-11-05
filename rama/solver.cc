@@ -18,6 +18,7 @@
 #include "../toolkit/femsolver.h"
 #include "../toolkit/shaders.h"
 #include "../toolkit/thread.h"
+#include <QThread>
 
 const double kSpeedOfLight = 299792458;         // m/s
 const int kFarFieldPoints = 500;                // Pattern points to compute
@@ -1355,14 +1356,13 @@ JetComplex Solver::SolutionJet(int i) const {
 //***************************************************************************
 // Solvers.
 
-const int kNumThreads = 8;
-
 bool Solvers::Solve() {
   // If there is no work for the Solver to do, we can run this paraller solve
   // several thousands times per second (at 50 solves per iteration). That is
   // the thread setup overhead, and it seems acceptable compared to the other
   // overheads. If it becomes a problem we might want to first check if there
   // is any actual solving work to do before launching all these threads.
+  const int kNumThreads = QThread::idealThreadCount();
   bool ok = true;
   ParallelFor(0, solvers_.size()-1, kNumThreads, [&](int i) mutable {
     if (!solvers_[i]->Solve()) {
@@ -1373,6 +1373,7 @@ bool Solvers::Solve() {
 }
 
 bool Solvers::UpdateDerivatives(const Shape &s) {
+  const int kNumThreads = QThread::idealThreadCount();
   bool ok = true;
   ParallelFor(0, solvers_.size()-1, kNumThreads, [&](int i) mutable {
     if (!solvers_[i]->UpdateDerivatives(s)) {
