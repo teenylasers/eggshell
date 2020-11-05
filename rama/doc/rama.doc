@@ -1227,6 +1227,9 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
   @| This is like the standard Lua @c{dofile} except that it does nothing for
      files that have been previously passed to @c{include}. You can use this to
      run utility code in separate files that should be executed only once.
+
+  @* @c{script_filename}
+  @| The file name of the top level script.
 }
 
 #############################################################################
@@ -2072,5 +2075,6 @@ Here is what is added in each new version.
 @* @c{Parameter@{@}} called again with identical arguments returns the same
    value as last time.
 @* Added @c{util.include}.
+@* Added @c{util.script_filename}.
 @* Added the @c{defaults} argument to @c{Parameter}.
 }

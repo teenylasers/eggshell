@@ -125,7 +125,7 @@ void MainWindow::LoadFile(const QString &full_path) {
   QDir::setCurrent(info.path());
   script_filename_ = info.fileName();
 
-  // Reload the file and watcher for further changes to it.
+  // Reload the file and watch for further changes to it.
   if (ReloadScript(true)) {
     // Watch this file for changes.
     if (!watcher_.addPath(script_filename_)) {
@@ -157,7 +157,10 @@ bool MainWindow::ReloadScript(bool rerun_even_if_same) {
   }
 
   // Run the script.
-  bool script_ran = ui->model->RunScript(buffer.data(), rerun_even_if_same);
+  QString script = "util.script_filename = '" + script_filename_ + "'\n" +
+                   buffer;
+  bool script_ran = ui->model->RunScript(script.toUtf8().data(),
+                                         rerun_even_if_same);
 
   // Highlight the "current model" label, revert it to normal color after 1s.
   if (script_ran) {
