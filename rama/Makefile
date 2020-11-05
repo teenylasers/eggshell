@@ -38,6 +38,8 @@ endif
 # Build directories
 DIRS = build/lua build/toolkit
 DIRS += build/qt
+# See https://github.com/Evenedric/stuff/issues/124 for why we do this:
+DIRS += build/Contents/MacOS
 
 # -R means no-builtin-variables and no-builtin-rules:
 MAKEFLAGS += -R
