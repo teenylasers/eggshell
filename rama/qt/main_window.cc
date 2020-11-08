@@ -612,3 +612,13 @@ void MainWindow::on_actionDecrease_animation_time_triggered() {
   ui->time_dial->setValue(ui->time_dial->value() - 1);
   ui->model->TimeDialChanged(ui->time_dial->value());
 }
+
+void MainWindow::on_action3D_triggered() {
+  ui->model->Toggle3D();
+  // Selecting a color map doesn't make sense in 3D mode, at least for now.
+  ui->color_map->setEnabled(!ui->color_map->isEnabled());
+}
+
+void MainWindow::on_actionInterior_triggered() {
+  ui->model->ToggleShowBoundaryInterior();
+}

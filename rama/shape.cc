@@ -34,6 +34,7 @@ using ClipperLib::ctUnion;
 using ClipperLib::ctDifference;
 using ClipperLib::ctXor;
 using Eigen::Vector3f;
+using Eigen::Vector4f;
 
 // All clipper coordinates are 64 bit integers. Our double precision
 // coordinates are scaled to use 32 of those bits to the left and right of the
@@ -715,7 +716,7 @@ void Shape::Dump() const {
   }
 }
 
-void Shape::DrawInterior() const {
+void Shape::DrawInterior(double alpha) const {
   if (IsEmpty() || GeometryError()) {
     return;
   }
@@ -735,13 +736,14 @@ void Shape::DrawInterior() const {
   // Draw the resulting triangles using the colors that come from the original
   // polygons.
   const vector<Material> &materials = mesh.materials();
-  vector<Vector3f> points, colors;
+  vector<Vector3f> points;
+  vector<Vector4f> colors;
   gl::PushShader push_shader(gl::SmoothShader());
   for (int i = 0; i < mesh.triangles().size(); i++) {
     uint32 color = materials[mesh.triangles()[i].material].color;
-    colors.push_back(Vector3f(((color & 0xff0000) >> 16) / 255.0f,
+    colors.push_back(Vector4f(((color & 0xff0000) >> 16) / 255.0f,
                               ((color & 0xff00) >> 8   ) / 255.0f,
-                              ((color & 0xff)          ) / 255.0f));
+                              ((color & 0xff)          ) / 255.0f, alpha));
     colors.push_back(colors.back());
     colors.push_back(colors.back());
     for (int j = 0; j < 3; j++) {

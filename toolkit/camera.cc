@@ -147,8 +147,11 @@ void Camera::EnsureBoxVisible(const double box[6], double aspect) {
 
 void Camera::SetCameraPlane(const Vector3d &vx, const Vector3d &vy) {
   Matrix3d R;
-  R.row(0) = vx;
-  R.row(1) = vy;
-  R.row(2) = vx.cross(vy);
+  Vector3d vx2 = vx.normalized();
+  Vector3d vy2 = vy.normalized();
+  vy2 = vy2 - (vx2.dot(vy2))*vx2;       // Orthogonalize vx2 to vy2
+  R.row(0) = vx2;
+  R.row(1) = vy2;
+  R.row(2) = vx2.cross(vy2);
   q = R;
 }

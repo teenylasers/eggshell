@@ -58,7 +58,8 @@ struct Camera {
   void EnsureBoxVisible(const double box[6], double aspect);
 
   // Set the camera orientation so that the viewport x and y axes are the given
-  // unit vectors.
+  // vectors vx and vy. The vx and vy vectors will be first normalize to unit
+  // length, and vy will be made perpendicular to vx.
   void SetCameraPlane(const Eigen::Vector3d &vx, const Eigen::Vector3d &vy);
 };
 

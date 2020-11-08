@@ -177,7 +177,8 @@ class Solver : public Mesh {
     DRAW_POYNTING_VECTORS_TA,       // Draw time averaged power vectors
   };
   void DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
-                    int brightness, double phase_offset, Solvers *solvers);
+                    int brightness, double phase_offset, Solvers *solvers,
+                    bool in_3D, bool show_mesh);
 
   // Compute the (complex) amplitudes of the outgoing waves at each port by
   // fitting to a TE10 field. Return true on success. This computes the
@@ -236,6 +237,9 @@ class Solver : public Mesh {
   // compatibility with ComputePortOutgoingField().
   bool ComputeModeCutoffFrequencies(vector<JetComplex> *cutoff) MUST_USE_RESULT;
 
+  // For 3D mode, map the brightness to Z coordinate scaling.
+  double ZScaleFromBrightness(int brightness);
+
  private:
   void Setup(int frequencies_index);    // Called by constructor
 
@@ -287,8 +291,10 @@ class Solver : public Mesh {
 
   // **********
 
-  // Compute k^2 for the system given the config_.
-  double ComputeKSquared();
+  // Compute k^2 for the system given the config_. If 'success' is 0 then it's
+  // a fatal error if k^2 can not be computed for this cavity. Otherwise
+  // 'success' returns the success of this function.
+  double ComputeKSquared(bool *success = 0);
 
   // Combine the information in the solver solution and solution_derivative_ to
   // return a JetComplex for point i.

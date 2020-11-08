@@ -101,6 +101,8 @@ private slots:
   void on_actionDecrease_animation_time_triggered();
   void on_actionSelectRandomSearch_triggered();
   void on_actionSelectNelderMead_triggered();
+  void on_action3D_triggered();
+  void on_actionInterior_triggered();
 
 private:
   Ui::MainWindow *ui = 0;

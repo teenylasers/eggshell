@@ -177,6 +177,7 @@
       <string>Show boundary</string>
      </property>
      <addaction name="actionViewLines"/>
+     <addaction name="actionInterior"/>
      <addaction name="actionViewPorts"/>
      <addaction name="actionViewVertices"/>
      <addaction name="actionViewVertexDerivatives"/>
@@ -200,6 +201,8 @@
     <addaction name="actionShowMarkers"/>
     <addaction name="actionShowSParameters"/>
     <addaction name="actionAntialiasing"/>
+    <addaction name="separator"/>
+    <addaction name="action3D"/>
     <addaction name="separator"/>
     <addaction name="actionSwitchToModelAfterEachSolve"/>
     <addaction name="separator"/>
@@ -1456,6 +1459,28 @@
    </property>
    <property name="text">
     <string>Nelder-Mead / Simulated annealing...</string>
+   </property>
+  </action>
+  <action name="action3D">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>3D</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+3</string>
+   </property>
+  </action>
+  <action name="actionInterior">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Interior</string>
    </property>
   </action>
  </widget>

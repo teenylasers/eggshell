@@ -346,6 +346,16 @@ inline void Draw(const std::vector<Eigen::Vector3f> &v,
   buffer.Draw(mode);
 }
 
+// Utility for drawing a vector<Vector3f> of vertex coordinates and a
+// vector<Vector4f> of RGBA colors.
+inline void Draw(const std::vector<Eigen::Vector3f> &v,
+                 const std::vector<Eigen::Vector4f> &c, int mode) {
+  gl::VertexBuffer<Eigen::Vector3f, Eigen::Vector4f> buffer(v, c);
+  buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+  buffer.Specify2("vertex_color", 0, 4, GL_FLOAT);
+  buffer.Draw(mode);
+}
+
 // A 2D texture.
 class Texture2D {
  public:

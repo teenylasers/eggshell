@@ -213,7 +213,7 @@ class Shape : public LuaUserClass {
   void Dump() const;
 
   // Draw shape to OpenGL.
-  void DrawInterior() const;
+  void DrawInterior(double alpha = 0) const;
   void DrawBoundary(const Eigen::Matrix4d &camera_transform,
                     bool show_lines, bool show_ports, bool show_vertices,
                     double boundary_derivatives_scale = 0) const;

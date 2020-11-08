@@ -82,6 +82,9 @@ class Mesh {
   typedef std::map<uint64, std::vector<int> > SpatialIndex;
   SpatialIndex spatial_index_;
 
+  // For drawing a 3D mesh:
+ vector<Eigen::Vector3d> tri_normal1_, tri_normal2_;
+
   // If any materials have callback functions to determine their material
   // parameters, call them and populate the epsilon and (optionally) sigma
   // values in mat_params. vectors. Otherwise clear mat_params.
@@ -91,6 +94,12 @@ class Mesh {
   // parameters, call them and populate boundary_params_.
   void DetermineBoundaryParameters(Lua *lua,
                                  std::map<RobinArg, RobinRet> *boundary_params);
+
+  // Setup tri_normal1_ etc so that triangle normals can be computed from
+  //   Vector3d v(z1,z2,z3);    // Triangle vertex Z values
+  //   normal = Vector3d(tri_normal1_[i].dot(v), tri_normal2_[i].dot(v), 1);
+  //   normal.normalize();
+  void SetupTriNormal();
 
   // For testing:
   friend void __RunTest_SpatialIndex();
