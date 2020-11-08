@@ -287,10 +287,15 @@ solution. Mouse buttons can be used to change the view:
 @* Right click + drag: pan the view.
 @* Mouse wheel: zoom in or out, centered around the mouse pointer.
 @* Ctrl + right click + drag: zoom around the mouse pointer.
+@* Middle click + drag: rotate the view (in 3D mode).
 }
 
-On Mac trackpads, pinch and zoom can be used to zoom around the mouse pointer,
-and two finger swipes pan the view.
+On the Mac:
+@list{
+@* Pinch and zoom on a track pad: zoom around the mouse pointer.
+@* Two finger swipes on a track pad: pan the view.
+@* Cmd + left click / release + drag rotates the view in 3D mode.
+}
 
 The ``Sweep'' tab is a plot that shows values computed as a parameter varies.
 It is often used to show S-parameters of model ports, but can also plot any
@@ -472,8 +477,8 @@ vectors) can be changed with the brightness slider.
    @* @b{Increase / Decrease animation time}. Move the current animation time
       forwards or backwards by one unit.
    @* @b{Show boundary}: Select which features of the boundary are displayed:
-      lines, ports, or vertices. Vertex derivatives with respect to the first
-      checked parameter can also be displayed, as vectors.
+      lines, ports, the interior, or vertices. Vertex derivatives with respect
+      to the first checked parameter can also be displayed, as vectors.
    @* @b{Show grid}. Toggle the grid.
    @* @b{Show markers}. Show the handles for markers, which are 2D parameter
       values. The handles can be dragged to adjust those parameters.
@@ -482,6 +487,8 @@ vectors) can be changed with the brightness slider.
    @* @b{Antialiasing}. Render the model and field more smoothly, using
       antialiasing. On some platforms this can be slow, and so can be switched
       off.
+   @* @b{3D}. Toggle 3D view mode, where the solution, boundary, mesh etc are
+      rendered in 3D.
    @* @b{Switch to model after each solve}. When this option is turned on,
       each time a new field solution is computed the model tab is made visible.
       Turn this option off to allow other tabs to remain visible.
@@ -2062,6 +2069,7 @@ Here is what is added in each new version.
 
 @b{v0.38}
 @list{
+@* Added the 3D viewing mode.
 @* @c{FilletVertex} can now construct fillets that are tangent to just one
    edge of the vertex if it is impossible to make it tangent to both edges.
 @* Fix a bug in @c{Clean} where duplicate points were not removed.
