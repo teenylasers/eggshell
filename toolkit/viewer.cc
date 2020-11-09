@@ -396,7 +396,9 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
         camera_->Trackball(dx / 100.0, dy / 100.0, model_pt_);
         update();
       }
-    } else if (the_button_ == Qt::RightButton && event->modifiers() == 0) {
+    } else if ((the_button_ == Qt::RightButton && event->modifiers() == 0) ||
+               (the_button_ == Qt::LeftButton &&
+                event->modifiers() == kPanBit)) {
       // Panning.
       camera_->Pan(dx, dy, model_pt_, width() * scale);
       update();
