@@ -316,13 +316,25 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
   // Qt::MetaModifier    |  Control  |  Windows    |  -           |
   // --------------------+-----------+-------------+--------------+
   //
-  // The Mac key order:     control option  command
-  // The Windows key order: control windows alt
-  // We don't want to use the windows key for things since it does other
-  // things in Windows, so we'll ignore the mac option key too for consistency.
+  // On physical keyboards:
+  //   * The Mac key order:     control option  command
+  //   * The Windows key order: control windows alt
   //
-  // On the mac trackpad, control + single (or double) finger tap is translated
-  // into control + right.
+  // On Windows we don't want to use the windows key for things since it does
+  // other things, so we'll ignore the mac option key too for consistency.
+  // Thus we will use
+  //   * Control for pan
+  //   * Command/Alt for rotate
+  //
+  // Various exceptions:
+  // * On the mac trackpad, control + single (or double) finger tap is
+  //   translated into control + right.
+  // * In bootcamp, command + trackpad left click and drag is translated into
+  //   right click + drag.
+  // * In bootcamp, control + trackpad left click and drag is translated into
+  //   middle click + drag.
+  // * On buttonless windows trackpad there is no right (or middle) mouse
+  //   button drag, but right mouse button click is possible.
 
 #ifdef __APPLE__
   const int kZoomBit = Qt::MetaModifier;

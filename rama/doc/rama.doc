@@ -282,20 +282,7 @@ model. The window under each of these tabs can be dragged away to a separate
 window - in this way it is possible to see several of those windows at once.
 
 The ``model'' tab shows the geometry of the model, the mesh, and the field
-solution. Mouse buttons can be used to change the view:
-@list{
-@* Right click + drag: pan the view.
-@* Mouse wheel: zoom in or out, centered around the mouse pointer.
-@* Ctrl + right click + drag: zoom around the mouse pointer.
-@* Middle click + drag: rotate the view (in 3D mode).
-}
-
-On the Mac:
-@list{
-@* Pinch and zoom on a track pad: zoom around the mouse pointer.
-@* Two finger swipes on a track pad: pan the view.
-@* Cmd + left click / release + drag rotates the view in 3D mode.
-}
+solution.
 
 The ``Sweep'' tab is a plot that shows values computed as a parameter varies.
 It is often used to show S-parameters of model ports, but can also plot any
@@ -311,6 +298,33 @@ defined.
 The ``Script messages'' tab shows errors and other printed output from the
 model. When there is a model script error the view will automatically switch to
 this tab, where the error messages are.
+
+
+@subsection{Panning, Zooming, Rotating}
+
+Mouse buttons can be used to change the view in the model tab:
+@list{
+@* Right click + drag: pan the view.
+@* Mouse wheel: zoom in or out, centered around the mouse pointer.
+@* Control + right click + drag: zoom around the mouse pointer.
+@* Middle click + drag: rotate the view (in 3D mode).
+}
+
+The next two actions are convenient to use on track pads without buttons. For
+these actions the left button can be held down while dragging, or it can be
+tapped (pressed and released) before dragging:
+@list{
+@* Control + left button tap + drag: pans the view.
+@* Command + left button tap + drag: rotates the view in 3D mode.
+}
+
+On the Mac track pad:
+@list{
+@* Pinch and zoom: zoom around the mouse pointer.
+@* Two finger swipes: pan the view.
+}
+
+On Windows track pads, two finger swipes can be used to zoom.
 
 
 @subsection{The model}
@@ -2070,6 +2084,7 @@ Here is what is added in each new version.
 @b{v0.38}
 @list{
 @* Added the 3D viewing mode.
+@* Improved Windows track pad support.
 @* @c{FilletVertex} can now construct fillets that are tangent to just one
    edge of the vertex if it is impossible to make it tangent to both edges.
 @* Fix a bug in @c{Clean} where duplicate points were not removed.
