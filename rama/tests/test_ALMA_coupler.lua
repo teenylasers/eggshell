@@ -78,12 +78,12 @@ config = {
       end
       DrawMarker(x,y)
     end
-    CheckPower(1, -33.19)
-    CheckPower(2, -33.93)
+    CheckPower(1, -33.56)
+    CheckPower(2, -33.95)
     CheckPower(3, -2.70)
     CheckPower(4, -3.35)
-    CheckField(total_width/2, B/2, 0.89465, 0.24642)
-    CheckField(total_width/2, B*1.5+S, 0.02751, -0.37499)
+    CheckField(total_width/2, B/2, 0.89858, 0.24795)
+    CheckField(total_width/2, B*1.5+S, 0.02752, -0.37529)
   end,
 }
 ParameterDivider()
