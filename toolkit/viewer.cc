@@ -25,7 +25,8 @@ GLViewerBase::GLViewerBase() {
   allow_rotation_ = true;
   last_x_ = last_y_ = buttons_ = the_button_ = 0;
   model_pt_ << 0, 0, 0;
-  cmd_click_ = false;
+  rotate_click_ = false;
+  pan_click_ = false;
 }
 
 void GLViewerBase::SetPerspective(bool perspective) {
@@ -307,20 +308,39 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
 
   // The bits in event->modifiers() depend on the OS:
   //
-  //                      Mac         Windows
-  //                     +-----------+-----------+
-  // Qt::ShiftModifier   |  Shift    |  Shift    |
-  // Qt::ControlModifier |  Command  |  Control  |
-  // Qt::AltModifier     |           |  Alt      |
-  // Qt::MetaModifier    |  Control  |  Windows  |
-  //                     +-----------+-----------+
+  //   Constant          | Mac key   | Windows key | Bootcamp key |
+  // --------------------+-----------+-------------+--------------+
+  // Qt::ShiftModifier   |  Shift    |  Shift      |  Shift       |
+  // Qt::ControlModifier |  Command  |  Control    |  Control     |
+  // Qt::AltModifier     |  Option   |  Alt        |  Option      |
+  // Qt::MetaModifier    |  Control  |  Windows    |  -           |
+  // --------------------+-----------+-------------+--------------+
+  //
+  // The Mac key order:     control option  command
+  // The Windows key order: control windows alt
+  // We don't want to use the windows key for things since it does other
+  // things in Windows, so we'll ignore the mac option key too for consistency.
+  //
+  // On the mac trackpad, control + single (or double) finger tap is translated
+  // into control + right.
+
 #ifdef __APPLE__
-  const int kCtrlBit = Qt::MetaModifier;
-  const int kCmdBit = Qt::ControlModifier;
+  const int kZoomBit = Qt::MetaModifier;
+  const int kRotateBit = Qt::ControlModifier;
+  const int kPanBit = Qt::MetaModifier;
 #else
-  const int kCtrlBit = Qt::ControlModifier;
-  const int kCmdBit = -1;
+  const int kZoomBit = Qt::ControlModifier;
+  const int kRotateBit = Qt::AltModifier;
+  const int kPanBit = Qt::ControlModifier;
 #endif
+
+  // For debugging:
+  // printf("Modifiers: s=%d c=%d a=%d m=%d  Buttons: %d\n",
+  //     int(event->modifiers() & Qt::ShiftModifier) != 0,
+  //     int(event->modifiers() & Qt::ControlModifier) != 0,
+  //     int(event->modifiers() & Qt::AltModifier) != 0,
+  //     int(event->modifiers() & Qt::MetaModifier) != 0,
+  //     (int) event->buttons());
 
   // Get window properties.
   double scale = devicePixelRatio();    // Usually 1 or 2
@@ -342,27 +362,35 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
     // Find the model point that was clicked on.
     FindModelPoint(x, y, &model_pt_);
 
-    // Handle left button clicks in subclass code. On mac, cmd+left click
-    // starts a rotation.
-    cmd_click_ = false;
+    // Handle unmodified left button clicks in subclass code. Modified left or
+    // right clicks start a rotation or pan.
+    rotate_click_ = false;
+    pan_click_ = false;
     if (the_button_ == Qt::LeftButton) {
-      if (event->modifiers() == kCmdBit) {
-        cmd_click_ = true;
+      if (event->modifiers() == kRotateBit) {
+        rotate_click_ = true;
+      } else if (event->modifiers() == kPanBit) {
+        pan_click_ = true;
       } else {
         HandleClick(x, y, true, model_pt_);
       }
+    }
+    if (the_button_ == Qt::RightButton && event->modifiers() == kPanBit) {
+      pan_click_ = true;
     }
     last_x_ = x;
     last_y_ = y;
   }
   else if (last_the_button == Qt::LeftButton && the_button_ == 0 &&
-          !cmd_click_) {
+          !rotate_click_ && !pan_click_) {
     HandleClick(x, y, false, model_pt_);
   }
   else if (move_event && buttons_ != 0) {
     if (the_button_ == Qt::LeftButton && event->modifiers() == 0) {
       HandleDrag(x, y, model_pt_);
-    } else if (the_button_ == Qt::MidButton) {
+    } else if (the_button_ == Qt::MidButton ||
+               (the_button_ == Qt::LeftButton &&
+                event->modifiers() == kRotateBit)) {
       // Rotating.
       if (allow_rotation_) {
         camera_->Trackball(dx / 100.0, dy / 100.0, model_pt_);
@@ -373,7 +401,7 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
       camera_->Pan(dx, dy, model_pt_, width() * scale);
       update();
     } else if (the_button_ == Qt::RightButton &&
-               event->modifiers() == kCtrlBit) {
+               event->modifiers() == kZoomBit) {
       // Zooming.
       camera_->Zoom(pow(2, -dy / 50.0), model_pt_);
       update();
@@ -382,15 +410,23 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
     last_y_ = y;
   }
   else if (move_event && buttons_ == 0) {
-    if (cmd_click_) {
+    if (rotate_click_) {
       // Rotating.
-      if (event->modifiers() == kCmdBit) {
+      if (event->modifiers() == kRotateBit) {
         if (allow_rotation_) {
           camera_->Trackball(dx / 100.0, dy / 100.0, model_pt_);
           update();
         }
       } else {
-        cmd_click_ = false;
+        rotate_click_ = false;
+      }
+    } else if (pan_click_) {
+      // Panning.
+      if (event->modifiers() == kPanBit) {
+        camera_->Pan(dx, dy, model_pt_, width() * scale);
+        update();
+      } else {
+        pan_click_ = false;
       }
     }
     last_x_ = x;
