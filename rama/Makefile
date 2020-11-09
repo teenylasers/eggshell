@@ -16,6 +16,10 @@
 # OPTIMIZE is 1 for optimizations on, or 0 for debug features on.
 OPTIMIZE := 1
 
+# Set to 1 to use the LLVM address sanitizer to find memory bugs. This is
+# especially useful on MacOS since valgrind does not work well there.
+ADDRESS_SANITIZE := 0
+
 default: all
 -include ../common.mk           # For top level invocation
 -include ../../common.mk        # For invocation in the build directory
@@ -263,10 +267,10 @@ CCFLAGS += $(ENGINE_EXTRA_CFLAGS) $(ZLIB_CFLAGS) \
   -D__TOOLKIT_USE_CERES__ \
   $(EIGEN_FLAGS) $(CERES_INC) -I../../toolkit
 
-# Use the LLVM address sanitizer to find memory bugs on MacOS, since valgrind
-# does not work well there:
-# CFLAGS += -fsanitize=address
-# CCFLAGS += -fsanitize=address
+ifeq ($(ADDRESS_SANITIZE), 1)
+  CFLAGS += -fsanitize=address
+  CCFLAGS += -fsanitize=address
+endif
 
 #############################################################################
 # Extra configuration for application files.
