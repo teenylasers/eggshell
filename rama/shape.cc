@@ -531,6 +531,16 @@ static int LuaCircle(lua_State *L) {
   return 1;
 }
 
+// Internal function used by user_script_util.lua, to examine a vertex edge
+// kind and return information about it.
+static int Lua__EdgeKind__(lua_State *L) {
+  GlobalExpecting(L, 1, "__EdgeKind__");
+  EdgeKind e;
+  e.SetFromInteger(ToDouble(luaL_checknumber(L, 1)));
+  lua_pushnumber(L, e.PortNumber());
+  return 1;
+}
+
 //***************************************************************************
 // EdgeInfo.
 
@@ -694,6 +704,8 @@ void Shape::SetLuaGlobals(lua_State *L) {
   lua_setglobal(L, "Rectangle");
   lua_pushcfunction(L, LuaCircle);
   lua_setglobal(L, "Circle");
+  lua_pushcfunction(L, Lua__EdgeKind__);
+  lua_setglobal(L, "__EdgeKind__");
 }
 
 void Shape::Clear() {

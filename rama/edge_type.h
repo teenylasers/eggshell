@@ -27,6 +27,7 @@ class EdgeKind {
   bool IsDefault() const { return value_ == DEFAULT; }
   bool IsABC() const { return value_ == ABC; }
   int IntegerForDebugging() const { return int(value_); }
+  void SetFromInteger(int n) { value_ = n; }
 
   // Convert a port number p (>= 1) to an EdgeKind.
   explicit EdgeKind(int port_number) : value_(port_number - 1 + PORT1) {}

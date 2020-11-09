@@ -624,3 +624,9 @@ util.include = function(filename)
     dofile(filename)
   end
 end
+
+util.VertexOnPort = function(v)
+  local port0 = __EdgeKind__(v.kind0)
+  local port1 = __EdgeKind__(v.kind1)
+  return port0 > 0 or port1 > 0
+end

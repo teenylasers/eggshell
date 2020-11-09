@@ -1251,6 +1251,10 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
 
   @* @c{script_filename}
   @| The file name of the top level script.
+
+  @* @c{VertexOnPort(v)}
+  @| Examine the internal fields of shape vertex @c{v}, return true if this
+     vertex is part of a port or false otherwise.
 }
 
 #############################################################################
@@ -1349,8 +1353,8 @@ referenced with the following syntax:
   @| The @c{n}'th vertex of a single piece shape, where n is in the range 1 to
      @c{@#s}. It is an error if @c{s} has more than once piece. The vertex is
      returned as a table containing number fields @c{x} and @c{y}, and also
-     the fields @c{kind0}, @c{kind1}, @c{dist0}, @c{dist0} which are used for
-     debugging.
+     the ``internal'' fields @c{kind0}, @c{kind1}, @c{dist0}, @c{dist1} which
+     are used for debugging.
 
   @* @c{s.material}
   @| The material table of a single piece shape. The table contains keys
@@ -2099,5 +2103,6 @@ Here is what is added in each new version.
    value as last time.
 @* Added @c{util.include}.
 @* Added @c{util.script_filename}.
+@* Added @c{util.VertexOnPort}.
 @* Added the @c{defaults} argument to @c{Parameter}.
 }
