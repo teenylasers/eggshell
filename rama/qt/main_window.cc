@@ -156,8 +156,10 @@ bool MainWindow::ReloadScript(bool rerun_even_if_same) {
     return false;
   }
 
-  // Run the script.
-  QString script = "util.script_filename = '" + script_filename_ + "'\n" +
+  // Run the script. The first line of the script is changed to set the script
+  // filename. Don't add a newline \n here so that script error line numbers
+  // will still be correct.
+  QString script = "util.script_filename = '" + script_filename_ + "'; " +
                    buffer;
   bool script_ran = ui->model->RunScript(script.toUtf8().data(),
                                          rerun_even_if_same);
