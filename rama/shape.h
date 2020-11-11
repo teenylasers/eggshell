@@ -359,7 +359,8 @@ class Shape : public LuaUserClass {
   // return the coordinates of the new arc start and end vertices, and the arc
   // center. If mutate is false, the pstart (etc) return values will be
   // computed but the shape will not be modified. Return true if an arc was
-  // created or false otherwise (e.g. because no arc of this radius can fit).
+  // created (or does not need to be created because the vertex is colinear) or
+  // false if no arc of this radius can fit.
   bool FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit,
                     JetPoint *pstart=0, JetPoint *pend=0, JetPoint *center=0,
                     bool mutate=true) MUST_USE_RESULT;

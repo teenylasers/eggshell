@@ -1515,7 +1515,7 @@ bool Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit,
   // if the tangent points don't go off the end of the line segments.
   JetNum beta0 = ArcTwoTangents(radius, v1, v2);
   if (beta0 < 1e-6) {
-    return false;               // Lines are (almost) colinear, nothing to do
+    return true;                // Lines are (almost) colinear, nothing to do
   }
 
   // See if the beta0 arc will work. If not, try others.
