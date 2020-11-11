@@ -324,7 +324,8 @@ void Cavity::DrawModel() {
   for (int i = 0; i < debug_shapes_.size(); i++) {
     gl::SetUniform("color", 0.5, 0.5, 0.5);
     debug_shapes_[i].DrawBoundary(gl::Transform(), true,
-                          show_boundary_vertices_, show_boundary_derivatives_);
+                                  show_boundary_ports_, show_boundary_vertices_,
+                                  show_boundary_derivatives_);
   }
 
   // In 3D mode draw the interior of the computational domain here, alpha

@@ -482,7 +482,8 @@ static JetNum ArcTwoTangents(JetNum radius, const JetPoint &v1,
 
 // Given a unit length vector 'v' that describes a ray starting from the
 // origin, return a positive 'beta' such that an arc of the given radius goes
-// through point 'p' and is tangent to the ray at beta*v. Return -1 if no
+// through point 'p' and is tangent to the ray at beta*v. If there are two
+// possible solutions return the one with the largest beta. Return -1 if no
 // solution can be found. Set 'lr' to +/- 1 depending on whether p is to the
 // left or right of v.
 static JetNum ArcOneTangent(JetNum radius, const JetPoint &p,
@@ -491,25 +492,13 @@ static JetNum ArcOneTangent(JetNum radius, const JetPoint &p,
   *lr = ToDouble(Cross2(v, p));  // lr positive if p to the left of v
   *lr = (*lr >= 0) ? 1 : -1;
 
-  JetPoint q = -p + radius * Rotate90(v) * (*lr);
-  JetNum sqrt_arg = sqr(radius) + sqr(q.dot(v)) - q.dot(q);
+  JetNum q = p.dot(Rotate90(v));
+  JetNum sqrt_arg = q * ((*lr)*2.0*radius - q);
   if (sqrt_arg < 0) {
-    return -1;
+    return -1;          // p is too far away for the arc to reach v
   }
-  // Of the two possible solutions for beta return the smallest positive
-  // answer that is larger than pv.
-  JetNum pv = p.dot(v);
-  if (pv < 0) pv = 0;
-  JetNum qv = -q.dot(v);
-  JetNum beta1 = qv + sqrt(sqrt_arg);
-  JetNum beta2 = qv - sqrt(sqrt_arg);
-  if (beta1 < pv && beta2 < pv) {
-    return -1;
-  } else if (beta1 >= pv && beta2 >= pv) {
-    return std::min(beta1, beta2);
-  } else {
-    return (beta1 >= pv) ? beta1 : beta2;
-  }
+
+  return p.dot(v) + sqrt(sqrt_arg);
 }
 
 //***************************************************************************
@@ -1499,7 +1488,9 @@ bool Shape::APointInside(int i, double *x, double *y) {
   return true;
 }
 
-void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
+bool Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit,
+                         JetPoint *pstart, JetPoint *pend, JetPoint *center,
+                         bool mutate) {
   // Find the piece/vertex that is closest to x,y.
   int piece, index;
   FindClosestVertex(x, y, &piece, &index);
@@ -1512,43 +1503,58 @@ void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
   JetPoint p1 = poly[i1].p;
   JetPoint p2 = poly[i2].p;
 
-  // Compute tangent points to arc.
+  // Compute unit vectors to the prior and next vertex.
   JetPoint v1 = p1 - pt;
   JetPoint v2 = p2 - pt;
   JetNum len1 = v1.norm();
   JetNum len2 = v2.norm();
   v1 /= len1;                   // Unit vector to prior vertex
   v2 /= len2;                   // Unit vector to next vertex
-  JetNum beta = ArcTwoTangents(radius, v1, v2);
-  if (beta < 1e-6) {
-    return;                     // Lines are (almost) colinear, nothing to do
+
+  // Compute two arc tangent points: beta0*v1 and beta0*v2. This will only work
+  // if the tangent points don't go off the end of the line segments.
+  JetNum beta0 = ArcTwoTangents(radius, v1, v2);
+  if (beta0 < 1e-6) {
+    return false;               // Lines are (almost) colinear, nothing to do
   }
 
+  // See if the beta0 arc will work. If not, try others.
   JetPoint c(0,0);              // Set to arc center point
-  if (beta <= len1 && beta <= len2) {
+  bool found_arc = false;
+  if (beta0 <= len1 && beta0 <= len2) {
     // Arc tangent to v1 and v2.
-    c = pt + beta/(1.0 + v1.dot(v2))*(v1 + v2);
-    p1 = pt + beta*v1;          // Start point
-    p2 = pt + beta*v2;          // End point
+    c = pt + beta0/(1.0 + v1.dot(v2))*(v1 + v2);
+    p1 = pt + beta0*v1;         // Start point
+    p2 = pt + beta0*v2;         // End point
+    found_arc = true;
   } else {
-    // Try arc fixed to p1 but tangent to v2.
-    double lr;
-    beta = ArcOneTangent(radius, p1 - pt, v2, &lr);
-    if (beta > 0 && beta < len2) {
-      p2 = pt + beta*v2;          // End point
-      c = p2 + lr * radius * Rotate90(v2);
-    } else {
-      // Try arc fixed to p2 but tangent to v1.
-      beta = ArcOneTangent(radius, p2 - pt, v1, &lr);
-      if (beta > 0 && beta < len1) {
-        p1 = pt + beta*v1;          // Start point
-        c = p1 + lr * radius * Rotate90(v1);
-      }
+    // Try arcs that are tangent with one line segment only, and fixed to the
+    // endpoint of the other segment. We do not want to create arcs that go
+    // outside the space swept from v1 to v2 (an interior arc).
+    // Arc 1: An arc fixed to p2 but tangent to v1 (at point beta1*v1).
+    // Arc 2: An arc fixed to p1 but tangent to v2 (at point beta2*v2).
+    // If arc1 is valid and an interior arc, beta1 > len2 and beta1 < len1.
+    // If arc2 is valid and an interior arc, beta2 > len1 and beta2 < len2.
+    // Therefore there is only one valid situation: we use the valid arc with
+    // beta >= the opposite len.
+    double lr1 = 0, lr2 = 0;
+    JetNum beta1 = ArcOneTangent(radius, p2 - pt, v1, &lr1);
+    JetNum beta2 = ArcOneTangent(radius, p1 - pt, v2, &lr2);
+    bool arc1_valid = beta1 > 0 && beta1 <= len1;
+    bool arc2_valid = beta2 > 0 && beta2 <= len2;
+    if (arc1_valid && (!arc2_valid || beta1 >= len2)) {
+      p1 = pt + beta1*v1;         // Start point
+      c = p1 + lr1 * radius * Rotate90(v1);
+      found_arc = true;
+    } else if (arc2_valid && (!arc1_valid || beta2 >= len1)) {
+      p2 = pt + beta2*v2;         // End point
+      c = p2 + lr2 * radius * Rotate90(v2);
+      found_arc = true;
     }
   }
-  if (c[0] == 0.0 && c[1] == 0.0) {
+  if (!found_arc) {
     // Can not satisfy fillet radius on either segment, so do nothing.
-    return;
+    return false;
   }
 
   // Compute angular extent of the fillet.
@@ -1566,21 +1572,31 @@ void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
   steps = std::min(steps, kMaxStepsAllowed);
   int num_steps = ToInt64(ceil(abs(a2 - a1) * steps / (2.0 * M_PI))) + 1;
   if (num_steps <= 1) {
-    return;
+    return false;
   }
 
   // Replace pt with the fillet arc points.
-  poly.insert(poly.begin() + index, num_steps - 1, RPoint());
-  for (int i = 0; i < num_steps; i++) {
-    JetNum a = a1 + (a2 - a1) * JetNum(i) / JetNum(num_steps-1);
-    poly[index + i].p =
-      JetPoint(c(0) + radius * cos(a), c(1) + radius * sin(a));
+  if (mutate) {
+    poly.insert(poly.begin() + index, num_steps - 1, RPoint());
+    for (int i = 0; i < num_steps; i++) {
+      JetNum a = a1 + (a2 - a1) * JetNum(i) / JetNum(num_steps-1);
+      poly[index + i].p =
+        JetPoint(c(0) + radius * cos(a), c(1) + radius * sin(a));
+    }
+    // Ensure that we didn't make duplicate points at the start or end of the
+    // arc. This might happen if the radius was limited by the adjacent edge
+    // lengths.
+    Clean();
   }
 
-  // Ensure that we didn't make duplicate points at the start or end of the
-  // arc. This might happen if the radius was limited by the adjacent edge
-  // lengths.
-  Clean();
+  // Return values.
+  if (pstart && pend && center) {
+    *pstart = p1;
+    *pend = p2;
+    *center = c;
+  }
+
+  return true;
 }
 
 void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist,
@@ -2405,14 +2421,33 @@ int Shape::LuaAPointInside(lua_State *L) {
 
 int Shape::LuaFilletVertex(lua_State *L) {
   LuaErrorIfNaNOrInfs(L);
+  bool mutate = true;
+  if (lua_gettop(L) == 6) {
+    mutate = lua_toboolean(L, 6);
+    lua_settop(L, 5);
+  }
   Expecting(L, 5, "FilletVertex");
   if (IsEmpty()) {
     LuaError(L, "FilletVertex() requires a nonempty shape");
   }
-  FilletVertex(luaL_checknumber(L, 2), luaL_checknumber(L, 3),
-               luaL_checknumber(L, 4), luaL_checknumber(L, 5));
-  lua_settop(L, 1);
-  return 1;
+  JetPoint pstart, pend, center;
+  if (FilletVertex(luaL_checknumber(L, 2), luaL_checknumber(L, 3),
+                   luaL_checknumber(L, 4), luaL_checknumber(L, 5),
+                   &pstart, &pend, &center, mutate)) {
+    LuaVector *result[3];
+    for (int i = 0; i < 3; i++) {
+      result[i] = LuaUserClassCreateObj<LuaVector>(L);
+      result[i]->resize(2);
+    }
+    for (int i = 0; i < 2; i++) {
+      (*result[0])[i] = pstart[i];
+      (*result[1])[i] = pend[i];
+      (*result[2])[i] = center[i];
+    }
+    return 3;
+  } else {
+    return 0;
+  }
 }
 
 int Shape::LuaChamferVertex(lua_State *L) {

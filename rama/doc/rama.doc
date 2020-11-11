@@ -1048,12 +1048,24 @@ number).
   @| Create a new zero size vector.
   @* @c{@#a}
   @| The number of elements in @c{a}.
+  @* @c{a.length}
+  @| The length of @c{a} (i.e. its @m{L_2} norm).
+  @* @c{a.normalized}
+  @| The vector @c{a} normalized to unit length.
   @* @c{a:Resize(n)}
   @| Resize the vector to have @c{n} elements. All elements will be set to
      zero. Return @c{a}, so that @c{v = Vector():Resize(n)} can be written.
   @* @c{a[i]}
   @| Access the @c{i}'th element of @c{a}, where @c{i} is in the range
      @c{1...@#a}.
+  @* @c{a:dot(b)}
+  @| Return the dot product of @c{a} and @c{b}.
+  @* @c{a:cross(b)}
+  @| Return the cross product of 3-vectors @c{a} and @c{b}. Or, if @c{a} and
+     @c{b} are 2-vectors, return the Z value of the cross product of two
+     vectors in the XY plane.
+  @* @c{vec.New(a1, a2, ...)}
+  @| Create a new vector with elements initialized to @c{a1}, @c{a2}, etc.
   @* @c{vec.abs(a)},@~@c{vec.acos(a)}, @_
      @c{vec.asin(a)},@~@c{vec.atan(a)}, @_
      @c{vec.atan2(a,b)},@~@c{vec.ceil(a)}, @_
@@ -1444,7 +1456,7 @@ rotate @c{s} about (3,4) you could do this:
   @* @c{s:ChamferVertex(x,y, @_@~@~predist,postdist)}
   @| Add a chamfer of the given pre- and post- vertex distances to the vertex
      closest to @c{x},@c{y}. It is a runtime error if the shape is empty.
-     return @c{x1,y1,x2,y2} the coordinates of the new pre- and post- vertices.
+     Return @c{x1,y1,x2,y2} the coordinates of the new pre- and post- vertices.
 
   @* @c{s:Clean(threshold)}
   @| Remove all vertices from shape polygons that are closer than @c{threshold}
@@ -1460,13 +1472,18 @@ rotate @c{s} about (3,4) you could do this:
   @| Returns @c{true} if the point (x,y) is inside the shape (but not inside
      one of its holes) or @c{false} otherwise.
 
-  @* @c{s:FilletVertex(x,y, @_@~@~radius,limit)}
-  @| Add a fillet of the given @c{radius} to the vertex closest to @c{x},@c{y}.
-     The @c{limit} is the maximum distance allowed between a polygon
-     approximation of an arc and a true circle. It is a runtime error if the
-     shape is empty. Fillets that are tangent to both edges of the vertex are
-     preferred, otherwise fillets that are tangent to just one edge are used.
-     If no fillet of the given radius can be constructed, nothing will be done.
+  @* @c{s:FilletVertex(x,y, @_@~@~radius,limit,[mutate])}
+  @| Add a fillet arc of the given @c{radius} to the vertex closest to
+     @c{x},@c{y}. The @c{limit} is the maximum distance allowed between a
+     polygon approximation of an arc and a true circle. It is a runtime error
+     if the shape is empty. Fillets that are tangent to both edges of the
+     vertex are preferred, otherwise fillets that are tangent to just one edge
+     are used. If no fillet of the given radius can be constructed, nothing
+     will be done. Return @c{pstart,pend,center}: the coordinates of the new
+     vertices that start and end the arc, and the center of the arc. Each
+     return value is a @link{vectors}{Vectors} of size 2. If no arc was created
+     the return values will all be @c{nil}. If @c{mutate} is false then the
+     return values will be computed but the shape will not be modified.
 
   @* @c{s:Grow(delta,style,limit)} @_
      or @_
@@ -2105,4 +2122,7 @@ Here is what is added in each new version.
 @* Added @c{util.script_filename}.
 @* Added @c{util.VertexOnPort}.
 @* Added the @c{defaults} argument to @c{Parameter}.
+@* Added vector functions: @c{length}, @c{dot}, @c{cross}, @c{vec.New},
+   @c{vec.Normalize}.
+@* Behavior change in @c{FilletVertex}, and new information returned.
 }

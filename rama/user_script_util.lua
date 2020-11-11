@@ -594,6 +594,18 @@ util.PortCharge = function(s, sel_table, n, charge)
 end
 
 -----------------------------------------------------------------------------
+-- Additional vec table functions.
+
+vec.New = function(...)
+  local T = table.pack(...)
+  local v = Vector():Resize(#T)
+  for i = 1,#T do
+    v[i] = T[i]
+  end
+  return v
+end
+
+-----------------------------------------------------------------------------
 -- Other utilities.
 
 util.Dump = function(s)
