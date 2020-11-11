@@ -260,8 +260,8 @@ class Shape : public LuaUserClass {
   // Return the largest and smallest side lengths.
   void ExtremeSideLengths(double *length_max, double *length_min) const;
 
-  // Add a point to the last piece in the shape.
-  void AddPoint(JetNum x, JetNum y);
+  // Add a point to the last piece in the shape, optionally with EdgeInfo.
+  void AddPoint(JetNum x, JetNum y, const EdgeInfo *e = 0);
 
   // Turn the last piece of this shape into a polyline by adding points
   // s[#s-1],...,s[2] to the polygon. This makes a zero area polygon to

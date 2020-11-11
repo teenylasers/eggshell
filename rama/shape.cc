@@ -862,11 +862,14 @@ void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
   }
 }
 
-void Shape::AddPoint(JetNum x, JetNum y) {
+void Shape::AddPoint(JetNum x, JetNum y, const EdgeInfo *e) {
   if (polys_.empty()) {
     polys_.resize(1);
   }
   polys_.back().p.push_back(RPoint(x, y));
+  if (e) {
+    polys_.back().p.back().e = *e;
+  }
 }
 
 void Shape::MakePolyline() {
@@ -2083,6 +2086,8 @@ int Shape::Index(lua_State *L) {
                PRINTF_SIZET" (is %g)", polys_[0].p.size(),
                ToDouble(lua_tonumber(L, -1)));
     }
+    // Keep the fields below consistent with AddPoint(), which knows how to
+    // consume them.
     lua_createtable(L, 0, 2);
     lua_pushnumber(L, polys_[0].p[i - 1].p[0]);
     LuaRawSetField(L, -2, "x");
@@ -2185,8 +2190,28 @@ int Shape::LuaClone(lua_State *L) {
 
 int Shape::LuaAddPoint(lua_State *L) {
   LuaErrorIfNaNOrInfs(L);
-  Expecting(L, 3, "AddPoint");
-  AddPoint(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
+  if (lua_gettop(L) == 3) {
+    AddPoint(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
+  } else if (lua_gettop(L) == 2 && lua_type(L, 2) == LUA_TTABLE) {
+    // Keep the fields below consistent with the shape index operator, which
+    // knows how to emit them.
+    EdgeInfo e;
+    lua_pushstring(L, "x");                                   lua_rawget(L, -2);
+    JetNum x = lua_tonumber(L, -1);                           lua_pop(L, 1);
+    lua_pushstring(L, "y");                                   lua_rawget(L, -2);
+    JetNum y = lua_tonumber(L, -1);                           lua_pop(L, 1);
+    lua_pushstring(L, "kind0");                               lua_rawget(L, -2);
+    e.kind[0].SetFromInteger(ToDouble(lua_tonumber(L, -1)));  lua_pop(L, 1);
+    lua_pushstring(L, "kind1");                               lua_rawget(L, -2);
+    e.kind[1].SetFromInteger(ToDouble(lua_tonumber(L, -1)));  lua_pop(L, 1);
+    lua_pushstring(L, "dist0");                               lua_rawget(L, -2);
+    e.dist[0] = ToDouble(lua_tonumber(L, -1));                lua_pop(L, 1);
+    lua_pushstring(L, "dist1");                               lua_rawget(L, -2);
+    e.dist[1] = ToDouble(lua_tonumber(L, -1));                lua_pop(L, 1);
+    AddPoint(x, y, &e);
+  } else {
+    LuaError(L, "Shape:AddPoint() expecting arguments (x,y) or (table)");
+  }
   lua_settop(L, 1);
   return 1;
 }

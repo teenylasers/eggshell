@@ -1451,6 +1451,10 @@ rotate @c{s} about (3,4) you could do this:
   @| Adds the point (x,y) to the end of the last polygon piece. This is used to
      create new shapes from a list of coordinates. Returns @c{s}.
 
+  @* @c{s:AddPoint(T)}
+  @| Adds the point using x,y and internal fields from the table @c{T}, which
+     has the same format as the table returned by @c{s[n]}. Returns @c{s}.
+
   @* @c{s:APointInside()}
   @| Returns two numbers (x,y) that are a point guaranteed to be inside the
      shape. This requires @c{s} to be a nonempty single piece polygon of any
@@ -2130,4 +2134,5 @@ Here is what is added in each new version.
    @c{vec.Normalize}.
 @* Behavior change in @c{FilletVertex}, and new information returned.
 @* Add shape concatenation operator.
+@* @c{s:AddPoint} can now accept the table returned by @c{s[i]}.
 }
