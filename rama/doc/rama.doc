@@ -2129,4 +2129,5 @@ Here is what is added in each new version.
 @* Added vector functions: @c{length}, @c{dot}, @c{cross}, @c{vec.New},
    @c{vec.Normalize}.
 @* Behavior change in @c{FilletVertex}, and new information returned.
+@* Add shape concatenation operator.
 }
