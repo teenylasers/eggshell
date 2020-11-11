@@ -1412,15 +1412,19 @@ If you have a shape object @c{s} then:
 If @c{A} and @c{B} are two shapes then a third shape can be created by:
 
 @table{
-  @* @c{A + B}
+  @* @c{A+B}
   @| The union of @c{A} and @c{B}.
-  @* @c{A - B}
+  @* @c{A-B}
   @| The subtraction of @c{B} from @c{A}.
-  @* @c{A * B}
+  @* @c{A*B}
   @| The intersection of @c{A} and @c{B}.
-  @* @c{A ~ B}
+  @* @c{A~B}
   @| The xor of @c{A} and @c{B} (i.e. points in @c{A} or @c{B} but not both).
      This is rarely used.
+  @* @c{A..B}
+  @| The concatenation of all pieces of @c{A} and all pieces of @c{B}. When all
+     those pieces are disjoint then this is the same as @c{A + B}, otherwise
+     the result will have overlapping pieces.
 }
 
 The coincident vertex rule: If @c{A} and @c{B} have a coincident vertex, and

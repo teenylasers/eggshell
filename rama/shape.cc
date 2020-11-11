@@ -1942,6 +1942,11 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
   // Convert the result back into JetPoint coordinates.
   FromPaths(scale, offset_x, offset_y, result);
 
+  // Combine the port callbacks from both shapes.
+  CombinePortCallbacks(c1, c2);
+}
+
+bool Shape::CombinePortCallbacks(const Shape *c1, const Shape *c2) {
   // Combine the port callbacks from both shapes. Generate an error if there
   // are conflicts.
   port_callbacks_.clear();
@@ -1952,10 +1957,12 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
     for (auto it : c2->port_callbacks_) {
       if (port_callbacks_.count(it.first) > 0) {
         Error("Merged shapes contain port callbacks for the same port.");
+        return false;
       }
       port_callbacks_[it.first] = it.second;
     }
   }
+  return true;
 }
 
 const Shape &Shape::LuaCheckShape(lua_State *L, int argument_index) const {
@@ -2149,6 +2156,20 @@ bool Shape::Operator(lua_State *L, int op, int pos) {
     } else {
       LuaError(L, "Internal");
     }
+    return true;
+  } else if (op == LUA_OPCONCAT) {
+    Shape *op1 = LuaCastTo<Shape>(L, 1);
+    Shape *op2 = LuaCastTo<Shape>(L, 2);
+    if (!op1 || !op2 || pos != 1) {
+      // Binary operands must both be Shapes. If pos != 1 then the first
+      // operand wasn't.
+      LuaError(L, "Both arguments to the '..' operator must be Shape objects");
+    }
+    Shape *result = LuaUserClassCreateObj<Shape>(L);
+    result->polys_ = op1->polys_;
+    result->polys_.insert(result->polys_.end(),
+                          op2->polys_.begin(), op2->polys_.end());
+    result->CombinePortCallbacks(op1, op2);
     return true;
   } else {
     return false;

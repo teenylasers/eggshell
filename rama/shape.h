@@ -459,6 +459,7 @@ class Shape : public LuaUserClass {
                   ClipperLib::ClipType clip_type,
                   JetNum offset_x, JetNum offset_y, JetNum scale);
   const Shape &LuaCheckShape(lua_State *L, int argument_index) const;
+  bool CombinePortCallbacks(const Shape *c1, const Shape *c2);
 };
 
 // ********** Public geometry utility functions.
