@@ -30,6 +30,7 @@ template<class T> inline pair<T, T> make_sorted_pair(T a, T b) {
   }
 }
 
+// A symmetric 2D matrix of boolean, indexed by AABB box IDs.
 class IDPairSet {
  public:
   explicit IDPairSet(int num_ids) : n_(num_ids), s_(num_ids * num_ids) {}
@@ -59,10 +60,12 @@ void SweepAndPrune(const vector<AABB<D> > &aabb,
     // For each dimension create a sorted list of the starts and ends of box
     // edges.
     struct Edge {
-      double coord;
-      bool start;
-      int id;
-      bool operator<(const Edge &e) const { return coord < e.coord; }
+      double coord;             // coordinate
+      bool start;               // true if a box start, false if a box end
+      int id;                   // index into aabb
+      bool operator<(const Edge &e) const {
+        return coord < e.coord || (coord == e.coord && start > e.start);
+      }
     };
     vector<Edge> e(aabb.size() * 2);
     for (int i = 0; i < aabb.size(); i++) {

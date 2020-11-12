@@ -22,6 +22,8 @@ namespace collision {
 template<int D> struct AABB {
   double min[D], max[D];
 
+  // Return true if two AABBs overlap, or are only just touching with an
+  // overlap distance of zero.
   bool Overlaps(const AABB &a) {
     for (int i = 0; i < D; i++) {
       if (min[i] > a.max[i] || max[i] < a.min[i]) {
