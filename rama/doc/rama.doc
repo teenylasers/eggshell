@@ -1405,6 +1405,9 @@ If you have a shape object @c{s} then:
   @* @c{s.orientation}
   @| @c{true} if this is an outer boundary or @c{false} if this in an interior
      hole. It is an error if the shape does not have a single piece.
+
+  @* @c{s.self_intersection}
+  @| @c{true} if any pieces of this shape have a self intersecting boundary.
 }
 
 @subsection{Shape operators}
@@ -2135,4 +2138,5 @@ Here is what is added in each new version.
 @* Behavior change in @c{FilletVertex}, and new information returned.
 @* Add shape concatenation operator.
 @* @c{s:AddPoint} can now accept the table returned by @c{s[i]}.
+@* Added the shape @c{s.self_intersection} property.
 }

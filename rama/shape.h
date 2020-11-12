@@ -252,6 +252,9 @@ class Shape : public LuaUserClass {
   // Return the total area of all pieces.
   JetNum TotalArea() const;
 
+  // Return true if any piece in this shape seems to intersect itself.
+  bool SelfIntersection() const;
+
   // Return the sharpest convex angle in the shape, i.e. the angle that would
   // result in the mesher generating the most triangles. 0 is maximum
   // sharpness, pi is least sharp.

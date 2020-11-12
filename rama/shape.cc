@@ -20,6 +20,7 @@
 #include "../toolkit/gl_font.h"
 #include "../toolkit/testing.h"
 #include "../toolkit/dxf.h"
+#include "../toolkit/collision.h"
 
 using ClipperLib::IntPoint;
 using ClipperLib::Clipper;
@@ -193,6 +194,22 @@ static bool DoesLineIntersectBox(const JetPoint &p1, const JetPoint &p2,
   JetNum s4 = xmax * v[1] - ymax * v[0];
   return !( (s1 > 0 && s2 > 0 && s3 > 0 && s4 > 0) ||
             (s1 < 0 && s2 < 0 && s3 < 0 && s4 < 0) );
+}
+
+// Return true if the line start1->end1 intersects the line start2->end2.
+// Merely toucting at the end points does not count.
+static bool DoesLineIntersectLine(const JetPoint &start1, const JetPoint &end1,
+                                  const JetPoint &start2, const JetPoint &end2)
+{
+  // Check separating half spaces.
+  JetNum s1 = Cross2(end1 - start1, start2 - start1);
+  JetNum s2 = Cross2(end1 - start1, end2 - start1);
+  if ((s1 <= 0 && s2 <= 0) || (s1 >= 0 && s2 >= 0)) {
+    return false;
+  }
+  JetNum s3 = Cross2(end2 - start2, start1 - start2);
+  JetNum s4 = Cross2(end2 - start2, end1 - start2);
+  return !((s3 <= 0 && s4 <= 0) || (s3 >= 0 && s4 >= 0));
 }
 
 // Return the area of a polygon. The sign of the area depends on the
@@ -923,6 +940,40 @@ JetNum Shape::TotalArea() const {
     area += Area(i);
   }
   return area;
+}
+
+bool Shape::SelfIntersection() const {
+  for (int i = 0; i < polys_.size(); i++) {
+    // Do the intersection check separately for each piece.
+    const int n = polys_[i].p.size();
+    vector<collision::AABB<2>> aabb(n);
+    for (int j0 = 0; j0 < n; j0++) {
+      int j1 = (j0 + 1) % n;
+      auto &p0 = polys_[i].p[j0].p;
+      auto &p1 = polys_[i].p[j1].p;
+      for (int k = 0; k < 2; k++) {
+        aabb[j0].min[k] = std::min(ToDouble(p0[k]), ToDouble(p1[k]));
+        aabb[j0].max[k] = std::max(ToDouble(p0[k]), ToDouble(p1[k]));
+      }
+    }
+    std::set<std::pair<int, int>> overlaps;
+    collision::SweepAndPrune(aabb, &overlaps);
+    for (auto o : overlaps) {
+      CHECK(aabb[o.first].Overlaps(aabb[o.second]));
+      // Check to see if the lines in these two overlapping boxes actually
+      // intersect. Ignore lines that are adjacent in the polygon.
+      if ((o.first + 1) % n != o.second && (o.second + 1) % n != o.first) {
+        auto &p1 = polys_[i].p[o.first].p;
+        auto &p2 = polys_[i].p[(o.first + 1) % n].p;
+        auto &p3 = polys_[i].p[o.second].p;
+        auto &p4 = polys_[i].p[(o.second + 1) % n].p;
+        if (DoesLineIntersectLine(p1, p2, p3, p4)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 JetNum Shape::SharpestAngle() const {
@@ -2043,6 +2094,8 @@ int Shape::Index(lua_State *L) {
                     PRINTF_SIZET" pieces (one piece required)", polys_.size());
       }
       lua_pushboolean(L, Orientation(0));
+    } else if (strcmp(s, "self_intersection") == 0) {
+      lua_pushboolean(L, SelfIntersection());
     } else if (strcmp(s, "bounds") == 0) {
       if (IsEmpty()) {
         LuaError(L, "Can not compute bounds of empty shape");
@@ -2922,5 +2975,32 @@ TEST_FUNCTION(SplitPolygonsAtNecks) {
     CHECK(s.Piece(0).size() == 4);
     CHECK(s.Area(0) == 1);
     CHECK(CentroidIs(s, 0, 0.5, 0.5));
+  }
+}
+
+TEST_FUNCTION(DoesLineIntersectLine) {
+  for (int iter = 0; iter < 10000; iter++) {
+    JetPoint p1, p2, p3, p4;
+    for (int i = 0; i < 2; i++) {
+      p1[i] = RandDouble();
+      p2[i] = RandDouble();
+      p3[i] = RandDouble();
+      p4[i] = RandDouble();
+    }
+    bool result1 = DoesLineIntersectLine(p1, p2, p3, p4);
+
+    // Now compute the actual intersection point a different way and compare.
+    JetNum x1 = p1[0];
+    JetNum y1 = p1[1];
+    JetNum x2 = p3[0];
+    JetNum y2 = p3[1];
+    JetNum dx1 = p2[0] - p1[0];
+    JetNum dy1 = p2[1] - p1[1];
+    JetNum dx2 = p4[0] - p3[0];
+    JetNum dy2 = p4[1] - p3[1];
+    JetNum a1 = (dy2*x1 - dy2*x2 - dx2*y1 + dx2*y2) / (dx2*dy1 - dx1*dy2);
+    JetNum a2 = (dy1*x1 - dy1*x2 - dx1*y1 + dx1*y2) / (dx2*dy1 - dx1*dy2);
+    bool result2 = a1 >= 0 && a1 <= 1 && a2 >= 0 && a2 <= 1;
+    CHECK(result1 == result2);
   }
 }
