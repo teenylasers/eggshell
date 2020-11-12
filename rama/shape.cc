@@ -44,7 +44,6 @@ const double kCoordScale = 4294967296;  // =2^32
 
 // Geometry tolerances
 const double kTol = 1e-20;              // Generic
-const double kTolColinear = 1.74e-8;    // 1 micro-degree (in radians)
 const double kTolClean = 1e-9;          // Multiplies largest side length
 const JetNum kMaxStepsAllowed = 1e4;    // For grow() round style, etc
 
@@ -1333,7 +1332,9 @@ void Shape::Grow(JetNum delta, CornerStyle style, JetNum limit,
   // @@@ do we need to CleanPolygon?
 }
 
-void Shape::Clean(JetNum threshold) {
+void Shape::Clean(JetNum threshold, JetNum angle_threshold, int mode) {
+  CHECK(mode == 1 || mode == 2);
+
   // The default threshold is the maximum side length * kTolClean.
   if (threshold == 0) {
     double length_max, length_min;
@@ -1362,7 +1363,7 @@ void Shape::Clean(JetNum threshold) {
     if (polys_[i].p.size() < 3) {
       continue;
     }
-    for (int pass = 0; pass < 2; pass++) {
+    for (int pass = 0; pass < mode; pass++) {
       // On the first pass delete only co-linear points that are closer to
       // their neighbors than the threshold. This is done first so that we have
       // the best chance of cleaning up the shape without modifying the
@@ -1378,7 +1379,7 @@ void Shape::Clean(JetNum threshold) {
           JetNum length1 = delta1.norm();
           JetNum length2 = delta2.norm();
           JetNum sin_theta = Cross2(delta1, delta2) / (length1 * length2);
-          if (pass == 1 || fabs(sin_theta) < kTolColinear) {
+          if (pass == 1 || fabs(sin_theta) < angle_threshold) {
             // If fabs(sin_theta) is small, j1-j2-j3 are colinear.
             // Delete j2 if it's too close to j1 or j2:
             if (length1 < threshold || length2 < threshold) {
@@ -2278,8 +2279,16 @@ int Shape::LuaMakePolyline(lua_State *L) {
 
 int Shape::LuaClean(lua_State *L) {
   LuaErrorIfNaNOrInfs(L);
-  Expecting(L, 2, "Clean");
-  Clean(luaL_checknumber(L, 2));
+  if (lua_gettop(L) == 4) {
+    int mode = ToInt64(luaL_checknumber(L, 4));
+    if (mode != 1 && mode != 2) {
+      LuaError(L, "Shape:Clean() mode must be 1 or 2");
+    }
+    Clean(luaL_checknumber(L, 2), luaL_checknumber(L, 3), mode);
+  } else {
+    Expecting(L, 2, "Clean");
+    Clean(luaL_checknumber(L, 2));
+  }
   return 1;
 }
 

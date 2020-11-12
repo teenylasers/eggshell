@@ -1475,6 +1475,14 @@ rotate @c{s} about (3,4) you could do this:
      @c{config.cd} shape to avoid making meshes with extremely small triangles.
      It is however occasionally necessary to clean intermediate shapes.
 
+  @* @c{s:Clean(threshold, angle_threshold, mode)}
+  @| Like @c{s:Clean()} but provides more control. If @c{mode} is 1 then remove
+     redundant co-linear vertices that are closer than the threshold to their
+     neighboring vertices. If @c{mode} is 2 then do an additional pass and
+     remove @emph{any} vertices that are closer than the threshold to their
+     neighboring vertices. The @c{angle_threshold} is the angle between two
+     lines (in radians) to be considered colinear.
+
   @* @c{s:Clone()}
   @| Returns a new copy of @c{s} so that @c{s} and its copy can be changed
      independently.
@@ -2139,4 +2147,5 @@ Here is what is added in each new version.
 @* Add shape concatenation operator.
 @* @c{s:AddPoint} can now accept the table returned by @c{s[i]}.
 @* Added the shape @c{s.self_intersection} property.
+@* Expanded arguments to @c{s:Clean()}.
 }

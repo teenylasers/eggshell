@@ -321,10 +321,15 @@ class Shape : public LuaUserClass {
   void Grow(JetNum delta, CornerStyle style, JetNum limit,
             CornerStyle endcap_style = BUTT);
 
-  // Clean up the shape: remove vertices that are closer than 'threshold' to
-  // other vertices. If threshold is zero then use a default that is a small
-  // fraction of the largest side length.
-  void Clean(JetNum threshold = 0);
+  // Clean up the shape. If mode==1 then remove redundant co-linear vertices
+  // that are closer than the threshold to their neighboring vertices. If
+  // mode==2 then do an additional pass and remove *any* vertices that are
+  // closer than the threshold to their neighboring vertices. If threshold is
+  // zero then use a default that is a small fraction of the largest side
+  // length. The angle_threshold is the angle between two lines (in radians) to
+  // be considered colinear. The default angle threshold is 1 micro-degree.
+  void Clean(JetNum threshold = 0, JetNum angle_threshold = 1.74e-8,
+             int mode = 2);
 
   // Find shape polygons with zero-width necks and split those into multiple
   // pieces at the necks. This is needed because the clipper library is happy
