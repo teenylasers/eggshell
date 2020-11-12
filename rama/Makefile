@@ -161,7 +161,7 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
       toolkit/gl_utils.o toolkit/gl_font.o toolkit/plot.o toolkit/plot_gui.o \
       toolkit/viewer.o toolkit/camera.o toolkit/femsolver.o toolkit/mystring.o \
       toolkit/lua_vector.o toolkit/trace.o \
-      toolkit/shaders.o toolkit/dxf.o \
+      toolkit/shaders.o toolkit/dxf.o toolkit/collision.o \
       common.o shape.o mesh.o solver.o \
       clipper.o triangle.o user_script_util.o license_text.o my_jet.o
 
