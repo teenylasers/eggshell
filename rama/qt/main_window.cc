@@ -54,7 +54,7 @@ MainWindow::MainWindow(QWidget *parent) :
   tabifyDockWidget(ui->dock_model, ui->dock_script_messages);
   ui->dock_model->raise();
 
-  // Default shows and hidden controls.
+  // Default shown and hidden controls.
   ui->display_style_Exy->hide();
   ui->display_style_ES->hide();
   ui->display_style_TE->hide();
@@ -623,4 +623,8 @@ void MainWindow::on_action3D_triggered() {
 
 void MainWindow::on_actionInterior_triggered() {
   ui->model->ToggleShowBoundaryInterior();
+}
+
+void MainWindow::on_reload_resets_view_stateChanged(int arg1) {
+  ui->model->SetIfRunScriptResetsView(arg1);
 }

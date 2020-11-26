@@ -95,6 +95,9 @@ class LuaModelViewer : public GLViewer {
   void SetIfRunScriptResetsParameters(bool runscript_resets_param_map) {
     runscript_resets_param_map_ = runscript_resets_param_map;
   }
+  void SetIfRunScriptResetsView(bool runscript_resets_view) {
+    runscript_resets_view_ = runscript_resets_view;
+  }
   void Sweep(const std::string &parameter_name,
              double start_value, double end_value, int num_steps,
              bool sweep_over_test_output, const std::string &image_filename);
@@ -280,6 +283,7 @@ class LuaModelViewer : public GLViewer {
   typedef std::map<std::string, Parameter> ParamMap;
   ParamMap param_map_;
   bool runscript_resets_param_map_;  // If param_map_ reset by RunScript()
+  bool runscript_resets_view_;       // If view reset by RunScript()
   std::vector<std::string> current_param_controls_;  // Current control names
   std::vector<std::string> markers_; // Pairs of controls names shown as markers
   int num_ticked_count_;             // Ticked params seen by CreateParameter()

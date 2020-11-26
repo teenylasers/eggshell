@@ -381,6 +381,7 @@ LuaModelViewer::LuaModelViewer(QWidget *parent)
   plot_ = 0;
   model_pane_ = plot_pane_ = script_messages_pane_ = 0;
   runscript_resets_param_map_ = true;
+  runscript_resets_view_ = true;
   num_ticked_count_ = 0;
   derivative_index_ = 0;
   rebuild_parameters_ = false;
@@ -772,7 +773,7 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
   parameter_layout_->setRowStretch(parameter_layout_->rowCount()-1, 1);
 
   // Make sure the whole model is visible in all cameras.
-  if (!IsModelEmpty()) {
+  if (!IsModelEmpty() && runscript_resets_view_) {
     int c = GetCameraIndex();
     for (int i = 0; i < MAX_CAMERAS; i++) {
       SwitchCamera(i);

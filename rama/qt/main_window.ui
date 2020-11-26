@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1000</width>
+    <width>1179</width>
     <height>700</height>
    </rect>
   </property>
@@ -52,8 +52,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>286</width>
-         <height>661</height>
+         <width>367</width>
+         <height>676</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,1">
@@ -100,20 +100,35 @@
          </layout>
         </item>
         <item>
-         <widget class="QCheckBox" name="reload_resets_parameters">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Reload resets parameters to script defaults</string>
-          </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
+         <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,1">
+          <item>
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>Reload resets:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="reload_resets_parameters">
+            <property name="text">
+             <string>Parameters to defaults</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="reload_resets_view">
+            <property name="text">
+             <string>View</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
         <item>
          <widget class="Line" name="line">
@@ -142,7 +157,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1000</width>
+     <width>1179</width>
      <height>22</height>
     </rect>
    </property>
