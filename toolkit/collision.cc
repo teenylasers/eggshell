@@ -13,6 +13,8 @@
 #include "collision.h"
 #include "error.h"
 #include "testing.h"
+#include "random.h"
+#include <algorithm>
 
 using std::vector;
 using std::set;
@@ -114,17 +116,13 @@ void SweepAndPrune(const vector<AABB<D> > &aabb,
 #include <stdio.h>
 #include <stdlib.h>
 
-static double Rand() {
-  return double(random()) / RAND_MAX;
-}
-
 template<int D> void SweepAndPruneTester() {
   const int n = 1000;
   vector<collision::AABB<D> > aabb(n);
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < D; j++) {
-      aabb[i].min[j] = Rand();
-      aabb[i].max[j] = aabb[i].min[j] + 0.1*Rand();
+      aabb[i].min[j] = Random();
+      aabb[i].max[j] = aabb[i].min[j] + 0.1*Random();
     }
   }
 

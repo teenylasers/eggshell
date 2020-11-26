@@ -13,6 +13,7 @@
 #include "optimizer.h"
 #include "thread.h"
 #include "testing.h"
+#include "random.h"
 #include <stdio.h>
 #include <math.h>
 #include <sys/time.h>
@@ -22,10 +23,6 @@ using Eigen::VectorXd;
 
 //***************************************************************************
 // Utility.
-
-static double Random() {
-  return 0.5 + 0.5*Eigen::Matrix<double,1,1>::Random()[0];
-}
 
 static double Now() {
   struct timeval tp;

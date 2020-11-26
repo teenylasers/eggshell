@@ -15,6 +15,7 @@
 #include "testing.h"
 #include "mystring.h"
 #include "myvector"
+#include "random.h"
 
 #include <stdlib.h>
 #include <math.h>
@@ -211,10 +212,6 @@ void WriteDXF(const vector<vector<Point>> &p,
 
 const double kTolerance = 1e-9;
 
-static double RandDouble() {
-  return 0.5 + 0.5*Eigen::Matrix<double,1,1>::Random()[0];
-}
-
 static vector<string> LineOrArcListToStringList(const vector<LineOrArc> &a) {
   vector<string> result;
   for (int i = 0; i < a.size(); i++) {
@@ -289,8 +286,8 @@ TEST_FUNCTION(DXF_FitCircleTo3Points) {
   for (int iter = 0; iter < 10; iter++) {
     Point p[3];
     for (int i = 0; i < 3; i++) {
-      p[i][0] = RandDouble();
-      p[i][1] = RandDouble();
+      p[i][0] = Random();
+      p[i][1] = Random();
       // printf("p[%d] = %f,%f\n", i, p[i][0], p[i][1]);
     }
     double radius;

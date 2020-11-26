@@ -24,6 +24,7 @@
 
 #include "levenberg_marquardt.h"
 #include "testing.h"
+#include "random.h"
 #include <stdio.h>
 
 using std::vector;
@@ -178,10 +179,6 @@ void LevenbergMarquardt::ComputeError2(const OptimizerOptions &opt,
 //***************************************************************************
 // Testing
 
-static double RandDouble() {
-  return random() / double(RAND_MAX);
-}
-
 TEST_FUNCTION(LevenbergMarquardt) {
   struct RosenbrockBanana : public LevenbergMarquardt {
     void ComputeError(const VectorXd &p, VectorXd *e, vector<Trip> *Jtrips) {
@@ -253,7 +250,7 @@ TEST_FUNCTION(LevenbergMarquardt_PointsInARow) {
   PointDistance fn;
   VectorXd p(100);
   for (int i = 0; i < p.size(); i++) {
-    p[i] = RandDouble() * 100 - 50;
+    p[i] = Random() * 100 - 50;
   }
   OptimizerStatus status;
   if (!fn.Optimize(opt, &p, &status)) {

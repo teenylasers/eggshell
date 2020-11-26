@@ -18,13 +18,10 @@
 #include "error.h"
 #include "mat_file.h"
 #include "testing.h"
+#include "random.h"
 
 using namespace Eigen;
 using std::vector;
-
-double RandDouble() {
-  return double(random()) / double(RAND_MAX);
-}
 
 typedef SparseMatrix<double> SMatrix;
 
@@ -106,7 +103,7 @@ TEST_FUNCTION(LaplacianEigenSolver) {
   vector<Triplet<double> > Btrips;
   for (int i = 0; i < N*N; i++) {
     Btrips.push_back(Triplet<double>(i, i, 0.015));
-    if (i > 0) Btrips.push_back(Triplet<double>(i, i-1, 0.01 * RandDouble()));
+    if (i > 0) Btrips.push_back(Triplet<double>(i, i-1, 0.01 * Random()));
   }
   SMatrix B(N*N, N*N);
   B.setFromTriplets(Btrips.begin(), Btrips.end());
