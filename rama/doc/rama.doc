@@ -1397,7 +1397,8 @@ If you have a shape object @c{s} then:
 
   @* @c{s.bounds}
   @| A table containing the bounding box of the shape in the form
-     @m{\{\min_x, \min_y, \max_x, \max_y\}}. It is an error if @c{s} is empty.
+     @c{@{min_x=@m{value},min_y=@m{value},max_x=@m{value},max_y=@m{value}@}}.
+     It is an error if @c{s} is empty.
 
   @* @c{s.empty}
   @| @c{true} if the shape has no polygons, @c{false} if this is a valid shape.
@@ -2148,4 +2149,5 @@ Here is what is added in each new version.
 @* @c{s:AddPoint} can now accept the table returned by @c{s[i]}.
 @* Added the shape @c{s.self_intersection} property.
 @* Expanded arguments to @c{s:Clean()}.
+@* Fixed the documentation for the @c{s.bounds} value.
 }
