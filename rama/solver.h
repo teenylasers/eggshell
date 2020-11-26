@@ -16,7 +16,7 @@
 #define __SOLVER_H__
 
 #include <string.h>
-#include "../toolkit/myvector"
+#include <vector>
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 #include "shape.h"

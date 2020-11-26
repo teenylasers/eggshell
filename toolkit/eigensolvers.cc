@@ -45,7 +45,7 @@ VectorXd TestEigenSolver(const SMatrix &A, const SMatrix *B, double sigma,
 
   // Check the eigenvectors.
   const MatrixXd &vec = eigensolver.GetEigenVectors();
-  printf("Eigenvector matrix = %ld x %ld\n", vec.rows(), vec.cols());
+  printf("Eigenvector matrix = %d x %d\n", vec.rows(), vec.cols());
   CHECK(vec.rows() == A.cols());
   CHECK(vec.cols() == M);
   for (int i = 0; i < M; i++) {
@@ -62,7 +62,7 @@ VectorXd TestEigenSolver(const SMatrix &A, const SMatrix *B, double sigma,
 }
 
 TEST_FUNCTION(LaplacianEigenSolver) {
-  srandom(123);
+  Random(123);
 
   // Create a laplacian sparse matrix for an N*N 2D grid. This will have
   // dirichlet boundary conditions and therefore be nonsingular.
@@ -127,12 +127,13 @@ TEST_FUNCTION(LaplacianEigenSolver) {
   CHECK(fabs(val[4] - 0.009669) < 1e-6);
 
   // Test the eigen problem: Ad*x=lambda*B*x
+  // Compare with matlab: eigs(Ad,B,5,'smallestabs')
   val = TestEigenSolver(Ad, &B, 0, M);
-  CHECK(fabs(val[0] - 0.048319) < 1e-6);
-  CHECK(fabs(val[1] - 0.120437) < 1e-6);
-  CHECK(fabs(val[2] - 0.121198) < 1e-6);
-  CHECK(fabs(val[3] - 0.193037) < 1e-6);
-  CHECK(fabs(val[4] - 0.241114) < 1e-6);
+  CHECK(fabs(val[0] - 0.048375157555676) < 1e-6);
+  CHECK(fabs(val[1] - 0.121018479281537) < 1e-6);
+  CHECK(fabs(val[2] - 0.121202245787936) < 1e-6);
+  CHECK(fabs(val[3] - 0.194301702140338) < 1e-6);
+  CHECK(fabs(val[4] - 0.241711622046461) < 1e-6);
 
   // Test the eigen problem: An*x=lambda*x
   val = TestEigenSolver(An, 0, 0.0004, M);
@@ -143,10 +144,11 @@ TEST_FUNCTION(LaplacianEigenSolver) {
   CHECK(fabs(val[4] - 0.003947) < 1e-6);
 
   // Test the eigen problem: An*x=lambda*B*x
+  // Compare with matlab: eigs(An,B,5,'smallestabs')
   val = TestEigenSolver(An, &B, 0.01, M);
   CHECK(fabs(val[0]) < 1e-6);
-  CHECK(fabs(val[1] - 0.024575) < 1e-6);
-  CHECK(fabs(val[2] - 0.024923) < 1e-6);
-  CHECK(fabs(val[3] - 0.049704) < 1e-6);
-  CHECK(fabs(val[4] - 0.098489) < 1e-6);
+  CHECK(fabs(val[1] - 0.0246476654125647) < 1e-6);
+  CHECK(fabs(val[2] - 0.0249103281320441) < 1e-6);
+  CHECK(fabs(val[3] - 0.0497573731273677) < 1e-6);
+  CHECK(fabs(val[4] - 0.0984064949089944) < 1e-6);
 }

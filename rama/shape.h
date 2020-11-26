@@ -13,7 +13,7 @@
 #ifndef __SHAPE_H__
 #define __SHAPE_H__
 
-#include "../toolkit/myvector"
+#include <vector>
 #include "../toolkit/lua_util.h"
 #include "common.h"
 #include "clipper.h"

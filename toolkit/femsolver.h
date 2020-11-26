@@ -30,11 +30,12 @@
 #ifndef __TOOLKIT_FEMSOLVER_H__
 #define __TOOLKIT_FEMSOLVER_H__
 
-#include "myvector"
+#include <vector>
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 #include "error.h"
 #include "eigensolvers.h"
+#include "random.h"
 
 namespace FEM {
 
@@ -45,10 +46,6 @@ using std::vector;
 
 //***************************************************************************
 // Test facilities used by ExampleFEMProblem below.
-
-inline static double RandDouble() {
-  return double(std::rand()) / double(RAND_MAX);
-}
 
 // A numeric class with some of the semantics of 'double'. This is used to make
 // some double-like but mutually incompatible types to test the FEMSolver
@@ -230,10 +227,10 @@ struct ExampleFEMProblem : public FEMProblem {
                         test_a(NumTriangles() * 3), test_b(NumTriangles() * 3) {
     for (int i = 0; i < NumTriangles() * 3; i++) {
       // g and a are positive to help keep the system matrix positive definite.
-      test_f[i] = (RandDouble() * 2 - 1) + i / 20.0;
-      test_g[i] = RandDouble();
-      test_a[i] = RandDouble();
-      test_b[i] = RandDouble() * 2 - 1;
+      test_f[i] = (Random() * 2 - 1) + i / 20.0;
+      test_g[i] = Random();
+      test_a[i] = Random();
+      test_b[i] = Random() * 2 - 1;
     }
     // We can make e.g. g piecewise constant like this:
     //   for (int i = 0; i < NumTriangles(); i++) {

@@ -13,7 +13,7 @@
 #include "trace.h"
 #include "thread.h"
 #include "mystring.h"
-#include "myvector"
+#include <vector>
 #include <map>
 
 using std::vector;

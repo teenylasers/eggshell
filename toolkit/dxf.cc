@@ -14,11 +14,11 @@
 #include "error.h"
 #include "testing.h"
 #include "mystring.h"
-#include "myvector"
 #include "random.h"
 
 #include <stdlib.h>
 #include <math.h>
+#include <vector>
 #include <string>
 #include <algorithm>
 

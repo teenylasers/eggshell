@@ -10,19 +10,29 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details.
 
-// Random numbers. Unfortunately the GNU C library random() is not available
-// on Windows, rand() is available everywhere but generates low quality random
-// numbers on some platforms, and the Eigen Random() is hard to remember the
-// syntax for. Here we provide an easy-to-remember interface.
+// Random numbers. Unfortunately the GNU C library random() is not available on
+// Windows, rand() and std::rand() is available everywhere but generates low
+// quality random numbers on some platforms, and the Eigen Random() is hard to
+// remember the syntax for (and actually maps to std::rand() under the hood).
+// Here we provide an easy-to-remember interface, that is based on the C++11
+// random number implementation.
 
 #ifndef __TOOLKIT_RANDOM_H__
 #define __TOOLKIT_RANDOM_H__
 
-#include "Eigen/Dense"
+#include <random>
 
-// Return a random double from 0 to 1.
-inline double Random() {
-  return 0.5 + 0.5*Eigen::Matrix<double,1,1>::Random()[0];
+// Return a random double from 0 to 1 (if no argument is given) or seed the
+// random number generator (if an integer >= 0 is given).
+inline double Random(int seed = -1) {
+  static std::mt19937_64 g;
+  static std::uniform_real_distribution<> d(0, 1);
+  if (seed >= 0) {
+    g.seed(seed);
+    return 0;
+  } else {
+    return d(g);
+  }
 }
 
 #endif

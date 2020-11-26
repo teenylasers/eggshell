@@ -11,7 +11,7 @@
 // more details.
 
 #include "thread.h"
-#include "myvector"
+#include <vector>
 
 void *ThreadRunner(void *userdata) {
   Thread *t = (Thread*) userdata;
