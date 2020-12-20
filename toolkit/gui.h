@@ -93,6 +93,10 @@ class Window {
   // Draw a filled circle.
   virtual void FillCircle(double x, double y, double r) = 0;
 
+  // Draw a filled polygon with n vertices, with coordinates specified by the x
+  // and y arrays.
+  virtual void FillPolygon(int n, const double *x, const double *y) = 0;
+
   // Draw text given by the string 's' in the current font. The x,y coordinates
   // of the point described by halign,valign are given. The angle is given in
   // degrees, at least 0 and 90 is supported.
@@ -142,7 +146,7 @@ class Window {
   virtual double TextHeight(double *descent = 0) = 0;
 
   // **********
-  // Events.
+  // Events. These functions are implemented by the user.
 
   // Redraw the window.
   virtual void PaintEvent() = 0;
@@ -161,7 +165,7 @@ class Window {
     END, LEFT, UP, RIGHT, DOWN, PAGEUP, PAGEDOWN, F1, F2, F3, F4, F5, F6,
     F7, F8, F9, F10, F11, F12
   };
-  virtual void HandleKeyPress(int keycode);
+  virtual void KeyPressEvent(int keycode);
 };
 
 }  // namespace GUI
@@ -195,6 +199,7 @@ class QtWindow : public QWidget, public virtual Window {
   void DrawArc(double x, double y, double r, double a1 , double a2) override;
   void FillRectangle(double x, double y, double w, double h) override;
   void FillCircle(double x, double y, double r) override;
+  void FillPolygon(int n, const double *x, const double *y) override;
   void DrawText(const char *s, double x, double y, TextAlignment halign,
                 TextAlignment valign, double angle) override;
   void ShowSelectionRectangle(double x1, double y1,

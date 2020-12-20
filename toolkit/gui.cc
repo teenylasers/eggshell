@@ -29,7 +29,7 @@ Window::~Window() {
 void Window::MouseEvent(double x, double y, int button_state) {
 }
 
-void Window::HandleKeyPress(int keycode) {
+void Window::KeyPressEvent(int keycode) {
 }
 
 //***************************************************************************
@@ -135,6 +135,21 @@ void QtWindow::FillCircle(double x, double y, double r) {
   // Adjust coordinates to line up with DrawArc().
   painter_->drawEllipse(QRectF(x - r + units_per_pixel_, Height() - y - r,
                                2*r - units_per_pixel_, 2*r - units_per_pixel_));
+}
+
+void QtWindow::FillPolygon(int n, const double *x, const double *y) {
+  CHECK(painter_);
+  std::vector<QPointF> p(n);
+  double h = Height();
+  for (int i = 0; i < n; i++) {
+    // Adjust coordinates so that polygons with integer coordinates don't have
+    // fuzzy edges.
+    p[i].setX(x[i] + units_per_pixel_*0.5);
+    p[i].setY(h - y[i] - units_per_pixel_*0.5);
+  }
+  painter_->setPen(QPen(color_, Qt::NoPen));
+  painter_->setBrush(QBrush(color_));
+  painter_->drawPolygon(p.data(), n);
 }
 
 void QtWindow::DrawText(const char *s, double x, double y, TextAlignment halign,
@@ -247,7 +262,7 @@ void QtWindow::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void QtWindow::keyPressEvent(QKeyEvent *event) {
-  HandleKeyPress(MapKeyCode(event->key()));
+  KeyPressEvent(MapKeyCode(event->key()));
   QWidget::keyPressEvent(event);
 }
 
