@@ -183,7 +183,7 @@ void Parser::NextToken() {
         }
         ungetc(c, fin_);        // Put 'c' back on the stream for fscanf
 
-        if (fscanf(fin_, "%lf", &token_.number) != 1) {         //@@@ unlocked?
+        if (fscanf(fin_, "%lf", &token_.number) != 1) {
           Error("Could not parse number");
         }
         token_.is_number = true;
@@ -584,17 +584,6 @@ void ExtractFaceBoundaries(const Parser::Database &database,
         if (!oriented_edge.boolean) {
           edge_start.swap(edge_end);
         }
-
-        //@@@@@@@@@@@@@@@@@
-        //@@@  struct LineOrArc {
-        //@@@    Vector3d start, end;             // Start and end of line or arc
-        //@@@    Vector3d center;                 // Center if arc or circle
-        //@@@    // The type of geometry. Arcs can go clockwise or counterclockwise from the
-        //@@@    // starting point (ARC_CW, ARC_CCW). The radius of the circle is the center
-        //@@@    // point to the start point (the end point is ignored).
-        //@@@    enum { LINE, ARC_CW, ARC_CCW, CIRCLE } type;
-        //@@@  };
-        //@@@@@@@@@@@@@@@@@
 
         if (geom.name == "CIRCLE") {
           // The normal and axis1 are assumed to be unit length and
