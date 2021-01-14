@@ -437,10 +437,57 @@ void Parser::Error(const char *msg, ...) {
 //---------------------------------------------------------------------------
 // Functions.
 
-// Start with FACE_BOUND or FACE_OUTER_BOUND instances and validate the schema
-// of the instances below them in the tree.
 static void Validate(const Parser::Database &database) {
   for (auto &it : database) {
+    // Check that ADVANCED_FACE is a list of FACE_BOUND instances followed by a
+    // face geometry (of which we only check PLANE).
+    if (it.second.name == "ADVANCED_FACE") {
+      if (it.second.refs.size() < 2) {
+        throw Exception("ADVANCED_FACE needs at least 2 references", it.first);
+      }
+      for (int i = 0; i < it.second.refs.size() - 1; i++) {
+        auto &facebound = database.at(it.second.refs[i]);
+        if (facebound.name != "FACE_BOUND" &&
+            facebound.name != "FACE_OUTER_BOUND") {
+          throw Exception("ADVANCED_FACE doesn't contain all FACE_BOUND",
+                          it.first);
+        }
+      }
+      // Make sure the face geometry reference exists.
+      database.at(it.second.refs.back());
+    }
+
+    // Check that PLANEs are an AXIS2_PLACEMENT_3D
+    if (it.second.name == "PLANE") {
+      auto &plane = it.second;
+      if (plane.refs.size() != 1) {
+        throw Exception("PLANE invalid", it.first);
+      }
+      auto &axis2 = database.at(plane.refs[0]);
+      if (axis2.name != "AXIS2_PLACEMENT_3D") {
+        throw Exception("PLANE doesn't ref AXIS2_PLACEMENT_3D", it.first);
+      }
+    }
+
+    // Check that AXIS2_PLACEMENT_3D contains a CARTESIAN_POINT and DIRECTION.
+    if (it.second.name == "AXIS2_PLACEMENT_3D") {
+      auto &axis2 = it.second;
+      if (axis2.refs.size() != 3) {
+        throw Exception("AXIS2_PLACEMENT_3D invalid", it.first);
+      }
+      auto &location = database.at(axis2.refs[0]);
+      auto &normal   = database.at(axis2.refs[1]);
+      auto &axis1    = database.at(axis2.refs[2]);
+      if (location.name != "CARTESIAN_POINT" ||
+          location.numbers.size() != 3 ||
+          normal.name != "DIRECTION" || normal.numbers.size() != 3 ||
+          axis1.name != "DIRECTION" || axis1.numbers.size() != 3) {
+        throw Exception("AXIS2_PLACEMENT_3D children bad", it.first);
+      }
+    }
+
+    // Starting with FACE_BOUND or FACE_OUTER_BOUND instances, validate the
+    // schema of the instances below them in the tree.
     if (it.second.name == "FACE_BOUND" ||
         it.second.name == "FACE_OUTER_BOUND") {
       // A FACE_BOUND is a reference to an EDGE_LOOP, plus an orientation flag
@@ -506,17 +553,8 @@ static void Validate(const Parser::Database &database) {
             throw Exception("CIRCLE invalid", edge_curve.refs[2]);
           }
           auto &axis2 = database.at(geom.refs[0]);
-          if (axis2.name != "AXIS2_PLACEMENT_3D" || axis2.refs.size() != 3) {
+          if (axis2.name != "AXIS2_PLACEMENT_3D") {
             throw Exception("AXIS2_PLACEMENT_3D invalid", geom.refs[0]);
-          }
-          auto &location = database.at(axis2.refs[0]);
-          auto &normal   = database.at(axis2.refs[1]);
-          auto &axis1    = database.at(axis2.refs[2]);
-          if (location.name != "CARTESIAN_POINT" ||
-              location.numbers.size() != 3 ||
-              normal.name != "DIRECTION" || normal.numbers.size() != 3 ||
-              axis1.name != "DIRECTION" || axis1.numbers.size() != 3) {
-            throw Exception("AXIS2_PLACEMENT_3D children bad", geom.refs[0]);
           }
         } else if (geom.name == "B_SPLINE_CURVE_WITH_KNOTS") {
           // TODO: validate this
@@ -553,70 +591,83 @@ void WriteDotFile(const char *filename, const Parser::Database &data) {
   fclose(fout);
 }
 
-void ExtractFaceBoundaries(const Parser::Database &database,
-                           FaceBoundaries *boundaries) {
-  // We start with FACE_BOUND or FACE_OUTER_BOUND instances and recurse the
-  // trees below them. Those trees are ridiculously verbose and have some
-  // oddities to deal with. A face bound is a curve that is traversed in a
-  // particular direction. Each ORIENTED_EDGE of the curve has an orientation
-  // flag that indicates if the start and end vertices of the edge are swapped.
-  // Then each EDGE_CURVE has a same_sense flag indicates whether the senses of
-  // the edge and the curve defining the edge geometry are the same. The sense
-  // of an edge is from the edge start vertex to the edge end vertex; the sense
-  // of a curve is in the direction of increasing parameter.
+void ExtractPlanarFaces(const Parser::Database &database,
+                        std::vector<PlanarFace> *faces) {
+  // We start with ADVANCED_FACE instances and recurse the trees below them.
+  // Those trees are ridiculously verbose and have some oddities to deal with.
+  // A face bound is a curve that is traversed in a particular direction. Each
+  // ORIENTED_EDGE of the curve has an orientation flag that indicates if the
+  // start and end vertices of the edge are swapped. Then each EDGE_CURVE has a
+  // same_sense flag indicates whether the senses of the edge and the curve
+  // defining the edge geometry are the same. The sense of an edge is from the
+  // edge start vertex to the edge end vertex; the sense of a curve is in the
+  // direction of increasing parameter.
 
   Validate(database);           // Validate all the assumptions made below
   for (auto &it : database) {
-    if (it.second.name == "FACE_BOUND" ||
-        it.second.name == "FACE_OUTER_BOUND") {
-      boundaries->resize(boundaries->size() + 1);
-      vector<LineOrArc> &boundary = boundaries->back();
+    if (it.second.name == "ADVANCED_FACE") {
+      // ADVANCED_FACE is a list of FACE_BOUND instances followed by a face
+      // geometry. We only accept PLANE.
+      auto &advanced_face = it.second;
+      auto &plane = database.at(advanced_face.refs.back());
+      if (plane.name != "PLANE") {
+        continue;
+      }
+      faces->resize(faces->size() + 1);
+      auto &axis2 = database.at(plane.refs[0]);
+      faces->back().normal = database.at(axis2.refs[1]).GetVector();
+      for (int fi = 0; fi < advanced_face.refs.size() - 1; fi++) {
+        auto &face_bound = database.at(advanced_face.refs[fi]);
+        faces->back().boundaries.resize(faces->back().boundaries.size() + 1);
+        vector<BoundaryEdge> &boundary = faces->back().boundaries.back();
 
-      auto &edge_loop = database.at(it.second.refs[0]);
-      for (int i = 0; i < edge_loop.refs.size(); i++) {
-        auto &oriented_edge = database.at(edge_loop.refs[i]);
-        auto &edge_curve = database.at(oriented_edge.refs[0]);
-        auto &geom = database.at(edge_curve.refs[2]);
-        Vector3d edge_start = database.at(
-                database.at(edge_curve.refs[0]).refs[0]).GetVector();
-        Vector3d edge_end = database.at(
-                database.at(edge_curve.refs[1]).refs[0]).GetVector();
-        if (!oriented_edge.boolean) {
-          edge_start.swap(edge_end);
-        }
-
-        if (geom.name == "CIRCLE") {
-          // The normal and axis1 are assumed to be unit length and
-          // perpendicular, the radius is assumed to be |location-edge_start|.
-          auto &axis = database.at(geom.refs[0]);
-          Vector3d location = database.at(axis.refs[0]).GetVector();
-          Vector3d normal = database.at(axis.refs[1]).GetVector();
-          Vector3d axis1 = database.at(axis.refs[2]).GetVector();
-          double radius = geom.numbers[0];
-          if (fabs(normal.norm() - 1) > 1e-9 ||
-              fabs(axis1.dot(normal)) > 1e-9 ||
-              fabs(radius - (edge_start - location).norm()) > 1e-9 ||
-              fabs(radius - (edge_end - location).norm()) > 1e-9) {
-            throw Exception("Bad CIRCLE", edge_curve.refs[2]);
+        auto &edge_loop = database.at(face_bound.refs[0]);
+        for (int i = 0; i < edge_loop.refs.size(); i++) {
+          auto &oriented_edge = database.at(edge_loop.refs[i]);
+          auto &edge_curve = database.at(oriented_edge.refs[0]);
+          auto &geom = database.at(edge_curve.refs[2]);
+          Vector3d edge_start = database.at(
+                  database.at(edge_curve.refs[0]).refs[0]).GetVector();
+          Vector3d edge_end = database.at(
+                  database.at(edge_curve.refs[1]).refs[0]).GetVector();
+          if (!oriented_edge.boolean) {
+            edge_start.swap(edge_end);
           }
-          boundary.resize(boundary.size() + 1);
-          boundary.back().start = edge_start;
-          boundary.back().end = edge_end;
-          boundary.back().center = location;
-          if (edge_start == edge_end) {
-            boundary.back().type = LineOrArc::CIRCLE;
-          } else if (edge_curve.boolean ^ (!oriented_edge.boolean)) {
-            boundary.back().type = LineOrArc::ARC_CCW;
+
+          if (geom.name == "CIRCLE") {
+            // Circles and arcs. The normal and axis1 are assumed to be unit
+            // length and perpendicular, the instance radius is assumed to be
+            // |location-edge_start|. Don't actually check the radius though
+            // because in some STEP files it can be a bit wrong (we've seen it
+            // a factor of 1e-5 off).
+            auto &axis = database.at(geom.refs[0]);
+            Vector3d location = database.at(axis.refs[0]).GetVector();
+            Vector3d normal = database.at(axis.refs[1]).GetVector();
+            Vector3d axis1 = database.at(axis.refs[2]).GetVector();
+            if (fabs(normal.norm() - 1) > 1e-9 ||
+                fabs(axis1.dot(normal)) > 1e-9) {
+              throw Exception("Bad CIRCLE", edge_curve.refs[2]);
+            }
+            boundary.resize(boundary.size() + 1);
+            boundary.back().start = edge_start;
+            boundary.back().end = edge_end;
+            boundary.back().center = location;
+            boundary.back().normal = normal;
+            if (edge_start == edge_end) {
+              boundary.back().type = BoundaryEdge::CIRCLE;
+            } else if (edge_curve.boolean ^ (!oriented_edge.boolean)) {
+              boundary.back().type = BoundaryEdge::ARC_CCW;
+            } else {
+              boundary.back().type = BoundaryEdge::ARC_CW;
+            }
           } else {
-            boundary.back().type = LineOrArc::ARC_CW;
+            // Represent LINE plus all other unhandled geometry as line
+            // segments. TODO: handle B_SPLINE_CURVE_WITH_KNOTS.
+            boundary.resize(boundary.size() + 1);
+            boundary.back().start = edge_start;
+            boundary.back().end = edge_end;
+            boundary.back().type = BoundaryEdge::LINE;
           }
-        } else {
-          // Represent LINE plus all other unhandled geometry as line segments.
-          // TODO: handle B_SPLINE_CURVE_WITH_KNOTS.
-          boundary.resize(boundary.size() + 1);
-          boundary.back().start = edge_start;
-          boundary.back().end = edge_end;
-          boundary.back().type = LineOrArc::LINE;
         }
       }
     }

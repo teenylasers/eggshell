@@ -129,18 +129,36 @@ class Parser {
 // This generates a diagram of which instances refer to which other instances.
 void WriteDotFile(const char *filename, const Parser::Database &database);
 
-// Extract face boundaries to arrays of LineOrArc.
-struct LineOrArc {
-  Eigen::Vector3d start, end;           // Start and end of line or arc
-  Eigen::Vector3d center;               // Center if arc or circle
-  // The type of geometry. Arcs can go clockwise or counterclockwise from the
-  // starting point (ARC_CW, ARC_CCW). The radius of the circle is the center
-  // point to the start point (the end point is ignored).
+// A boundary edge in a face.
+struct BoundaryEdge {
+  Eigen::Vector3d start, end;           // Endpoints of edge, in boundary order
+  Eigen::Vector3d center, normal;       // For circles and arcs
+  // The type of geometry:
+  //   * Lines go from start to end.
+  //   * Circles are centered at 'center', with radius |start-center|, and the
+  //     given normal vector.
+  //   * Arcs go from start to end with the given center and normal. In many
+  //     cases the normal can be inferred from the start-center-end plane,
+  //     but this is not true for 180 degree arcs which is why the normal is
+  //     given separately. Arcs can go clockwise or counterclockwise from the
+  //     start. The radius of the arc is |start-center|.
   enum { LINE, ARC_CW, ARC_CCW, CIRCLE } type;
 };
-typedef std::vector<std::vector<LineOrArc>> FaceBoundaries;
-void ExtractFaceBoundaries(const Parser::Database &database,
-                           FaceBoundaries *boundaries);
+
+struct PlanarFace {
+  Eigen::Vector3d normal;       // Normal vector of a planar face
+  // All boundaries of the face.
+  std::vector<std::vector<BoundaryEdge>> boundaries;
+
+  void swap(PlanarFace &f) {
+    normal.swap(f.normal);
+    boundaries.swap(f.boundaries);
+  }
+};
+
+// Extract all planar faces.
+void ExtractPlanarFaces(const Parser::Database &database,
+                        std::vector<PlanarFace> *faces);
 
 }  // namespace step
 
