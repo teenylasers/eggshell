@@ -22,7 +22,7 @@ namespace step {
 
 // The error handling strategy is to throw an Exception. In the Parser,
 // whenever a file read or parse error occurs Error() is called internally to
-// throw th Expection. All class and function calls must be wrapped in a
+// throw the Exception. All class and function calls must be wrapped in a
 // try/catch block.
 
 struct Exception : public std::exception {
@@ -133,6 +133,14 @@ void WriteDotFile(const char *filename, const Parser::Database &database);
 struct BoundaryEdge {
   Eigen::Vector3d start, end;           // Endpoints of edge, in boundary order
   Eigen::Vector3d center, normal;       // For circles and arcs
+
+  struct Spline {
+    std::vector<Eigen::Vector3d> p;       // Control points
+    std::vector<int> knot_multiplicity;   // 4 at ends, 1 or 2 in middle
+    std::vector<double> knot_position;    // 0..1, increasing
+  };
+  std::unique_ptr<Spline> spline;       // If nonempty, this is a spline
+
   // The type of geometry:
   //   * Lines go from start to end.
   //   * Circles are centered at 'center', with radius |start-center|, and the
@@ -142,7 +150,8 @@ struct BoundaryEdge {
   //     but this is not true for 180 degree arcs which is why the normal is
   //     given separately. Arcs can go clockwise or counterclockwise from the
   //     start. The radius of the arc is |start-center|.
-  enum { LINE, ARC_CW, ARC_CCW, CIRCLE } type;
+  //   * If this is a spline, the spline pointer is nonnull.
+  enum { LINE, ARC_CW, ARC_CCW, CIRCLE, SPLINE } type;
 };
 
 struct PlanarFace {

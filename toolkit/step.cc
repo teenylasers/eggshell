@@ -487,7 +487,8 @@ static void Validate(const Parser::Database &database) {
     }
 
     // Starting with FACE_BOUND or FACE_OUTER_BOUND instances, validate the
-    // schema of the instances below them in the tree.
+    // schema of the instances below them in the tree, stopping when we get to
+    // things that have been validated above.
     if (it.second.name == "FACE_BOUND" ||
         it.second.name == "FACE_OUTER_BOUND") {
       // A FACE_BOUND is a reference to an EDGE_LOOP, plus an orientation flag
@@ -541,8 +542,8 @@ static void Validate(const Parser::Database &database) {
           throw Exception("EDGE_CURVE start/end don't refer to correct "
                           "CARTESIAN_POINTs", oriented_edge.refs[0]);
         }
-        // The EDGE_CURVE geometry can be a variety of things. We handle lines
-        // and circles (which includes arcs).
+        // The EDGE_CURVE geometry can be a variety of things. We handle lines,
+        // circles (which includes arcs), and splines.
         auto &geom = database.at(edge_curve.refs[2]);
         if (geom.name == "LINE") {
           // A LINE refers to a VECTOR, a CARTESIAN_POINT and a DIRECTION.
@@ -557,7 +558,49 @@ static void Validate(const Parser::Database &database) {
             throw Exception("AXIS2_PLACEMENT_3D invalid", geom.refs[0]);
           }
         } else if (geom.name == "B_SPLINE_CURVE_WITH_KNOTS") {
-          // TODO: validate this
+          // We handle splines of the form:
+          //   B_SPLINE_CURVE_WITH_KNOTS('',
+          //     degree,                    // Expected to be 3
+          //     (ref_list_of_points),      // Control points
+          //     .UNSPECIFIED.,             // curve_form
+          //     .F.,                       // closed_curve
+          //     .F.,                       // self_intersect
+          //     (knot_multiplicity_list),  // 4 at ends, 1 or 2 in middle
+          //     (knot_position_list),      // Knot positions (0..1)
+          //     .UNSPECIFIED.);            // knot_spec
+          //
+          // @@@ Validate or handle curve_form, closed_curve, self_intersect,
+          //     knot_spec. Handle degree==1 (these are straight lines).
+          if (geom.numbers.size() < 5 || (geom.numbers.size() & 1) == 0 ||
+              geom.numbers[0] != 3 /* degree == 3 */) {
+            throw Exception("B_SPLINE_CURVE_WITH_KNOTS invalid (1)",
+                              edge_curve.refs[2]);
+          }
+          int N = (geom.numbers.size() - 1) / 2;    // Number of knots
+          int total_multiplicity = 0;
+          for (int j = 0; j < N; j++) {
+            int multiplicity = geom.numbers[1 + j];
+            bool at_end = (j == 0 || j == N-1);
+            if (!( (at_end && multiplicity == 4) ||
+                   (!at_end && (multiplicity == 1 || multiplicity == 2)) )) {
+              throw Exception("B_SPLINE_CURVE_WITH_KNOTS invalid (2)",
+                                edge_curve.refs[2]);
+            }
+            total_multiplicity += multiplicity;
+          }
+          if (geom.refs.size() != total_multiplicity - 4) {
+            throw Exception("B_SPLINE_CURVE_WITH_KNOTS invalid (3)",
+                            edge_curve.refs[2]);
+          }
+
+          // Make sure all the refs are to CARTESIAN_POINT.
+          for (int j = 0; j < geom.refs.size(); j++) {
+            auto &p = database.at(geom.refs[j]);
+            if (p.name != "CARTESIAN_POINT") {
+              throw Exception("B_SPLINE_CURVE_WITH_KNOTS refs to non-point",
+                              edge_curve.refs[2]);
+            }
+          }
         }
       }
     }
@@ -660,9 +703,27 @@ void ExtractPlanarFaces(const Parser::Database &database,
             } else {
               boundary.back().type = BoundaryEdge::ARC_CW;
             }
+          } else if (geom.name == "B_SPLINE_CURVE_WITH_KNOTS") {
+            int N = (geom.numbers.size() - 1) / 2;    // Number of knots
+            boundary.resize(boundary.size() + 1);
+            boundary.back().start = edge_start;
+            boundary.back().end = edge_end;
+            boundary.back().type = BoundaryEdge::SPLINE;
+            auto *s = new BoundaryEdge::Spline;
+            boundary.back().spline.reset(s);
+            s->p.resize(geom.refs.size());
+            s->knot_multiplicity.resize(N);
+            s->knot_position.resize(N);
+            for (int j = 0; j < geom.refs.size(); j++) {
+              s->p[j] = database.at(geom.refs[j]).GetVector();
+            }
+            for (int j = 0; j < N; j++) {
+              s->knot_multiplicity[j] = geom.numbers[1 + j];
+              s->knot_position[j] = geom.numbers[1 + N + j];
+            }
           } else {
             // Represent LINE plus all other unhandled geometry as line
-            // segments. TODO: handle B_SPLINE_CURVE_WITH_KNOTS.
+            // segments.
             boundary.resize(boundary.size() + 1);
             boundary.back().start = edge_start;
             boundary.back().end = edge_end;
