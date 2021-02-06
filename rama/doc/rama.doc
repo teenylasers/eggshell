@@ -1501,7 +1501,7 @@ rotate @c{s} about (3,4) you could do this:
      are used. If no fillet of the given radius can be constructed, nothing
      will be done. Return @c{pstart,pend,center}: the coordinates of the new
      vertices that start and end the arc, and the center of the arc. Each
-     return value is a @link{vectors}{Vectors} of size 2. If no arc was created
+     return value is a @link{vectors}{Vector} of size 2. If no arc was created
      the return values will all be @c{nil}. If @c{mutate} is false then the
      return values will be computed but the shape will not be modified.
 
@@ -2150,4 +2150,9 @@ Here is what is added in each new version.
 @* Added the shape @c{s.self_intersection} property.
 @* Expanded arguments to @c{s:Clean()}.
 @* Fixed the documentation for the @c{s.bounds} value.
+}
+
+@b{v0.39}
+@list{
+@* @c{LoadSTL} reads the minimum Z plane instead of the Z=0 plane.
 }

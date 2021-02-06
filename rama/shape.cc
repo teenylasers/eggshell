@@ -1775,13 +1775,20 @@ bool Shape::LoadSTL(const char *filename) {
     fclose(fin);
   }
 
+  // Find the minimum Z coordinate in 'v'.
+  float minz = __FLT_MAX__;
+  for (int i = 0; i < v.size(); i++) {
+    minz = std::min(minz, v[i][2]);
+  }
+
   // Identify the edges that are referenced by just one of the triangles in the
-  // z=0 plane. This is the boundary of the polygons we will create.
+  // z=minz plane. This is the boundary of the polygons we will create.
   std::map<std::pair<STLPoint, STLPoint>, int> edge_map;
   for (int i = 0; i < v.size() / 3; i++) {
-    if (fabs(v[i*3+0][2]) < kTolerance && fabs(v[i*3+1][2]) < kTolerance &&
-        fabs(v[i*3+2][2]) < kTolerance) {
-      // Triangle is in the z=0 plane, add its edges to edge_map.
+    if (fabs(v[i*3+0][2] - minz) < kTolerance &&
+        fabs(v[i*3+1][2] - minz) < kTolerance &&
+        fabs(v[i*3+2][2] - minz) < kTolerance) {
+      // Triangle is in the z=minz plane, add its edges to edge_map.
       for (int j = 0; j < 3; j++) {
         int j2 = (j + 1) % 3;
         std::pair<STLPoint, STLPoint> key2(v[i*3+j2], v[i*3+j]);
