@@ -1328,6 +1328,39 @@ void Solver::SaveMeshAndSolutionToMatlab(const char *filename) {
                     pr.data(), pi.data());
   }
 
+  // Write the right hand side.
+  if (ed_solver_) {
+    const auto &rhs = ed_solver_->rhs;
+    vector<double> real_data(rhs.size());
+    vector<double> imag_data(rhs.size());
+    for (int i = 0; i < rhs.size(); i++) {
+      real_data[i] = ToDouble(rhs[i].real());
+      imag_data[i] = ToDouble(rhs[i].imag());
+    }
+    int dims[2] = {(int) rhs.size(), 1};
+    mat.WriteMatrix("rhs", 2, dims, MatFile::mxDOUBLE_CLASS,
+                    real_data.data(), imag_data.data());
+  }
+
+  // Write the (sparse, complex) system matrix.
+  if (ed_solver_) {
+    int n = ed_solver_->rhs.size();
+    CHECK(ed_solver_->Ctriplets.size() == 0);
+    Eigen::SparseMatrix<JetComplex> A(n, n);
+    A.setFromTriplets(ed_solver_->triplets.begin(), ed_solver_->triplets.end());
+    CHECK(A.isCompressed());
+
+    vector<double> real_data(A.nonZeros());
+    vector<double> imag_data(A.nonZeros());
+    for (int i = 0; i < A.nonZeros(); i++) {
+      real_data[i] = ToDouble(A.valuePtr()[i].real());
+      imag_data[i] = ToDouble(A.valuePtr()[i].imag());
+    }
+    mat.WriteSparseMatrix("A", n, n, MatFile::mxDOUBLE_CLASS, A.nonZeros(),
+                         A.innerIndexPtr(), A.outerIndexPtr(),
+                         real_data.data(), imag_data.data());
+  }
+
   if (!mat.Valid()) {
     // An error will already have been emitted.
   }

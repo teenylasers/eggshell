@@ -442,6 +442,10 @@ vectors) can be changed with the brightness slider.
       @* @c{p}: Mesh point coordinates.
       @* @c{t}: Mesh triangles, indexes into @c{p}.
       @* @c{u}: Solution complex values, one for each point.
+      @* @c{pp}: If there are material properties defined, the complex epsilon
+                 values, one for each point.
+      @* @c{A}: The system matrix (sparse, complex). We have @m{A \: u = \mbox{rhs}}.
+      @* @c{rhs}: The system right hand side vector (complex).
       }
       In matlab the solution can be visualized with:
 @===[
@@ -2155,4 +2159,5 @@ Here is what is added in each new version.
 @b{v0.39}
 @list{
 @* @c{LoadSTL} reads the minimum Z plane instead of the Z=0 plane.
+@* Saving the field solution also saves @c{A}, @c{rhs}.
 }
