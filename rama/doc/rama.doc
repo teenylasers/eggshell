@@ -2160,4 +2160,6 @@ Here is what is added in each new version.
 @list{
 @* @c{LoadSTL} reads the minimum Z plane instead of the Z=0 plane.
 @* Saving the field solution also saves @c{A}, @c{rhs}.
+@* Fixed a simulated annealing bug that occasionally caused parameters to get
+   stuck at their min or max values.
 }

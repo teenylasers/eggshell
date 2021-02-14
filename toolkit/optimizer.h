@@ -213,9 +213,6 @@ class NelderMeadOptimizer : public InteractiveOptimizer {
   };
 
   Error ObjectiveFunction(const Eigen::VectorXd &p);
-  Eigen::VectorXd ClipParameters(const Eigen::VectorXd &p,
-                                 const Eigen::VectorXd &delta,
-                                 const std::vector<Parameter> &start);
   double Thermal() const;
 };
 

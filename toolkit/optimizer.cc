@@ -281,6 +281,19 @@ bool NelderMeadOptimizer::Optimize(const vector<Parameter> &start,
   // Annealing Optimization over Continuous Spaces", Computers in Physics 5,
   // 426 (1991); doi: 10.1063/1.4823002.
   // https://aip.scitation.org/doi/pdf/10.1063/1.4823002
+  //
+  // We add our own additional wrinkle: minimum and maximum bounds on all
+  // parameters. If we simply clamp parameter values we run the risk of all
+  // simplex vertices hitting a limit plane, reducing the simplex volume to zero
+  // and preventing the simplex from ever escaping that plane (as there is no
+  // delta vector between vertices in the needed direction). This reduces the
+  // search dimension by 1. A solution that allows the simplex to collapse needs
+  // to provide an exploration mechanism to un-collapse it when it is
+  // advantageous to do so. A solution that prevents zero-volume steps from
+  // being taken introduce complications in what to do with disallowed steps,
+  // and how to manage convergence criteria. Instead, we modify the error
+  // function so that parameter values outside the bounds return infinity, so
+  // the simplex can never extend into that region.
 
   // The algorithm requires knowledge of the best, second best etc points. For
   // simplicity we repeatedly sort 'vertex' to discover this, rather than
@@ -416,8 +429,7 @@ bool NelderMeadOptimizer::Optimize(const vector<Parameter> &start,
     }
 
     // Compute the reflected point.
-    VectorXd reflected = ClipParameters(centroid,
-                                    kAlpha*(centroid - vertex.back().p), start);
+    VectorXd reflected = centroid + kAlpha*(centroid - vertex.back().p);
     Error Er = ObjectiveFunction(reflected);
 
     // If the reflected point is better than the second worst, but not better
@@ -431,8 +443,7 @@ bool NelderMeadOptimizer::Optimize(const vector<Parameter> &start,
     // If the reflected point is the best point so far then compute the
     // expanded point.
     if (Er < vertex[0].error) {
-      VectorXd expanded = ClipParameters(centroid,
-                                         kGamma*(reflected - centroid), start);
+      VectorXd expanded = centroid + kGamma*(reflected - centroid);
       Error Ee = ObjectiveFunction(expanded);
 
       // If the expanded point is better than the reflected point then replace
@@ -448,10 +459,9 @@ bool NelderMeadOptimizer::Optimize(const vector<Parameter> &start,
       continue;
     }
 
-    // Now it is certain that the reflected point is worse that or equal to the
+    // Now it is certain that the reflected point is worse than or equal to the
     // second worst point. Compute a contracted point.
-    VectorXd contracted = ClipParameters(centroid,
-                                      kRho*(vertex.back().p - centroid), start);
+    VectorXd contracted = centroid + kRho*(vertex.back().p - centroid);
     Error Ec = ObjectiveFunction(contracted);
 
     // If the contracted point is better than the worst point then replace the
@@ -462,10 +472,9 @@ bool NelderMeadOptimizer::Optimize(const vector<Parameter> &start,
       continue;
     }
 
-    // Shrink all points except the best, around the best.
+    // Nothing has worked so far, so shrink all points around the best.
     for (int i = 1; i < vertex.size(); i++) {
-      vertex[i].p = ClipParameters(vertex[0].p,
-                                   kSigma*(vertex[i].p - vertex[0].p), start);
+      vertex[i].p = vertex[0].p + kSigma*(vertex[i].p - vertex[0].p);
       vertex[i].error = ObjectiveFunction(vertex[i].p);
     }
   }
@@ -476,6 +485,13 @@ NelderMeadOptimizer::Error
 NelderMeadOptimizer::ObjectiveFunction(const VectorXd &p) {
   vector<double> p2(p.size());
   for (int i = 0; i < p.size(); i++) {
+    const auto & info = ParameterInfo()[i];
+    if (p[i] < info.min_value || p[i] > info.max_value) {
+      Error e;
+      e.actual = __DBL_MAX__;
+      e.thermal = __DBL_MAX__;
+      return e;
+    }
     p2[i] = p[i];
   }
   ErrorsAndJacobians *ej;
@@ -494,27 +510,6 @@ NelderMeadOptimizer::ObjectiveFunction(const VectorXd &p) {
     best_parameters_ = p;
   }
   return e;
-}
-
-// We want to change a parameter vector from p to p+delta. If p+delta is inside
-// the allowed parameter boundary then return that, otherwise return the point
-// on the p -> p+delta line segment that intersects the boundary. 'p' is
-// assumed to already be within the boundary.
-VectorXd NelderMeadOptimizer::ClipParameters(const VectorXd &p,
-                                             const VectorXd &delta,
-                                             const vector<Parameter> &start) {
-  double alpha = 1;
-  for (int i = 0; i < p.size(); i++) {
-    double a = (start[i].min_value - p[i]) / delta[i];
-    if (isfinite(a) && a >= 0 && a < alpha) {
-      alpha = a;
-    }
-    a = (start[i].max_value - p[i]) / delta[i];
-    if (isfinite(a) && a >= 0 && a < alpha) {
-      alpha = a;
-    }
-  }
-  return p + alpha * delta;
 }
 
 double NelderMeadOptimizer::Thermal() const {
