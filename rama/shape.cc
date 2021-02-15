@@ -37,9 +37,19 @@ using ClipperLib::ctXor;
 using Eigen::Vector3f;
 using Eigen::Vector4f;
 
-// All clipper coordinates are 64 bit integers. Our double precision
-// coordinates are scaled to use 32 of those bits to the left and right of the
-// decimal point. See comments in Shape::ClipperBounds.
+// All clipper coordinates are 64 bit integers. Our double precision coordinates
+// are scaled to use 32 of those bits to the left and right of the decimal
+// point. This quantizes coordinates to 2.3e-10 and gives us a maximum of 2.1e9.
+// This is generally not a problem: for config.unit set to 'meters', the
+// quantization size is on the order of the atomic spacing in a crystal lattice.
+//
+// We used to scale and offset things so that we used exactly 32 of the bits in
+// the integer coordinates passed to clipper. This had the advantage of working
+// despite the user's own weird scaling (e.g. if there's a circle the diameter
+// of the Earth, in microns, that's ~1.3e+13). However it means that the same
+// shape may get different scalings when combined with different pieces, which
+// can lead to slivers being generated in Clipper as different integer
+// coordinates are used to represent the same points.
 const double kCoordScale = 4294967296;  // =2^32
 
 // Geometry tolerances
@@ -239,7 +249,7 @@ static JetNum TriangleArea(const JetPoint &a, const JetPoint &b,
 bool TriangleIntersectsBox(const JetPoint *p[3],
                            double xmin, double xmax,
                            double ymin, double ymax) {
-  // From from computational geometry we know that two nonintersecting convex
+  // From computational geometry we know that two nonintersecting convex
   // polyhedra can be separated by a plane that is either parallel to a face of
   // one of the polyhedra or that contains an edge from each of the polyhedra.
   // Thus the intersection test uses separating lines from 4 sides of the box
@@ -1074,15 +1084,6 @@ void Shape::Paint(const Shape &s, const Material &mat) {
     matmap[polys_[i].material].push_back(i);
   }
 
-  // Compute the coordinate conversion that we're going to use for all
-  // clipping. It's important to be consistent so that this shape and the area
-  // to paint will end up sharing coincident vertices that will be
-  // un-duplicated in Triangulate().
-  JetNum offset_x, offset_y, scale;
-  if (!ClipperBounds(this, &s, &offset_x, &offset_y, &scale)) {
-    return;
-  }
-
   // We deal with each material shape separately.
   Shape result;
   for (auto matshape : matmap) {
@@ -1091,7 +1092,7 @@ void Shape::Paint(const Shape &s, const Material &mat) {
       a.polys_.push_back(polys_[matshape.second[i]]);
     }
     Shape b;                    // Material shape minus painted shape s
-    b.RunClipper(&a, &s, ctDifference, offset_x, offset_y, scale);
+    b.RunClipper(&a, &s, ctDifference);
     for (int j = 0; j < b.polys_.size(); j++) {
       b.polys_[j].material = matshape.first;
     }
@@ -1101,7 +1102,7 @@ void Shape::Paint(const Shape &s, const Material &mat) {
 
   // The area to paint is 's' intersected with the entire current polygon.
   Shape area_to_paint;
-  area_to_paint.RunClipper(this, &s, ctIntersection, offset_x, offset_y, scale);
+  area_to_paint.RunClipper(this, &s, ctIntersection);
   if (area_to_paint.IsEmpty()) {
     return;  // Throw away all the work above if nothing to paint.
   }
@@ -1844,8 +1845,7 @@ int Shape::UpdateBounds(JetNum *min_x, JetNum *min_y,
   return coord_count > 0;
 }
 
-void Shape::ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-                    Paths *paths) const {
+void Shape::ToPaths(Paths *paths) const {
   paths->clear();
   paths->resize(polys_.size());
   for (int i = 0; i < polys_.size(); i++) {
@@ -1857,16 +1857,14 @@ void Shape::ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
       ClipperEdgeInfo e(polys_[i].p[j].e,
                         polys_[i].p[j].p[0].Derivative(),     // derivative_x
                         polys_[i].p[j].p[1].Derivative());    // derivative_y
-      path.push_back(
-          IntPoint(ToInt64(round(scale * (polys_[i].p[j].p[0] - offset_x))),
-                   ToInt64(round(scale * (polys_[i].p[j].p[1] - offset_y))),
-                   e));
+      path.push_back(IntPoint(
+          ToInt64(round(kCoordScale * (polys_[i].p[j].p[0]))),
+          ToInt64(round(kCoordScale * (polys_[i].p[j].p[1]))), e));
     }
   }
 }
 
-void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-                      const Paths &paths) {
+void Shape::FromPaths(const Paths &paths) {
   Clear();
   polys_.resize(paths.size());
   for (int i = 0; i < paths.size(); i++) {
@@ -1876,8 +1874,8 @@ void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
       // IntPoint the same way it's stored in RPoint. Repack it here. Note that
       // we store *unscaled* derivatives in IntPoint.
       RPoint &p = polys_[i].p[j];
-      p.p[0] = JetNum(paths[i][j].X) / scale + offset_x;
-      p.p[1] = JetNum(paths[i][j].Y) / scale + offset_y;
+      p.p[0] = JetNum(paths[i][j].X) / kCoordScale;
+      p.p[1] = JetNum(paths[i][j].Y) / kCoordScale;
       p.p[0].Derivative() = paths[i][j].Z.derivative_x;
       p.p[1].Derivative() = paths[i][j].Z.derivative_y;
       p.e = paths[i][j].Z;
@@ -1886,68 +1884,13 @@ void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
 }
 
 void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type) {
-  // @@@ Now that ClipperBounds returns constants we can probably ditch this
-  //     function and just move the other RunClipper's body here.
-  JetNum offset_x, offset_y, scale;
-  if (!ClipperBounds(c1, c2, &offset_x, &offset_y, &scale)) {
-    Clear();
-    return;
-  }
-  RunClipper(c1, c2, clip_type, offset_x, offset_y, scale);
-}
-
-bool Shape::ClipperBounds(const Shape *c1, const Shape *c2, JetNum *offset_x,
-                          JetNum *offset_y, JetNum *scale) const {
-  // Compute the coordinate scaling to used when running Clipper on shapes 'c1'
-  // and 'c2'. We used to scale and offset things so that we used exactly 32 of
-  // the bits in the integer coordinates passed to clipper. This has the
-  // advantage of working despite the user's own weird scaling (e.g. if there's
-  // a circle the diameter of the Earth, in microns, that's ~1.3e+13). However
-  // it means that the same shape may get different scalings when combined with
-  // different pieces, which can lead to slivers being generated in Clipper as
-  // different integer coordinates are used to represent the same points. So
-  // now we use a constant scaling that gives us 32 bits to the left and right
-  // of the decimal point. This quantizes coordinates to 2.3e-10 and gives us a
-  // maximum of 2.1e9. This is generally not a problem: for config.unit set to
-  // 'meters', the quantization size is on the order of the atomic spacing in a
-  // crystal lattice.
-  *offset_x = 0;
-  *offset_y = 0;
-  *scale = kCoordScale;
-  return true;
-
-  /*
-   * The old way of doing things:
-   *
-   *  // Compute bounds of c1, c2 or both.
-   *  CHECK(c1 || c2);
-   *  JetNum min_x = __DBL_MAX__, min_y = __DBL_MAX__;
-   *  JetNum max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
-   *  if ((c1 ? c1->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) +
-   *      (c2 ? c2->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) == 0) {
-   *    // No coordinates in either c1 or c2. The min/max wont be valid and the
-   *    // result will have to be empty anyway.
-   *    return false;
-   *  }
-   *
-   *  // Compute the scale factor from doubles to clipper integer coordinates.
-   *  *offset_x = (max_x + min_x) / 2.0;
-   *  *offset_y = (max_y + min_y) / 2.0;
-   *  JetNum max_bound = std::max(max_x - min_x, max_y - min_y);
-   *  *scale = kCoordScale / max_bound;
-   *  return true;
-   */
-}
-
-void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
-                       JetNum offset_x, JetNum offset_y, JetNum scale) {
   // Compute the clipper polygons in integer coordinates.
   Paths p1, p2;
   if (c1) {
-    c1->ToPaths(scale, offset_x, offset_y, &p1);
+    c1->ToPaths(&p1);
   }
   if (c2) {
-    c2->ToPaths(scale, offset_x, offset_y, &p2);
+    c2->ToPaths(&p2);
   }
 
   // When clipper runs on two shapes with coincident vertices, there doesn't
@@ -2002,7 +1945,7 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
   }
 
   // Convert the result back into JetPoint coordinates.
-  FromPaths(scale, offset_x, offset_y, result);
+  FromPaths(result);
 
   // Combine the port callbacks from both shapes.
   CombinePortCallbacks(c1, c2);

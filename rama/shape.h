@@ -455,17 +455,10 @@ class Shape : public LuaUserClass {
 
   int UpdateBounds(JetNum *min_x, JetNum *min_y, JetNum *max_x, JetNum *max_y)
       const;
-  void ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-               ClipperLib::Paths *paths) const;
-  void FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-                 const ClipperLib::Paths &paths);
+  void ToPaths(ClipperLib::Paths *paths) const;
+  void FromPaths(const ClipperLib::Paths &paths);
   void RunClipper(const Shape *c1, const Shape *c2,
                   ClipperLib::ClipType clip_type);
-  bool ClipperBounds(const Shape *c1, const Shape *c2, JetNum *offset_x,
-                     JetNum *offset_y, JetNum *scale) const;
-  void RunClipper(const Shape *c1, const Shape *c2,
-                  ClipperLib::ClipType clip_type,
-                  JetNum offset_x, JetNum offset_y, JetNum scale);
   const Shape &LuaCheckShape(lua_State *L, int argument_index) const;
   bool CombinePortCallbacks(const Shape *c1, const Shape *c2);
 };
