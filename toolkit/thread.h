@@ -17,49 +17,10 @@
 
 #include <functional>
 #include <mutex>
-#include <condition_variable>
 #include "error.h"
 
-#include <pthread.h>
-
-// Threads.
-class Thread {
- public:
-  // Create a new thread. You must call Join() on joinable threads when they
-  // are done. Detached threads always delete themselves when their Main()
-  // returns, so they must be allocated on the heap. Detached threads are
-  // "fire and forget".
-  enum ThreadType { JOINABLE, DETACHED };
-  explicit Thread(ThreadType type) : type_(type) {}
-
-  // Once Start() is called this object is only allowed to be destroyed when
-  // Entry() returns.
-  virtual ~Thread();
-
-  // Start the thread.
-  void Run();
-
-  // Do the actual work of this thread. Overridden in subclasses.
-  virtual void *Entry() = 0;
-
-  // Join with this thread (only if the thread type is JOINABLE). This waits
-  // until the thread exits then returns the value returned by Entry().
-  void *Wait();
-
- private:
-  bool running_ = false;
-  pthread_t tid_ = 0;
-  ThreadType type_;
-
-  friend void *ThreadRunner(void *userdata);
-  DISALLOW_COPY_AND_ASSIGN(Thread);
-};
-
-// Get the ID of the currently executing thread.
-typedef pthread_t CurrentThreadID_t;
-inline CurrentThreadID_t GetCurrentThreadID() { return pthread_self(); }
-
-// Ensure a lock is released when a MutexLock goes out of scope.
+// Ensure a lock is released when a MutexLock goes out of scope. This is a bit
+// cleaner to use than std::lock_guard.
 class MutexLock {
  public:
   explicit MutexLock(std::mutex *mutex) : mu_(mutex) { mu_->lock(); }

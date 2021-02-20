@@ -15,6 +15,7 @@
 #include "mystring.h"
 #include <vector>
 #include <map>
+#include <thread>
 
 using std::vector;
 
@@ -30,7 +31,7 @@ static QElapsedTimer stopwatch;
 #define STOPWATCH_MICROSECONDS (stopwatch.nsecsElapsed() / 1000)
 #endif
 
-static Mutex trace_mutex;               // Protects variables below
+static std::mutex trace_mutex;          // Protects variables below
 
 // Information for each trace object.
 struct TraceInfo {
@@ -47,19 +48,19 @@ struct TraceStack {
   int trace_level;                      // Current 'indent' level
   TraceStack() : trace_level(0) {}
 };
-static std::map<CurrentThreadID_t, TraceStack> stack;
+static std::map<std::thread::id, TraceStack> stack;
 
 void TraceStart() {
   MutexLock lock(&trace_mutex);
   STOPWATCH_START
-  auto &s = stack[GetCurrentThreadID()];
+  auto &s = stack[std::this_thread::get_id()];
   s.trace.clear();
   s.trace_level = 0;
 }
 
 Trace::Trace(const char *what) {
   MutexLock lock(&trace_mutex);
-  auto &s = stack[GetCurrentThreadID()];
+  auto &s = stack[std::this_thread::get_id()];
   slot_ = s.trace.size();
   s.trace.resize(s.trace.size() + 1);
   s.trace.back().what = what;
@@ -72,7 +73,7 @@ Trace::Trace(const char *what) {
 
 Trace::~Trace() {
   MutexLock lock(&trace_mutex);
-  auto &s = stack[GetCurrentThreadID()];
+  auto &s = stack[std::this_thread::get_id()];
   s.trace_level--;
   CHECK(s.trace_level >= 0);
   CHECK(slot_ < s.trace.size()); // Likely TraceStart() while trace objects live
@@ -91,7 +92,7 @@ Trace::~Trace() {
 
 void TraceReport(std::string *report) {
   MutexLock lock(&trace_mutex);
-  auto &s = stack[GetCurrentThreadID()];
+  auto &s = stack[std::this_thread::get_id()];
   if (s.trace.empty()) {
     report->clear();
     return;

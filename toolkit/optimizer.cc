@@ -14,6 +14,7 @@
 #include "thread.h"
 #include "testing.h"
 #include "random.h"
+#include <thread>
 #include <stdio.h>
 #include <math.h>
 #include <sys/time.h>
@@ -107,22 +108,28 @@ struct ParametersAndFlag {
   bool jacobians_needed;
 };
 
-struct InteractiveOptimizer::Implementation : public Thread {
+struct InteractiveOptimizer::Implementation {
+  std::thread *thread_ = 0;
   Pipe<ParametersAndFlag> parameters_pipe_;
   Pipe<ErrorsAndJacobians> errors_pipe_;
-  InteractiveOptimizer *optimizer_;
+  InteractiveOptimizer *optimizer_ = 0;
   vector<InteractiveOptimizer::Parameter> parameter_info_;
-  bool done_;                   // Has Optimize() completed?
-  bool aborting_;               // In the process of giving up in Optimize()?
+  bool done_ = false;           // Has Optimize() completed?
+  bool aborting_ = false;       // In the process of giving up in Optimize()?
 
-  Implementation() : Thread(JOINABLE) {
-    optimizer_ = 0;
-    done_ = false;
-    aborting_ = false;
+  void StartThread() {
+    thread_ = new std::thread(&Implementation::Entry, this);
   }
 
-  // Main function of the thread.
-  void *Entry() {
+  ~Implementation() {
+    if (thread_) {
+      thread_->join();
+      delete thread_;
+    }
+  }
+
+  // Entry function of the thread.
+  void Entry() {
     // Do the optimization.
     vector<double> optimized_parameters;
     bool success = optimizer_->Optimize(parameter_info_, &optimized_parameters);
@@ -137,7 +144,6 @@ struct InteractiveOptimizer::Implementation : public Thread {
     } else {
       parameters_pipe_.Send(0);
     }
-    return 0;
   }
 };
 
@@ -156,7 +162,6 @@ void InteractiveOptimizer::Shutdown() {
       while (!DoOneIteration(dummy, dummy)) {
       }
     }
-    impl_->Wait();
     delete impl_;
     impl_ = 0;
   }
@@ -168,7 +173,7 @@ void InteractiveOptimizer::Initialize(
   impl_ = new Implementation;
   impl_->optimizer_ = this;
   impl_->parameter_info_ = start;
-  impl_->Run();
+  impl_->StartThread();
   ParametersAndFlag *p = impl_->parameters_pipe_.Receive();
   if (p) {
     parameters_.swap(p->parameters);
