@@ -24,9 +24,6 @@ void *ThreadRunner(void *userdata) {
   return retval;
 }
 
-Thread::Thread(ThreadType type) : running_(false), tid_(0), type_(type) {
-}
-
 Thread::~Thread() {
   CHECK(!running_);
 }

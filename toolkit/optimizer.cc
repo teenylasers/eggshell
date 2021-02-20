@@ -37,7 +37,7 @@ static double Now() {
 template <class T>
 class Pipe {
  public:
-  Pipe() : cond_(mutex_), message_(0), in_flight_(false) {
+  Pipe() : message_(0), in_flight_(false) {
   }
 
   ~Pipe() {
@@ -53,14 +53,14 @@ class Pipe {
       in_flight_ = true;
       message_ = msg;
     }
-    cond_.Signal();             // Signal the receiving thread.
+    cond_.notify_one();         // Signal the receiving thread.
   }
 
   // Returns when message is available from other thread.
   T *Receive() MUST_USE_RESULT {
-    MutexLock lock(&mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);  // Lock the mutex
     while (!in_flight_) {
-      cond_.Wait();
+      cond_.wait(lock);
     }
     T *msg = message_;
     message_ = 0;
@@ -69,8 +69,8 @@ class Pipe {
   }
 
  private:
-  Mutex mutex_;
-  ConditionVariable cond_;
+  std::mutex mutex_;
+  std::condition_variable cond_;
   T *message_;                  // Current message in flight, can be 0
   bool in_flight_;              // True if a message is currently in flight
 };
