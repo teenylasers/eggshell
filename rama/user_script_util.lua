@@ -22,7 +22,7 @@ local __Parameters__ = {}
 function Parameter(T)
   -- Check that all keys in T have valid type.
   local keys = {label='string', min='number', max='number', default='number',
-                defaults='table', integer='boolean'}
+                defaults='table', weak_default='number', integer='boolean'}
   for k,v in pairs(T) do
     if keys[k] then
       if type(v) ~= keys[k] then
@@ -39,6 +39,7 @@ function Parameter(T)
   keys.integer = nil            -- Optional field
   keys.default = nil            -- Optional field
   keys.defaults = nil           -- Optional field
+  keys.weak_default = nil       -- Optional field
   if next(keys) ~= nil then
     error("In argument table, missing '"..next(keys).."' key")
   end
@@ -47,7 +48,7 @@ function Parameter(T)
   local min = tonumber(T.min)
   local max = tonumber(T.max)
   local defaults = T.defaults or rawget(_G, 'default_parameters') or {}
-  local default = tonumber(T.default or defaults[T.label]) or min
+  local default = tonumber(T.default or defaults[T.label] or T.weak_default) or min
   local integer = T.integer or false
   if integer then
     if min ~= math.floor(min) or max ~= math.floor(max) or
