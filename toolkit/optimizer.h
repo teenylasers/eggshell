@@ -39,9 +39,6 @@ class AbstractOptimizer {
   };
   virtual void Initialize(const std::vector<Parameter> &start) = 0;
 
-  // Return true if Initialize() has been called (successfully or not).
-  virtual bool IsInitialized() const = 0;
-
   // Return the current set of parameters, updated by Initialize() or
   // DoOneIteration(). These are empty() until initialization, or upon error.
   const std::vector<double> &Parameters() const { return parameters_; }
@@ -106,7 +103,6 @@ class InteractiveOptimizer : public AbstractOptimizer {
 
   // The functions required by AbstractOptimizer.
   void Initialize(const std::vector<Parameter> &start) override;
-  bool IsInitialized() const override;
   bool DoOneIteration2(const std::vector<double> &errors,
                        const std::vector<double> &jacobians) override;
 
@@ -156,7 +152,6 @@ class RandomSearchOptimizer : public AbstractOptimizer {
  public:
   ~RandomSearchOptimizer();
   void Initialize(const std::vector<Parameter> &start) override;
-  bool IsInitialized() const override;
   bool DoOneIteration2(const std::vector<double> &errors,
                        const std::vector<double> &jacobians) override;
  private:

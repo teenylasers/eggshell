@@ -605,7 +605,7 @@ void LuaModelViewer::Optimize() {
   // Make sure the config.optimize() function is defined and useful.
   if (num_optimize_outputs_ <= 0) {
     Error("The config.optimize() function must return one or more error "
-            "values.");
+          "values.");
     return;
   }
 
@@ -643,6 +643,26 @@ void LuaModelViewer::Optimize() {
     if (opt) {
       opt->SetSettings(ih_.nmop);
     }
+  }
+
+  // Initialize optimizer.
+  {
+    vector<AbstractOptimizer::Parameter>
+        start(ih_.opt_parameter_names.size());
+    for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
+      const Parameter &p = GetParameter(ih_.opt_parameter_names[i]);
+      start[i].starting_value = p.value;
+      start[i].min_value = p.the_min;
+      start[i].max_value = p.the_max;
+      start[i].gradient_step = 0;       // Numerical jacobians disallowed
+    }
+    ih_.optimizer->Initialize(start);
+    if (ih_.optimizer->Parameters().empty()) {
+      Error("Optimizer interrupted (could not initialize)");
+      ih_.Stop();
+      return;
+    }
+    CHECK(ih_.optimizer->Parameters().size() == ih_.opt_parameter_names.size());
   }
 
   // Start optimization.
@@ -1463,25 +1483,6 @@ bool LuaModelViewer::OnInvisibleHandSweep() {
 bool LuaModelViewer::OnInvisibleHandOptimize() {
   Trace trace(__func__);
   CHECK(ih_.optimizer);
-
-  // Initialize optimizer if necessary.
-  if (!ih_.optimizer->IsInitialized()) {
-    vector<AbstractOptimizer::Parameter>
-        start(ih_.opt_parameter_names.size());
-    for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
-      const Parameter &p = GetParameter(ih_.opt_parameter_names[i]);
-      start[i].starting_value = p.value;
-      start[i].min_value = p.the_min;
-      start[i].max_value = p.the_max;
-      start[i].gradient_step = 0;       // Numerical jacobians disallowed
-    }
-    ih_.optimizer->Initialize(start);
-    if (ih_.optimizer->Parameters().empty()) {
-      Error("Optimizer interrupted (could not initialize)");
-      return false;
-    }
-    CHECK(ih_.optimizer->Parameters().size() == ih_.opt_parameter_names.size());
-  }
 
   // Copy optimizer parameters so RerunScript() can pick them up, also update
   // all parameter controls so the user can see evidence of progress.

@@ -186,10 +186,6 @@ void InteractiveOptimizer::Initialize(
   }
 }
 
-bool InteractiveOptimizer::IsInitialized() const {
-  return impl_ != 0;
-}
-
 bool InteractiveOptimizer::DoOneIteration2(const vector<double> &errors,
                                            const vector<double> &jacobians) {
   // Provide the errors for the previous set of parameters to the thread.
@@ -254,10 +250,6 @@ void RandomSearchOptimizer::Initialize(const std::vector<Parameter> &start) {
   for (int i = 0; i < parameter_info_.size(); i++) {
     parameters_[i] = parameter_info_[i].starting_value;
   }
-}
-
-bool RandomSearchOptimizer::IsInitialized() const {
-  return !parameter_info_.empty();
 }
 
 bool RandomSearchOptimizer::DoOneIteration2(const std::vector<double> &errors,
