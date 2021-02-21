@@ -13,7 +13,6 @@
 #include "thread.h"
 #include <vector>
 #include <thread>
-#include <mutex>
 
 //***************************************************************************
 // Parallel for loops.
