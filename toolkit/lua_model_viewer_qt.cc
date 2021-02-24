@@ -647,7 +647,7 @@ void LuaModelViewer::Optimize() {
 
   // Initialize optimizer.
   {
-    vector<AbstractOptimizer::Parameter>
+    vector<AbstractOptimizer::ParameterInfo>
         start(ih_.opt_parameter_names.size());
     for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
       const Parameter &p = GetParameter(ih_.opt_parameter_names[i]);

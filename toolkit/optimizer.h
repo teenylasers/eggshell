@@ -29,7 +29,7 @@ class AbstractOptimizer {
   // parameters) and JacobianRequested() will indicate if a corresponding
   // jacobian computation is requested. If Parameters() returns an empty vector
   // then the optimizer has failed to initialize.
-  struct Parameter {
+  struct ParameterInfo {
     double starting_value;              // Initial parameter value
     double min_value, max_value;        // Parameter bounds
     // Parameter step size for numerical jacobian computation, or 0 if the user
@@ -37,7 +37,10 @@ class AbstractOptimizer {
     // computed:
     double gradient_step;
   };
-  virtual void Initialize(const std::vector<Parameter> &start) = 0;
+  void Initialize(const std::vector<ParameterInfo> &info) {
+    parameter_info_ = info;
+    Initialize2();
+  }
 
   // Return the current set of parameters, updated by Initialize() or
   // DoOneIteration(). These are empty() until initialization, or upon error.
@@ -72,12 +75,17 @@ class AbstractOptimizer {
   double BestError() const { return best_error_; }
 
  protected:
+  // The version of Initialize() implemented by the subclass. Initialize()
+  // copies the parameter info to parameter_info_ and then calls this.
+  virtual void Initialize2() = 0;
+
   // The version of DoOneIteration implement by the subclass. DoOneIteration()
   // updates the best solution found so far and then calls this.
   virtual bool DoOneIteration2(const std::vector<double> &errors,
                                const std::vector<double> &jacobians)
                                MUST_USE_RESULT = 0;
 
+  std::vector<ParameterInfo> parameter_info_;   // Copied from Initialize()
   std::vector<double> parameters_;
   bool jacobians_needed_ = false;
 
@@ -102,7 +110,7 @@ class InteractiveOptimizer : public AbstractOptimizer {
   virtual ~InteractiveOptimizer();
 
   // The functions required by AbstractOptimizer.
-  void Initialize(const std::vector<Parameter> &start) override;
+  void Initialize2() override;
   bool DoOneIteration2(const std::vector<double> &errors,
                        const std::vector<double> &jacobians) override;
 
@@ -114,7 +122,7 @@ class InteractiveOptimizer : public AbstractOptimizer {
   // Run a particular optimizer library. This will be called in a separate
   // thread and returns when optimization is finished, so it is allowed to take
   // a long time. Return true on success or false on failure.
-  virtual bool Optimize(const std::vector<Parameter> &start,
+  virtual bool Optimize(const std::vector<ParameterInfo> &start,
                         std::vector<double> *optimized_parameters)
                         MUST_USE_RESULT = 0;
 
@@ -136,9 +144,6 @@ class InteractiveOptimizer : public AbstractOptimizer {
   // it is deleted.
   void Shutdown();
 
-  // Return a copy of the parameter info vector passed to Initialize().
-  const std::vector<Parameter> &ParameterInfo() const;
-
  private:
   struct Implementation;
   Implementation *impl_ = 0;
@@ -151,11 +156,9 @@ class InteractiveOptimizer : public AbstractOptimizer {
 class RandomSearchOptimizer : public AbstractOptimizer {
  public:
   ~RandomSearchOptimizer();
-  void Initialize(const std::vector<Parameter> &start) override;
+  void Initialize2() override;
   bool DoOneIteration2(const std::vector<double> &errors,
                        const std::vector<double> &jacobians) override;
- private:
-  std::vector<Parameter> parameter_info_;
 };
 
 // The classic Nelder-Mead algorithm with support for simulated annealing.
@@ -163,7 +166,7 @@ class RandomSearchOptimizer : public AbstractOptimizer {
 class NelderMeadOptimizer : public InteractiveOptimizer {
  public:
   ~NelderMeadOptimizer();
-  bool Optimize(const std::vector<Parameter> &start,
+  bool Optimize(const std::vector<ParameterInfo> &start,
                 std::vector<double> *optimized_parameters) override;
 
   struct Settings {
@@ -241,7 +244,7 @@ class CeresInteractiveOptimizer : public InteractiveOptimizer {
   void SetGradientTolerance(double x) { gradient_tolerance_  = x; }
 
  protected:
-  bool Optimize(const std::vector<Parameter> &start,
+  bool Optimize(const std::vector<ParameterInfo> &start,
                 std::vector<double> *optimized_parameters);
 
  private:

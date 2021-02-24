@@ -113,7 +113,7 @@ struct InteractiveOptimizer::Implementation {
   Pipe<ParametersAndFlag> parameters_pipe_;
   Pipe<ErrorsAndJacobians> errors_pipe_;
   InteractiveOptimizer *optimizer_ = 0;
-  vector<InteractiveOptimizer::Parameter> parameter_info_;
+  vector<InteractiveOptimizer::ParameterInfo> parameter_info_;
   bool done_ = false;           // Has Optimize() completed?
   bool aborting_ = false;       // In the process of giving up in Optimize()?
 
@@ -167,12 +167,11 @@ void InteractiveOptimizer::Shutdown() {
   }
 }
 
-void InteractiveOptimizer::Initialize(
-            const vector<InteractiveOptimizer::Parameter> &start) {
+void InteractiveOptimizer::Initialize2() {
   CHECK(impl_ == 0);                    // Make sure this is only called once
   impl_ = new Implementation;
   impl_->optimizer_ = this;
-  impl_->parameter_info_ = start;
+  impl_->parameter_info_ = parameter_info_;
   impl_->StartThread();
   ParametersAndFlag *p = impl_->parameters_pipe_.Receive();
   if (p) {
@@ -232,20 +231,14 @@ bool InteractiveOptimizer::Aborting() const {
   return impl_->aborting_;
 }
 
-const vector<AbstractOptimizer::Parameter> &
-InteractiveOptimizer::ParameterInfo() const {
-  return impl_->parameter_info_;
-}
-
 //***************************************************************************
 // RandomSearchOptimizer.
 
 RandomSearchOptimizer::~RandomSearchOptimizer() {
 }
 
-void RandomSearchOptimizer::Initialize(const std::vector<Parameter> &start) {
-  parameter_info_ = start;
-  parameters_.resize(start.size());
+void RandomSearchOptimizer::Initialize2() {
+  parameters_.resize(parameter_info_.size());
   // Initialize parameters to starting values.
   for (int i = 0; i < parameter_info_.size(); i++) {
     parameters_[i] = parameter_info_[i].starting_value;
@@ -270,7 +263,7 @@ NelderMeadOptimizer::~NelderMeadOptimizer() {
   Shutdown();
 }
 
-bool NelderMeadOptimizer::Optimize(const vector<Parameter> &start,
+bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
                                    vector<double> *optimized_parameters) {
   // We follow the classic Nelder Mead algorithm here, as described by
   // https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method
@@ -482,7 +475,7 @@ NelderMeadOptimizer::Error
 NelderMeadOptimizer::ObjectiveFunction(const VectorXd &p) {
   vector<double> p2(p.size());
   for (int i = 0; i < p.size(); i++) {
-    const auto & info = ParameterInfo()[i];
+    const auto & info = parameter_info_[i];
     if (p[i] < info.min_value || p[i] > info.max_value) {
       Error e;
       e.actual = __DBL_MAX__;
@@ -646,7 +639,7 @@ class CeresCostFunction : public ceres::CostFunction {
           // Compute jacobian numerically (using central difference).
           // jacobians[0][j*num_params + i] = d residual[j] / d params[i]
           for (int i = 0; i < num_params; i++) {
-            const double step = opt_->ParameterInfo()[i].gradient_step;
+            const double step = opt_->parameter_info_[i].gradient_step;
             if (step <= 0) {
               Panic("Jacobian requested but not supplied, and gradient_step "
                     "is 0 for parameter %d", i);
@@ -715,8 +708,8 @@ CeresInteractiveOptimizer::~CeresInteractiveOptimizer() {
 }
 
 bool CeresInteractiveOptimizer::Optimize(
-                          const vector<InteractiveOptimizer::Parameter> &start,
-                          vector<double> *optimized_parameters) {
+                      const vector<InteractiveOptimizer::ParameterInfo> &start,
+                      vector<double> *optimized_parameters) {
   // Parameters that will be mutated in place by the solver.
   num_parameters_ = start.size();
   optimized_parameters->resize(num_parameters_);
@@ -797,7 +790,7 @@ static void OptimizerTest(AbstractOptimizer *opt, bool early_termination,
                           bool numerical_jacobian, int max_iterations) {
   // Optimize the Rosenbrock bananna function and see how that goes.
 
-  vector<AbstractOptimizer::Parameter> start(2);
+  vector<AbstractOptimizer::ParameterInfo> start(2);
   for (int i = 0; i < start.size(); i++) {
     start[i].starting_value = 0;
     start[i].min_value = -100;
