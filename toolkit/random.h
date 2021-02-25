@@ -35,4 +35,17 @@ inline double Random(int seed = -1) {
   }
 }
 
+// Return a random integer from 0 to n-1 (if no argument is given) or seed the
+// random number generator (if an integer >= 0 is given).
+inline int RandomInt(int n, int seed = -1) {
+  static std::mt19937_64 g;
+  std::uniform_int_distribution<> d(0, n - 1);
+  if (seed >= 0) {
+    g.seed(seed);
+    return 0;
+  } else {
+    return d(g);
+  }
+}
+
 #endif

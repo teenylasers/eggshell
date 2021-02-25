@@ -46,3 +46,29 @@ TEST_FUNCTION(Random) {
     CHECK(v[i] == Random());
   }
 }
+
+TEST_FUNCTION(RandomInt) {
+  // Check the random is correct.
+  int min = 1000000;
+  int max = -1000000;
+  for (int i = 0; i < 10000; i++) {
+    int r = RandomInt(100);
+    min = std::min(min, r);
+    max = std::max(max, r);
+  }
+  printf("Random number range = %d ... %d\n", min, max);
+  CHECK(min >= 0 && min <= 5);
+  CHECK(max >= 95 && max < 100);
+
+  // Check repeatability with a constant seed.
+  RandomInt(0, 123);
+  const int N = 1000;
+  int v[N];
+  for (int i = 0; i < N; i++) {
+    v[i] = RandomInt(1000);
+  }
+  RandomInt(0, 123);
+  for (int i = 0; i < N; i++) {
+    CHECK(v[i] == RandomInt(1000));
+  }
+}
