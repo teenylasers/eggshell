@@ -112,7 +112,7 @@ struct InteractiveOptimizer::Implementation {
   std::thread *thread_ = 0;
   Pipe<ParametersAndFlag> parameters_pipe_;
   Pipe<ErrorsAndJacobians> errors_pipe_;
-  InteractiveOptimizer *optimizer_ = 0;
+  InteractiveOptimizer *optimizer_ = 0;   // Owning object
   vector<InteractiveOptimizer::ParameterInfo> parameter_info_;
   bool done_ = false;           // Has Optimize() completed?
   bool aborting_ = false;       // In the process of giving up in Optimize()?
@@ -169,10 +169,14 @@ void InteractiveOptimizer::Shutdown() {
 
 void InteractiveOptimizer::Initialize2() {
   CHECK(impl_ == 0);                    // Make sure this is only called once
+
+  // Start the optimizer thread.
   impl_ = new Implementation;
   impl_->optimizer_ = this;
   impl_->parameter_info_ = parameter_info_;
   impl_->StartThread();
+
+  // Receive the first parameters to evaluate.
   ParametersAndFlag *p = impl_->parameters_pipe_.Receive();
   if (p) {
     parameters_.swap(p->parameters);
@@ -209,7 +213,7 @@ bool InteractiveOptimizer::DoOneIteration2(const vector<double> &errors,
 
 void InteractiveOptimizer::Evaluate(const vector<double> &parameters,
                             bool jacobians_needed,
-                            ErrorsAndJacobians **errors_and_jacobians) const {
+                            ErrorsAndJacobians *errors_and_jacobians) const {
   // Send parameters to the main thread.
   ParametersAndFlag *p = new ParametersAndFlag;
   p->parameters = parameters;
@@ -218,13 +222,17 @@ void InteractiveOptimizer::Evaluate(const vector<double> &parameters,
 
   // Wait for DoOneIteration() to be called with the errors and jacobians we
   // need.
-  *errors_and_jacobians = impl_->errors_pipe_.Receive();
+  ErrorsAndJacobians *ej = impl_->errors_pipe_.Receive();
+  CHECK(ej);
 
   // Sanity checking.
-  if (!jacobians_needed && (*errors_and_jacobians) &&
-      !(*errors_and_jacobians)->jacobians.empty()) {
+  if (!jacobians_needed && !ej->jacobians.empty()) {
     Panic("Internal error: Jacobians computed needlessly");
   }
+
+  // Return errors and Jacobians.
+  errors_and_jacobians->Swap(*ej);
+  delete ej;
 }
 
 bool InteractiveOptimizer::Aborting() const {
@@ -484,14 +492,13 @@ NelderMeadOptimizer::ObjectiveFunction(const VectorXd &p) {
     }
     p2[i] = p[i];
   }
-  ErrorsAndJacobians *ej;
+  ErrorsAndJacobians ej;
   Evaluate(p2, false, &ej);
   double sum = 0;
-  for (int i = 0; i < ej->errors.size(); i++) {
-    double e = ej->errors[i];
+  for (int i = 0; i < ej.errors.size(); i++) {
+    double e = ej.errors[i];
     sum += e*e;
   }
-  delete ej;
   Error e;
   e.actual = isfinite(sum) ? sum : __DBL_MAX__;
   e.thermal = e.actual - Thermal();
@@ -601,11 +608,11 @@ class CeresCostFunction : public ceres::CostFunction {
     for (int i = 0; i < num_params; i++) {
       params[i] = parameters[0][i];
     }
-    InteractiveOptimizer::ErrorsAndJacobians *ej = 0;
+    InteractiveOptimizer::ErrorsAndJacobians ej;
     opt_->Evaluate(params, jacobians != 0, &ej);
     if (!opt_->Aborting()) {
       for (int i = 0; i < num_residuals(); i++) {
-        residuals[i] = ej->errors[i];
+        residuals[i] = ej.errors[i];
         if (!std::isfinite(residuals[i])) {
           // Residuals that are infinite or NaN will return false to ceres,
           // preventing stepping into this region. Too many such returns will
@@ -616,23 +623,23 @@ class CeresCostFunction : public ceres::CostFunction {
 
       // Supply or compute jacobian, if requested:
       if (jacobians) {
-        bool have_user_jacobians = !ej->jacobians.empty();
+        bool have_user_jacobians = !ej.jacobians.empty();
         if (have_user_jacobians) {
           // Copy user-supplied jacobian data.
-          if (ej->jacobians.size() != num_params * num_residuals()) {
+          if (ej.jacobians.size() != num_params * num_residuals()) {
             Panic("jacobians have size %d but %d*%d expected",
-                  (int) ej->jacobians.size(), num_params, num_residuals());
+                  (int) ej.jacobians.size(), num_params, num_residuals());
           }
-          for (int i = 0; i < ej->jacobians.size(); i++) {
-            if (!std::isfinite(ej->jacobians[i])) {
+          for (int i = 0; i < ej.jacobians.size(); i++) {
+            if (!std::isfinite(ej.jacobians[i])) {
               // Residuals that are infinite or NaN will return false to ceres,
               // preventing stepping into this region. Too many such returns
               // will cause an abort and sub optimal optimization.
               return false;
             }
           }
-          memcpy(jacobians[0], ej->jacobians.data(),
-                 ej->jacobians.size() * sizeof(ej->jacobians[0]));
+          memcpy(jacobians[0], ej.jacobians.data(),
+                 ej.jacobians.size() * sizeof(ej.jacobians[0]));
         }
 
         if (!have_user_jacobians || kDebugJacobians) {
@@ -645,20 +652,18 @@ class CeresCostFunction : public ceres::CostFunction {
                     "is 0 for parameter %d", i);
             }
             params[i] = parameters[0][i] + step;
-            delete ej;
             opt_->Evaluate(params, false, &ej);
             if (opt_->Aborting()) {
               break;
             }
-            vector<double> eplus(ej->errors);
+            vector<double> eplus(ej.errors);
             params[i] = parameters[0][i] - step;
-            delete ej;
             opt_->Evaluate(params, false, &ej);
             if (opt_->Aborting()) {
               break;
             }
             for (int j = 0; j < num_residuals(); j++) {
-              double derivative = (eplus[j] - ej->errors[j]) / (2 * step);
+              double derivative = (eplus[j] - ej.errors[j]) / (2 * step);
               if (have_user_jacobians && kDebugJacobians) {
                 // Print debug information for jacobians.
                 double J = jacobians[0][j*num_params + i];
@@ -676,7 +681,6 @@ class CeresCostFunction : public ceres::CostFunction {
 
       }
     }
-    delete ej;
     return !opt_->Aborting();
   }
 

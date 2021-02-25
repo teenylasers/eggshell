@@ -123,6 +123,10 @@ class InteractiveOptimizer : public AbstractOptimizer {
 
   struct ErrorsAndJacobians {
     std::vector<double> errors, jacobians;
+    void Swap(ErrorsAndJacobians &ej) {
+      errors.swap(ej.errors);
+      jacobians.swap(ej.jacobians);
+    }
   };
 
  protected:
@@ -137,11 +141,9 @@ class InteractiveOptimizer : public AbstractOptimizer {
   // An implementation of Optimize() should call this function to compute the
   // errors (i.e. residuals) and jacobians for a given set of parameters. This
   // function handles the details of returning the parameters through
-  // DoOneIteration(). The 'errors_and_jacobians' is a pointer that is updated
-  // with the returned value, you must delete it when you are finished with the
-  // data.
+  // DoOneIteration().
   void Evaluate(const std::vector<double> &parameters, bool jacobians_needed,
-                ErrorsAndJacobians **errors_and_jacobians) const;
+                ErrorsAndJacobians *errors_and_jacobians) const;
 
   // Called once per iteration in Optimize() to see if the optimizer should
   // shut down, i.e. because Shutdown() has been called. Returns true to shut
