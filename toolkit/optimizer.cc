@@ -38,15 +38,13 @@ static double Now() {
 template <class T>
 class Pipe {
  public:
-  Pipe() : message_(0), in_flight_(false) {
-  }
-
   ~Pipe() {
     delete message_;            // Unreceived messages are deleted here
   }
 
   // Send a message to the other thread. Only one message is allowed to be in
-  // flight at once.
+  // flight at once. This implicitly transferrs ownership of the pointer to the
+  // Pipe.
   void Send(T *msg) {
     {
       MutexLock lock(&mutex_);
@@ -57,7 +55,9 @@ class Pipe {
     cond_.notify_one();         // Signal the receiving thread.
   }
 
-  // Returns when message is available from other thread.
+  // Returns a message when it is available from other thread. This implicitly
+  // transferrs ownership of the pointer to the caller, who is responsible for
+  // deleting it.
   T *Receive() MUST_USE_RESULT {
     std::unique_lock<std::mutex> lock(mutex_);  // Lock the mutex
     while (!in_flight_) {
@@ -72,8 +72,8 @@ class Pipe {
  private:
   std::mutex mutex_;
   std::condition_variable cond_;
-  T *message_;                  // Current message in flight, can be 0
-  bool in_flight_;              // True if a message is currently in flight
+  T *message_ = 0;              // Current message in flight, can be 0
+  bool in_flight_ = false;      // True if a message is currently in flight
 };
 
 //***************************************************************************
