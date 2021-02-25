@@ -17,18 +17,27 @@
 #include "error.h"
 #include "Eigen/Dense"
 
-// An abstract interface to an optimizer.
+// An abstract interface to an optimizer. The goal of the optimizer is to
+// minimize |errors|^2 where the errors vector is computed by an objective
+// function for some parameters. This is designed to be used by a single
+// threaded interactive application. The idea is that you subclass this,
+// provide implementations for Initialize2() and DoOneIteration2(), and then do
+// the following sequence:
+//   1. Call Initialize()
+//   2. Call Parameters() and JacobianRequested(). If the Parameters() vector
+//      is empty then there has been some error.
+//   3. Compute the objective function error and (optionally) Jacobians at the
+//      parameters indicated by Parameters().
+//   4. Call DoOneIteration() with that information.
+//   5. If DoOneIteration() returned true, you are done. Call BestParameters()
+//      to return the best parameters found so far.
+//   6. If DoOneIteration() returned false, go back to step 2.
 
 class AbstractOptimizer {
  public:
   virtual ~AbstractOptimizer() = 0;
 
-  // Initialize the optimizer with a starting set of parameters. Parameters()
-  // will now return the first set of parameters to evaluate the objective
-  // function at (which are not necessarily the same as the starting
-  // parameters) and JacobianRequested() will indicate if a corresponding
-  // jacobian computation is requested. If Parameters() returns an empty vector
-  // then the optimizer has failed to initialize.
+  // Each parameter to optimize needs the following information.
   struct ParameterInfo {
     double starting_value;              // Initial parameter value
     double min_value, max_value;        // Parameter bounds
@@ -37,40 +46,40 @@ class AbstractOptimizer {
     // computed:
     double gradient_step;
   };
+
+  // Initialize the optimizer with a starting set of parameters. Parameters()
+  // will now return the first set of parameters to evaluate the objective
+  // function at (which are not necessarily the same as the starting
+  // parameters) and JacobianRequested() will indicate if a corresponding
+  // Jacobian computation is requested. If Parameters() returns an empty vector
+  // then the optimizer has failed to initialize.
   void Initialize(const std::vector<ParameterInfo> &info) {
     parameter_info_ = info;
     Initialize2();
   }
 
-  // Return the current set of parameters, updated by Initialize() or
-  // DoOneIteration(). These are empty() until initialization, or upon error.
+  // Return the parameters to evaluate the objective function at, updated by
+  // Initialize() or DoOneIteration(). These are empty() until initialization,
+  // or upon error.
   const std::vector<double> &Parameters() const { return parameters_; }
 
-  // Is a jacobian computation at the current Parameters() requested?
+  // Is a Jacobian computation at the current Parameters() requested?
   bool JacobianRequested() const { return jacobians_needed_; }
 
   // Do one iteration of the optimizer. The errors vector is the evaluation of
-  // the objective function for the last Parameters() returned by this function
-  // or the constructor. If JacobianRequested() is true then the corresponding
-  // jacobians can optionally be supplied (if it is not supplied then it will
-  // be computed numerically). The goal of the optimizer is to minimize
-  // |errors|^2. Parameters() will now return the next set of parameters to
-  // evaluate the objective function at. If this function returns false then
-  // optimization is still proceeding and the Parameters() are for the next
-  // objective function evaluation (and JacobianRequested() will indicate if a
-  // corresponding jacobian is needed). If this function returns true then
+  // the objective function for Parameters(). If JacobianRequested() is true
+  // then the corresponding Jacobian can optionally be supplied (if it is not
+  // supplied then it will be computed numerically if the gradient_step values
+  // are set). If this function returns false then optimization is still
+  // proceeding and Parameters() contains the next set of parameters to
+  // evaluate the objective function at. If this function returns true then
   // optimization is complete and Parameters() are the best parameters found.
-  // In either case if Parameters() returns an empty vector then the optimizer
-  // has failed. The format of the jacobian vector is:
-  //
+  // The format of the jacobian vector is:
   //    jacobians[j*num_parameters + i] = d error[j] / d parameter[i]
-  //
-  // If jacobians are requested but not supplied in the jacobians argument (as
-  // the vector size is 0) then numerical jacobians will be computed.
   bool DoOneIteration(const std::vector<double> &errors,
                       const std::vector<double> &jacobians) MUST_USE_RESULT;
 
-  // The best parameters (and the corresponding error) found so far.
+  // The best parameters (and the corresponding best error) found so far.
   const std::vector<double>& BestParameters() const { return best_parameters_; }
   double BestError() const { return best_error_; }
 
@@ -86,10 +95,8 @@ class AbstractOptimizer {
                                MUST_USE_RESULT = 0;
 
   std::vector<ParameterInfo> parameter_info_;   // Copied from Initialize()
-  std::vector<double> parameters_;
-  bool jacobians_needed_ = false;
-
- private:
+  std::vector<double> parameters_;              // Current parameters
+  bool jacobians_needed_ = false;               // Jacobian requested?
   std::vector<double> best_parameters_;         // Best found so far
   double best_error_ = __DBL_MAX__;             // Best |error|^2 so far
 };
@@ -119,9 +126,10 @@ class InteractiveOptimizer : public AbstractOptimizer {
   };
 
  protected:
-  // Run a particular optimizer library. This will be called in a separate
-  // thread and returns when optimization is finished, so it is allowed to take
-  // a long time. Return true on success or false on failure.
+  // A subclass overrides this to run a particular optimizer library. This will
+  // be called in a separate thread and returns when optimization is finished,
+  // so it is allowed to take a long time. Return true on success or false on
+  // failure.
   virtual bool Optimize(const std::vector<ParameterInfo> &start,
                         std::vector<double> *optimized_parameters)
                         MUST_USE_RESULT = 0;
@@ -135,11 +143,12 @@ class InteractiveOptimizer : public AbstractOptimizer {
   void Evaluate(const std::vector<double> &parameters, bool jacobians_needed,
                 ErrorsAndJacobians **errors_and_jacobians) const;
 
-  // Return true if the optimizer should shut down, i.e. because Shutdown() has
-  // been called. This should be checked once per iteration in Optimize().
+  // Called once per iteration in Optimize() to see if the optimizer should
+  // shut down, i.e. because Shutdown() has been called. Returns true to shut
+  // down.
   bool Aborting() const;
 
-  // Show down the optimizer thread. This should be called in each subclass
+  // Shut down the optimizer thread. This should be called in each subclass
   // destructor, to make sure that the thread is not using subclass data after
   // it is deleted.
   void Shutdown();
