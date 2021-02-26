@@ -252,7 +252,6 @@ struct ExampleFEMProblem : public FEMProblem {
 // include functions that do not have parameters dependent on the problem
 // types. Also there is no mention of EigenSystem() here as it can not be
 // instantiated for all kinds of problems.
-// @@@ Check which of the functions below are still needed.
 class FEMSolverBase {
  public:
   virtual ~FEMSolverBase() {}

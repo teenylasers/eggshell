@@ -1192,13 +1192,13 @@ void LuaModelViewer::AddScriptMessageNotThreadSafe(QString msg,
                                                    int icon_number) {
   auto item = new QListWidgetItem(msg, 0);
   if (icon_number == ICON_ERROR) {
-    item->setTextColor(QColor(255, 0, 0));
+    item->setForeground(QColor(255, 0, 0));
     item->setIcon(*error_icon_);
   } else if (icon_number == ICON_WARNING) {
-    item->setTextColor(QColor(255, 128, 0));
+    item->setForeground(QColor(255, 128, 0));
     item->setIcon(*warning_icon_);
   } else if (icon_number == ICON_INFO) {
-    item->setTextColor(QColor(0, 0, 255));
+    item->setForeground(QColor(0, 0, 255));
     item->setIcon(*info_icon_);
   }
   script_messages_->insertItem(script_messages_->count(), item);

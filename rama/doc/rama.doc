@@ -1788,6 +1788,10 @@ To use the optimizer, here are the steps:
    @* Random search: this just randomly tries solutions until the optimization
       is stopped, whereupon the best solution found so far is used. This is
       usually not an efficient choice.
+   @* Repeated Levenberg-Marquardt: This runs Levenberg-Marquardt optimization
+      repeatedly, with randomly chosen starting points every time. This will
+      have to be stopped manually, whereupon the best solution found so far
+      will be returned.
    }
 @* Run the optimizer with the ``Solve / Start optimization'' menu command.
    The parameters will be adjusted and the field will be solved repeatedly as
@@ -2167,4 +2171,5 @@ Here is what is added in each new version.
    stuck at their min or max values.
 @* Add the @c{weak_default} argument to @c{Parameter}.
 @* Add the "Repeated Levenberg-Marquardt" optimizer method.
+@* Upgraded to Qt 5.15.
 }

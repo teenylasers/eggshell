@@ -400,7 +400,7 @@ void GLViewer::MouseEvent(QMouseEvent *event, bool move_event,
   else if (move_event && buttons_ != 0) {
     if (the_button_ == Qt::LeftButton && event->modifiers() == 0) {
       HandleDrag(x, y, model_pt_);
-    } else if (the_button_ == Qt::MidButton ||
+    } else if (the_button_ == Qt::MiddleButton ||
                (the_button_ == Qt::LeftButton &&
                 event->modifiers() == kRotateBit)) {
       // Rotating.

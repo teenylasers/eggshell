@@ -225,7 +225,8 @@ ifeq ($(PLATFORM), osx)
     -framework OpenGL -framework AGL -framework IOKit \
     -framework Carbon -framework AppKit -framework SystemConfiguration \
     -framework Security \
-    -framework IOSurface -framework Metal -framework QuartzCore
+    -framework IOSurface -framework Metal -framework QuartzCore \
+		-framework GSS
   CCFLAGS += -D__TOOLKIT_MAT_FILE_USE_ZLIB__
 endif
 ifeq ($(PLATFORM), windows)
