@@ -52,8 +52,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>367</width>
-         <height>676</height>
+         <width>313</width>
+         <height>661</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,1">
@@ -235,6 +235,7 @@
      <addaction name="actionSelectSubspaceDogleg"/>
      <addaction name="actionSelectNelderMead"/>
      <addaction name="actionSelectRandomSearch"/>
+     <addaction name="actionSelectRepeatedLevenbergMarquardt"/>
     </widget>
     <addaction name="actionSweep"/>
     <addaction name="menuSelect_optimizer"/>
@@ -1496,6 +1497,14 @@
    </property>
    <property name="text">
     <string>Interior</string>
+   </property>
+  </action>
+  <action name="actionSelectRepeatedLevenbergMarquardt">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Repeated Levenberg Marquardt</string>
    </property>
   </action>
  </widget>

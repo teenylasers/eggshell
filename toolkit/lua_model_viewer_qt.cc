@@ -628,26 +628,24 @@ void LuaModelViewer::Optimize() {
   }
 
   // Create the optimizer.
-  ih_.optimizer = OptimizerFactory(num_optimize_outputs_, ih_.optimizer_type);
-  {
-    auto *opt = dynamic_cast<CeresInteractiveOptimizer*>(ih_.optimizer);
-    if (opt) {
-      opt->SetFunctionTolerance(1e-6);    //@@@ revisit
-      opt->SetParameterTolerance(1e-4);   //@@@ revisit
-      // Gradients computed from mesh derivatives are not perfectly accurate, so:
-      opt->SetGradientTolerance(0);
-    }
+  ih_.optimizer = OptimizerFactory(ih_.optimizer_type);
+  if (ih_.optimizer_type == OptimizerType::LEVENBERG_MARQUARDT ||
+      ih_.optimizer_type == OptimizerType::SUBSPACE_DOGLEG ||
+      ih_.optimizer_type == OptimizerType::REPEATED_LEVENBERG_MARQUARDT) {
+    CeresInteractiveOptimizer::Settings settings;
+    settings.function_tolerance = 1e-6;    //@@@ revisit
+    settings.parameter_tolerance = 1e-4;   //@@@ revisit
+    // Gradients computed from mesh derivatives are not perfectly accurate, so:
+    settings.gradient_tolerance = 0;
+    ih_.optimizer->SetSettings(settings);
   }
-  {
-    auto *opt = dynamic_cast<NelderMeadOptimizer*>(ih_.optimizer);
-    if (opt) {
-      opt->SetSettings(ih_.nmop);
-    }
+  if (ih_.optimizer_type == OptimizerType::NELDER_MEAD) {
+    ih_.optimizer->SetSettings(ih_.nmop);
   }
 
   // Initialize optimizer.
   {
-    vector<AbstractOptimizer::ParameterInfo>
+    vector<AbstractOptimizer::ParameterInformation>
         start(ih_.opt_parameter_names.size());
     for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
       const Parameter &p = GetParameter(ih_.opt_parameter_names[i]);
@@ -656,7 +654,7 @@ void LuaModelViewer::Optimize() {
       start[i].max_value = p.the_max;
       start[i].gradient_step = 0;       // Numerical jacobians disallowed
     }
-    ih_.optimizer->Initialize(start);
+    ih_.optimizer->Initialize(start, num_optimize_outputs_);
     if (ih_.optimizer->Parameters().empty()) {
       Error("Optimizer interrupted (could not initialize)");
       ih_.Stop();
@@ -1486,9 +1484,11 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
 
   // Copy optimizer parameters so RerunScript() can pick them up, also update
   // all parameter controls so the user can see evidence of progress.
+  const vector<double> &params = ih_.optimizer_done_ ?
+      ih_.optimizer->BestParameters() : ih_.optimizer->Parameters();
+
   for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
-    if (!SetParameter(ih_.opt_parameter_names[i],
-                      ih_.optimizer->Parameters()[i])) {
+    if (!SetParameter(ih_.opt_parameter_names[i], params[i])) {
       Error("Optimizer interrupted (could not set parameter value)");
       return false;
     }
@@ -1547,17 +1547,18 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
   // Do one iteration of the optimizer.
   ih_.optimizer_done_ =
         ih_.optimizer->DoOneIteration(optimize_errors_d, jacobians);
-  if (ih_.optimizer->Parameters().empty()) {
-    //@@@ should we Refresh() on all error exits?
-    Error("Optimizer interrupted (iteration failed)");
-    return false;
-  }
   if (ih_.optimizer_done_) {
-    // Optimization is complete. The optimizer does not guarantee that the last
-    // model evaluated is the optimal one, so we return true he so that this
-    // function will be called again to do a final iteration with the optimal
-    // parameters.
-    return true;
+    // Optimization is complete.
+    if (ih_.optimizer->OptimizerSucceeded()) {
+      // The optimizer does not guarantee that the last model evaluated is the
+      // optimal one, so we return true here so that this function will be
+      // called again to do a final iteration with the optimal parameters.
+      return true;
+    } else {
+      //@@@ should we Refresh() on all error exits?
+      Error("Optimizer failed");
+      return false;
+    }
   }
 
   // Display the result.
@@ -1571,6 +1572,6 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
 
 TEST_FUNCTION(DynamicCast) {
   // Make sure dynamic_cast<> works, i.e. RTTI is enabled.
-  auto *opt = OptimizerFactory(10, OptimizerType::LEVENBERG_MARQUARDT);
+  auto *opt = OptimizerFactory(OptimizerType::LEVENBERG_MARQUARDT);
   CHECK(dynamic_cast<CeresInteractiveOptimizer*>(opt));
 }

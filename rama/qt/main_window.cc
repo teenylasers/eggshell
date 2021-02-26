@@ -363,11 +363,19 @@ void MainWindow::on_actionSelectRandomSearch_triggered() {
   ui->actionSelectRandomSearch->setChecked(true);
 }
 
+
+void MainWindow::on_actionSelectRepeatedLevenbergMarquardt_triggered() {
+  ui->model->SetOptimizer(OptimizerType::REPEATED_LEVENBERG_MARQUARDT);
+  UncheckSimulationMethods();
+  ui->actionSelectRepeatedLevenbergMarquardt->setChecked(true);
+}
+
 void MainWindow::UncheckSimulationMethods() {
   ui->actionSelectLevenbergMarquardt->setChecked(false);
   ui->actionSelectSubspaceDogleg->setChecked(false);
   ui->actionSelectNelderMead->setChecked(false);
   ui->actionSelectRandomSearch->setChecked(false);
+  ui->actionSelectRepeatedLevenbergMarquardt->setChecked(false);
 }
 
 void MainWindow::on_actionStartOptimization_triggered() {

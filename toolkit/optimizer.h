@@ -23,22 +23,40 @@
 // threaded interactive application. The idea is that you subclass this,
 // provide implementations for Initialize2() and DoOneIteration2(), and then do
 // the following sequence:
-//   1. Call Initialize()
-//   2. Call Parameters() and JacobianRequested(). If the Parameters() vector
+//   1. Call SetSettings(), if necessary
+//   2. Call Initialize()
+//   3. Call Parameters() and JacobianRequested(). If the Parameters() vector
 //      is empty then there has been some error.
-//   3. Compute the objective function error and (optionally) Jacobians at the
-//      parameters indicated by Parameters().
-//   4. Call DoOneIteration() with that information.
-//   5. If DoOneIteration() returned true, you are done. Call BestParameters()
-//      to return the best parameters found so far.
-//   6. If DoOneIteration() returned false, go back to step 2.
+//   4. Compute the objective function error vector and (optionally) Jacobians
+//      at the parameters indicated by Parameters().
+//   5. Call DoOneIteration() with the error and Jacobian information.
+//   6. If DoOneIteration() returned false, go back to step 3.
+//   7. If DoOneIteration() returned true, optimization is complete.
+//   8. Call OptimizerSucceeded() to see if the optimization was a success.
+//   9. Call BestParameters() to return the best parameters found. If the
+//      optimization did not succeed then these parameters may not be very
+//      good.
 
 class AbstractOptimizer {
  public:
   virtual ~AbstractOptimizer() = 0;
 
+  // An abstract settings object than can clone itself.
+  class AbstractSettings {
+  public:
+    virtual ~AbstractSettings();
+    virtual AbstractSettings *Clone() const = 0;
+  };
+
+  // Set and get the settings for this optimizer.
+  void SetSettings(const AbstractSettings &settings) {
+    delete settings_;
+    settings_ = settings.Clone();
+  }
+  const AbstractSettings* GetSettings() const { return settings_; }
+
   // Each parameter to optimize needs the following information.
-  struct ParameterInfo {
+  struct ParameterInformation {
     double starting_value;              // Initial parameter value
     double min_value, max_value;        // Parameter bounds
     // Parameter step size for numerical jacobian computation, or 0 if the user
@@ -47,41 +65,52 @@ class AbstractOptimizer {
     double gradient_step;
   };
 
-  // Initialize the optimizer with a starting set of parameters. Parameters()
-  // will now return the first set of parameters to evaluate the objective
-  // function at (which are not necessarily the same as the starting
-  // parameters) and JacobianRequested() will indicate if a corresponding
-  // Jacobian computation is requested. If Parameters() returns an empty vector
-  // then the optimizer has failed to initialize.
-  void Initialize(const std::vector<ParameterInfo> &info) {
-    parameter_info_ = info;
-    Initialize2();
-  }
+  // Initialize the optimizer with a starting set of parameters, and which
+  // expects an error vector of the given size. Parameters() will now return
+  // the first set of parameters to evaluate the objective function at (which
+  // are not necessarily the same as the starting parameters) and
+  // JacobianRequested() will indicate if a corresponding Jacobian computation
+  // is requested. If Parameters() returns an empty vector then the optimizer
+  // has failed to initialize.
+  void Initialize(const std::vector<ParameterInformation> &info,
+                  int num_errors);
 
   // Return the parameters to evaluate the objective function at, updated by
-  // Initialize() or DoOneIteration(). These are empty() until initialization,
-  // or upon error.
+  // Initialize() or DoOneIteration(). These are empty() until initialization.
   const std::vector<double> &Parameters() const { return parameters_; }
 
   // Is a Jacobian computation at the current Parameters() requested?
   bool JacobianRequested() const { return jacobians_needed_; }
 
   // Do one iteration of the optimizer. The errors vector is the evaluation of
-  // the objective function for Parameters(). If JacobianRequested() is true
-  // then the corresponding Jacobian can optionally be supplied (if it is not
-  // supplied then it will be computed numerically if the gradient_step values
-  // are set). If this function returns false then optimization is still
-  // proceeding and Parameters() contains the next set of parameters to
-  // evaluate the objective function at. If this function returns true then
-  // optimization is complete and Parameters() are the best parameters found.
-  // The format of the jacobian vector is:
+  // the objective function for Parameters(), and should have the size
+  // num_errors. If JacobianRequested() is true then the corresponding Jacobian
+  // can optionally be supplied (if it is not supplied then it will be computed
+  // numerically if the gradient_step values are set). If this function returns
+  // false then optimization is still proceeding and Parameters() now contains
+  // the next set of parameters to evaluate the objective function at. If this
+  // function returns true then optimization is complete: examine
+  // OptimizerSucceeded() and BestParameters(). The format of the jacobian
+  // vector is:
   //    jacobians[j*num_parameters + i] = d error[j] / d parameter[i]
   bool DoOneIteration(const std::vector<double> &errors,
                       const std::vector<double> &jacobians) MUST_USE_RESULT;
 
+  // When DoOneIteration() returns true, did the optimization succeed?
+  bool OptimizerSucceeded() const { return optimizer_succeeded_; }
+
   // The best parameters (and the corresponding best error) found so far.
   const std::vector<double>& BestParameters() const { return best_parameters_; }
   double BestError() const { return best_error_; }
+
+  // Update the best parameters (and the corresponding best error) if you have
+  // a better one.
+  void UpdateBest(const std::vector<double> &params, double error);
+
+  // Access values passed to Initialize().
+  const std::vector<ParameterInformation>& ParameterInfo() const
+    { return parameter_info_; }
+  int NumErrors() const { return num_errors_; }
 
  protected:
   // The version of Initialize() implemented by the subclass. Initialize()
@@ -94,12 +123,35 @@ class AbstractOptimizer {
                                const std::vector<double> &jacobians)
                                MUST_USE_RESULT = 0;
 
-  std::vector<ParameterInfo> parameter_info_;   // Copied from Initialize()
-  std::vector<double> parameters_;              // Current parameters
-  bool jacobians_needed_ = false;               // Jacobian requested?
-  std::vector<double> best_parameters_;         // Best found so far
-  double best_error_ = __DBL_MAX__;             // Best |error|^2 so far
+  AbstractSettings *settings_ = 0;
+  // Current parameters and Jacobian requested, set by Initialize2() and
+  // DoOneIteration2().
+  std::vector<double> parameters_;
+  bool jacobians_needed_ = false;
+  // Set when DoOneIteration2 returns true:
+  bool optimizer_succeeded_ = false;
+
+ private:
+  // Copied from Initialize():
+  std::vector<ParameterInformation> parameter_info_;
+  int num_errors_ = 0;
+  // Best parameters and |error|^2 found so far.
+  std::vector<double> best_parameters_;
+  double best_error_ = __DBL_MAX__;
 };
+
+// An optimizer factory.
+
+enum class OptimizerType {
+  UNKNOWN,
+  LEVENBERG_MARQUARDT,          // Implemented by CeresInteractiveOptimizer
+  SUBSPACE_DOGLEG,              // Implemented by CeresInteractiveOptimizer
+  RANDOM_SEARCH,
+  NELDER_MEAD,
+  REPEATED_LEVENBERG_MARQUARDT,
+};
+
+AbstractOptimizer *OptimizerFactory(OptimizerType type);
 
 // Most optimizer libraries (e.g. ceres) have their own main loop that wants to
 // take control of your app. You call some solver function that in turn calls
@@ -108,7 +160,7 @@ class AbstractOptimizer {
 // in single threaded interactive applications, i.e. if the solver takes a long
 // time it will block the user interface. This class provides a workaround: the
 // solver is run in a separate thread, and each time the objective function
-// needs to be evaluated control is returned to the user. This is only
+// needs to be evaluated, control is returned to the user. This is only
 // efficient when the objective function cost is larger than the small overhead
 // of communicating between threads.
 
@@ -116,7 +168,8 @@ class InteractiveOptimizer : public AbstractOptimizer {
  public:
   virtual ~InteractiveOptimizer();
 
-  // The functions required by AbstractOptimizer.
+  // The functions required to be implemented by AbstractOptimizer. Subclasses
+  // of this don't implement these, they implement Optimize() below.
   void Initialize2() override;
   bool DoOneIteration2(const std::vector<double> &errors,
                        const std::vector<double> &jacobians) override;
@@ -134,9 +187,7 @@ class InteractiveOptimizer : public AbstractOptimizer {
   // be called in a separate thread and returns when optimization is finished,
   // so it is allowed to take a long time. Return true on success or false on
   // failure.
-  virtual bool Optimize(const std::vector<ParameterInfo> &start,
-                        std::vector<double> *optimized_parameters)
-                        MUST_USE_RESULT = 0;
+  virtual bool Optimize() = 0;
 
   // An implementation of Optimize() should call this function to compute the
   // errors (i.e. residuals) and jacobians for a given set of parameters. This
@@ -160,6 +211,23 @@ class InteractiveOptimizer : public AbstractOptimizer {
   Implementation *impl_ = 0;
 };
 
+// An optimizer that encapsulates another. It runs the second optimizer
+// repeatedly with random starting points, keeping track of the best solution
+// found. The settings given to this optimizer are passed to the sub-optimizer.
+
+class RepeatedOptimizer : public AbstractOptimizer {
+ public:
+  explicit RepeatedOptimizer(OptimizerType type) : type_(type) {}
+  ~RepeatedOptimizer();
+  void Initialize2() override;
+  bool DoOneIteration2(const std::vector<double> &errors,
+                      const std::vector<double> &jacobians) override;
+ private:
+  OptimizerType type_;
+  AbstractOptimizer *opt_ = 0;
+  void CreateSubOptimizer();
+};
+
 // The dumbest optimizer that just keeps guessing the answer. This can run for
 // ever as DoOneIteration() always return false, so the caller should give up
 // at some point and call BestError().
@@ -177,10 +245,9 @@ class RandomSearchOptimizer : public AbstractOptimizer {
 class NelderMeadOptimizer : public InteractiveOptimizer {
  public:
   ~NelderMeadOptimizer();
-  bool Optimize(const std::vector<ParameterInfo> &start,
-                std::vector<double> *optimized_parameters) override;
+  bool Optimize() override;
 
-  struct Settings {
+  struct Settings : public AbstractSettings {
     // The optimization will terminate if the fractional range from the best to
     // worst point in the simplex is less than the given tolerance.
     double convergence_ratio = 1e-2;
@@ -201,18 +268,13 @@ class NelderMeadOptimizer : public InteractiveOptimizer {
     // energy ~= T).
     double initial_temperature = 1;
     double final_temperature = 0.001;   // This fraction of the initial temp
+
+    Settings *Clone() const { return new Settings(*this); }
   };
 
-  // Set optimization parameters.
-  void SetSettings(Settings &p) {
-    settings_ = p;
-  }
-
  private:
-  Settings settings_;
   double temperature_ = 0;
   Eigen::VectorXd best_parameters_;
-  double best_error_ = 0;
 
   // An error and its associated thermal fluctuation.
   struct Error {
@@ -225,18 +287,6 @@ class NelderMeadOptimizer : public InteractiveOptimizer {
   double Thermal() const;
 };
 
-// An optimizer factory.
-
-enum class OptimizerType {
-  LEVENBERG_MARQUARDT,          // Implemented by CeresInteractiveOptimizer
-  SUBSPACE_DOGLEG,              // Implemented by CeresInteractiveOptimizer
-  RANDOM_SEARCH,
-  NELDER_MEAD,
-};
-
-AbstractOptimizer *OptimizerFactory(int num_errors, OptimizerType type);
-
-
 // Interface to the Ceres optimizer. This is only included if
 // __TOOLKIT_USE_CERES__ is defined.
 
@@ -244,29 +294,25 @@ AbstractOptimizer *OptimizerFactory(int num_errors, OptimizerType type);
 
 class CeresInteractiveOptimizer : public InteractiveOptimizer {
  public:
-  explicit CeresInteractiveOptimizer(int num_errors, OptimizerType type);
+  explicit CeresInteractiveOptimizer(OptimizerType type);
   ~CeresInteractiveOptimizer();
 
-  // Set optimization termination criteria. The optimization will terminate
-  // when the fractional change in function/parameter is less than the given
-  // tolerance, or the gradient magnitude is less than the given tolerance.
-  void SetFunctionTolerance(double x) { function_tolerance_  = x; }
-  void SetParameterTolerance(double x) { parameter_tolerance_ = x; }
-  void SetGradientTolerance(double x) { gradient_tolerance_  = x; }
+  struct Settings : public AbstractSettings {
+    // Optimization termination criteria. The optimization will terminate when
+    // the fractional change in function/parameter is less than the given
+    // tolerance, or the gradient magnitude is less than the given tolerance.
+    double function_tolerance = 1e-6;
+    double parameter_tolerance = 1e-8;
+    double gradient_tolerance = 1e-10;
+
+    Settings *Clone() const { return new Settings(*this); }
+  };
 
  protected:
-  bool Optimize(const std::vector<ParameterInfo> &start,
-                std::vector<double> *optimized_parameters);
+  bool Optimize();
 
  private:
-  int num_parameters_, num_errors_;     // Problem size
   OptimizerType type_;                  // Optimizer type
-
-  // Optimization parameters.
-  double function_tolerance_ = 1e-6;
-  double parameter_tolerance_ = 1e-8;
-  double gradient_tolerance_ = 1e-10;
-
   friend class CeresCostFunction;
 };
 

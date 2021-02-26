@@ -2166,4 +2166,5 @@ Here is what is added in each new version.
 @* Fixed a simulated annealing bug that occasionally caused parameters to get
    stuck at their min or max values.
 @* Add the @c{weak_default} argument to @c{Parameter}.
+@* Add the "Repeated Levenberg-Marquardt" optimizer method.
 }

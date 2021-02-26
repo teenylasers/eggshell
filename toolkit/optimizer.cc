@@ -79,11 +79,28 @@ class Pipe {
 //***************************************************************************
 // AbstractOptimizer.
 
+AbstractOptimizer::AbstractSettings::~AbstractSettings() {
+}
+
 AbstractOptimizer::~AbstractOptimizer() {
+  delete settings_;
+}
+
+void AbstractOptimizer::Initialize(
+                const std::vector<ParameterInformation> &info, int num_errors) {
+  CHECK(info.size() >= 1);
+  CHECK(num_errors >= 1);
+  parameter_info_ = info;
+  num_errors_ = num_errors;
+  Initialize2();
 }
 
 bool AbstractOptimizer::DoOneIteration(const std::vector<double> &errors,
                                        const std::vector<double> &jacobians) {
+  CHECK(errors.size() == num_errors_);
+  CHECK(jacobians.size() == 0 ||
+        jacobians.size() == parameter_info_.size() * num_errors_);
+
   // Compute |errors|^2 for the last set of parameters.
   double E = 0;
   for (int i = 0; i < errors.size(); i++) {
@@ -91,13 +108,18 @@ bool AbstractOptimizer::DoOneIteration(const std::vector<double> &errors,
   }
 
   // Keep track of the best parameters so far.
-  if (isfinite(E) && E < best_error_) {
-    best_error_ = E;
-    best_parameters_ = parameters_;
-  }
+  UpdateBest(parameters_, E);
 
   // Now actually do the iteration.
   return DoOneIteration2(errors, jacobians);
+}
+
+void AbstractOptimizer::UpdateBest(const std::vector<double> &params,
+                                   double error) {
+  if (isfinite(error) && error < best_error_) {
+    best_error_ = error;
+    best_parameters_ = params;
+  }
 }
 
 //***************************************************************************
@@ -109,41 +131,30 @@ struct ParametersAndFlag {
 };
 
 struct InteractiveOptimizer::Implementation {
-  std::thread *thread_ = 0;
-  Pipe<ParametersAndFlag> parameters_pipe_;
-  Pipe<ErrorsAndJacobians> errors_pipe_;
-  InteractiveOptimizer *optimizer_ = 0;   // Owning object
-  vector<InteractiveOptimizer::ParameterInfo> parameter_info_;
+  std::thread *thread_ = 0;                   // Optimizer thread
+  Pipe<ParametersAndFlag> parameters_pipe_;   // Optimizer --> main thread
+  Pipe<ErrorsAndJacobians> errors_pipe_;      // Main --> optimizer thread
+  InteractiveOptimizer *optimizer_ = 0;       // Owning object
   bool done_ = false;           // Has Optimize() completed?
+  bool success_ = false;        // If done_, was optimization successful?
   bool aborting_ = false;       // In the process of giving up in Optimize()?
 
-  void StartThread() {
+  explicit Implementation(InteractiveOptimizer *optimizer) {
+    optimizer_ = optimizer;
     thread_ = new std::thread(&Implementation::Entry, this);
   }
 
   ~Implementation() {
-    if (thread_) {
-      thread_->join();
-      delete thread_;
-    }
+    thread_->join();
+    delete thread_;
   }
 
-  // Entry function of the thread.
+  // Thread main function that does the optimization.
   void Entry() {
-    // Do the optimization.
-    vector<double> optimized_parameters;
-    bool success = optimizer_->Optimize(parameter_info_, &optimized_parameters);
-
-    // Final parameters are now available.
+    success_ = optimizer_->Optimize();
     done_ = true;
-    if (success) {
-      ParametersAndFlag *p = new ParametersAndFlag;
-      p->parameters = optimized_parameters;
-      p->jacobians_needed = false;
-      parameters_pipe_.Send(p);
-    } else {
-      parameters_pipe_.Send(0);
-    }
+    // Send an "end of optimization" indicator to the main thread.
+    parameters_pipe_.Send(0);
   }
 };
 
@@ -156,10 +167,10 @@ void InteractiveOptimizer::Shutdown() {
     // If the optimizer thread is not done we need to shut it down. This might
     // require the cooperation of Optimize(), which is obtained by setting the
     // aborting_ flag.
-    vector<double> dummy;
+    vector<double> dummy1(NumErrors()), dummy2;
     impl_->aborting_ = true;
     while (!impl_->done_) {
-      while (!DoOneIteration(dummy, dummy)) {
+      while (!DoOneIteration(dummy1, dummy2)) {
       }
     }
     delete impl_;
@@ -171,10 +182,7 @@ void InteractiveOptimizer::Initialize2() {
   CHECK(impl_ == 0);                    // Make sure this is only called once
 
   // Start the optimizer thread.
-  impl_ = new Implementation;
-  impl_->optimizer_ = this;
-  impl_->parameter_info_ = parameter_info_;
-  impl_->StartThread();
+  impl_ = new Implementation(this);
 
   // Receive the first parameters to evaluate.
   ParametersAndFlag *p = impl_->parameters_pipe_.Receive();
@@ -197,8 +205,9 @@ bool InteractiveOptimizer::DoOneIteration2(const vector<double> &errors,
   e->jacobians = jacobians;
   impl_->errors_pipe_.Send(e);
 
-  // Return the parameters to evaluate the objective function at.
-  // Failure is indicated by a NULL pointer passed through the pipe.
+  // Return the parameters to evaluate the objective function at. Failure or
+  // the end of optimization is indicated by a NULL pointer passed through the
+  // pipe.
   ParametersAndFlag *p = impl_->parameters_pipe_.Receive();
   if (p) {
     parameters_.swap(p->parameters);
@@ -207,6 +216,7 @@ bool InteractiveOptimizer::DoOneIteration2(const vector<double> &errors,
   } else {
     parameters_.clear();
     jacobians_needed_ = false;
+    optimizer_succeeded_ = impl_->success_;
   }
   return impl_->done_;
 }
@@ -226,6 +236,7 @@ void InteractiveOptimizer::Evaluate(const vector<double> &parameters,
   CHECK(ej);
 
   // Sanity checking.
+  CHECK(ej->errors.size() == NumErrors());
   if (!jacobians_needed && !ej->jacobians.empty()) {
     Panic("Internal error: Jacobians computed needlessly");
   }
@@ -240,26 +251,71 @@ bool InteractiveOptimizer::Aborting() const {
 }
 
 //***************************************************************************
+// RepeatedOptimizer.
+
+RepeatedOptimizer::~RepeatedOptimizer() {
+  delete opt_;
+}
+
+void RepeatedOptimizer::Initialize2() {
+  CreateSubOptimizer();
+}
+
+bool RepeatedOptimizer::DoOneIteration2(const std::vector<double> &errors,
+                                        const std::vector<double> &jacobians) {
+  bool result = opt_->DoOneIteration(errors, jacobians);
+  if (result) {
+    // Sub-optimization is finished. Collect the best result then start a new
+    // one.
+    UpdateBest(opt_->BestParameters(), opt_->BestError());
+    delete opt_;
+    opt_ = 0;
+    CreateSubOptimizer();
+  } else {
+    // Sub-optimization still proceeding.
+    parameters_ = opt_->Parameters();
+    jacobians_needed_ = opt_->JacobianRequested();
+  }
+  return false;
+}
+
+void RepeatedOptimizer::CreateSubOptimizer() {
+  // Randomize starting parameters.
+  auto info = ParameterInfo();
+  for (int i = 0; i < info.size(); i++) {
+    info[i].starting_value = info[i].min_value +
+                             Random() * (info[i].max_value - info[i].min_value);
+  }
+  opt_ = OptimizerFactory(type_);
+  if (GetSettings()) {
+    opt_->SetSettings(*GetSettings());
+  }
+  opt_->Initialize(info, NumErrors());
+  parameters_ = opt_->Parameters();
+  jacobians_needed_ = opt_->JacobianRequested();
+}
+
+//***************************************************************************
 // RandomSearchOptimizer.
 
 RandomSearchOptimizer::~RandomSearchOptimizer() {
 }
 
 void RandomSearchOptimizer::Initialize2() {
-  parameters_.resize(parameter_info_.size());
+  parameters_.resize(ParameterInfo().size());
   // Initialize parameters to starting values.
-  for (int i = 0; i < parameter_info_.size(); i++) {
-    parameters_[i] = parameter_info_[i].starting_value;
+  for (int i = 0; i < ParameterInfo().size(); i++) {
+    parameters_[i] = ParameterInfo()[i].starting_value;
   }
 }
 
 bool RandomSearchOptimizer::DoOneIteration2(const std::vector<double> &errors,
                                          const std::vector<double> &jacobians) {
   // Compute a new set of random parameters.
-  for (int i = 0; i < parameter_info_.size(); i++) {
-    parameters_[i] = parameter_info_[i].min_value +
+  for (int i = 0; i < ParameterInfo().size(); i++) {
+    parameters_[i] = ParameterInfo()[i].min_value +
         Random() *
-        (parameter_info_[i].max_value - parameter_info_[i].min_value);
+        (ParameterInfo()[i].max_value - ParameterInfo()[i].min_value);
   }
   return false;
 }
@@ -271,8 +327,7 @@ NelderMeadOptimizer::~NelderMeadOptimizer() {
   Shutdown();
 }
 
-bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
-                                   vector<double> *optimized_parameters) {
+bool NelderMeadOptimizer::Optimize() {
   // We follow the classic Nelder Mead algorithm here, as described by
   // https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method
   // with added support for simulated annealing from the paper "Simulated
@@ -298,15 +353,19 @@ bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
   // trying any fancy bookkeeping, since it is expected that the cost of
   // function evaluation dominates.
 
-  best_error_ = __DBL_MAX__;
-  best_parameters_.resize(start.size());
-  best_parameters_.setZero();
-
   // Nelder-Mead algorithm constants.
   const double kAlpha = 1;      // Amount to reflect one point
   const double kGamma = 2;      // Amount to expand one point
   const double kRho = 0.5;      // Amount to contract one point
   const double kSigma = 0.5;    // Amount to shrink all points
+
+  // Settings.
+  Settings default_settings;
+  Settings *settings = &default_settings;
+  if (settings_) {
+    settings = dynamic_cast<Settings*>(settings_);
+    CHECK(settings_);     // Make sure settings are correct for this object
+  }
 
   // Simplex vertices and their associated error values.
   struct SimplexVertex {
@@ -320,17 +379,17 @@ bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
   // point, that is a given fraction of the size of the parameter bounding
   // volume. The randomness allows restarts to have a chance of finding better
   // solutions.
-  CHECK(start.size() >= 1);
-  vector<SimplexVertex> vertex(start.size() + 1);
+  vector<SimplexVertex> vertex(ParameterInfo().size() + 1);
   for (int i = 0; i < vertex.size(); i++) {
-    vertex[i].p.resize(start.size());
+    vertex[i].p.resize(ParameterInfo().size());
     vertex[i].p.setZero();
-    for (int j = 0; j < start.size(); j++) {
-      double range = settings_.initial_fraction *
-                     (start[j].max_value - start[j].min_value);
-      double value = start[j].starting_value + (Random() - 0.5) * range;
-      vertex[i].p[j] = std::max(start[j].min_value,
-                                std::min(start[j].max_value, value));
+    for (int j = 0; j < ParameterInfo().size(); j++) {
+      double range = settings->initial_fraction *
+                  (ParameterInfo()[j].max_value - ParameterInfo()[j].min_value);
+      double value = ParameterInfo()[j].starting_value +
+                     (Random() - 0.5) * range;
+      vertex[i].p[j] = std::max(ParameterInfo()[j].min_value,
+                                std::min(ParameterInfo()[j].max_value, value));
     }
     vertex[i].error = ObjectiveFunction(vertex[i].p);
   }
@@ -340,25 +399,25 @@ bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
   while (!Aborting()) {
     // Set current temperature.
     double elapsed = Now() - start_time;
-    if (settings_.annealing_time <= 0 ||
-        elapsed > settings_.annealing_time) {
+    if (settings->annealing_time <= 0 ||
+        elapsed > settings->annealing_time) {
       temperature_ = 0;
     } else {
-      if (settings_.final_temperature > 0 && settings_.final_temperature < 1) {
-        double tau = log(settings_.final_temperature) /
-                     settings_.annealing_time;
-        temperature_ = settings_.initial_temperature * exp(tau * elapsed);
+      if (settings->final_temperature > 0 && settings->final_temperature < 1) {
+        double tau = log(settings->final_temperature) /
+                     settings->annealing_time;
+        temperature_ = settings->initial_temperature * exp(tau * elapsed);
       } else {
-        temperature_ = settings_.initial_temperature;
+        temperature_ = settings->initial_temperature;
       }
     }
 
     // Pacifier for the (potentially long) simulated annealing phase.
-    if (settings_.annealing_time > 0 && elapsed > last_elapsed + 10) {
+    if (settings->annealing_time > 0 && elapsed > last_elapsed + 10) {
       last_elapsed = elapsed;
       if (temperature_ > 0) {
         Message("Annealing at %.2f%%, T=%f",
-                elapsed / settings_.annealing_time * 100.0, temperature_);
+                elapsed / settings->annealing_time * 100.0, temperature_);
       } else {
         Message("Annealing done, down hill optimization only");
       }
@@ -378,15 +437,16 @@ bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
       // Check that the simplex bounds is a small enough fraction of the
       // parameter bounds.
       bool parameters_ok = true;
-      for (int i = 0; i < start.size(); i++) {
+      for (int i = 0; i < ParameterInfo().size(); i++) {
         double vmin = __DBL_MAX__;
         double vmax = -__DBL_MIN__;
         for (int j = 0; j < vertex.size(); j++) {
           vmin = std::min(vmin, vertex[j].p[i]);
           vmax = std::max(vmax, vertex[j].p[i]);
         }
-        double range = start[i].max_value - start[i].min_value;
-        if ((vmax - vmin) > settings_.convergence_parameter * range) {
+        double range = ParameterInfo()[i].max_value -
+                       ParameterInfo()[i].min_value;
+        if ((vmax - vmin) > settings->convergence_parameter * range) {
           parameters_ok = false;
           break;
         }
@@ -400,15 +460,11 @@ bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
           min_actual = std::min(min_actual, vertex[i].error.actual);
           max_actual = std::max(max_actual, vertex[i].error.actual);
         }
-        if (min_actual < settings_.convergence_error ||
+        if (min_actual < settings->convergence_error ||
             (max_actual - min_actual) / min_actual <
-            settings_.convergence_ratio) {
-          // Return the best point seen so far.
-          optimized_parameters->resize(best_parameters_.size());
-          for (int i = 0; i < best_parameters_.size(); i++) {
-            (*optimized_parameters)[i] = best_parameters_[i];
-          }
+            settings->convergence_ratio) {
           Message("Nelder-Mead converged");
+          optimizer_succeeded_ = true;
           return true;
         }
       }
@@ -422,8 +478,8 @@ bool NelderMeadOptimizer::Optimize(const vector<ParameterInfo> &start,
     }
     centroid /= vertex.size() - 1;
     for (int i = 0; i < centroid.size(); i++) {
-      CHECK(centroid[i] >= start[i].min_value);
-      CHECK(centroid[i] <= start[i].max_value);
+      CHECK(centroid[i] >= ParameterInfo()[i].min_value);
+      CHECK(centroid[i] <= ParameterInfo()[i].max_value);
     }
 
     // Compute the reflected point.
@@ -483,7 +539,7 @@ NelderMeadOptimizer::Error
 NelderMeadOptimizer::ObjectiveFunction(const VectorXd &p) {
   vector<double> p2(p.size());
   for (int i = 0; i < p.size(); i++) {
-    const auto & info = parameter_info_[i];
+    const auto & info = ParameterInfo()[i];
     if (p[i] < info.min_value || p[i] > info.max_value) {
       Error e;
       e.actual = __DBL_MAX__;
@@ -502,10 +558,6 @@ NelderMeadOptimizer::ObjectiveFunction(const VectorXd &p) {
   Error e;
   e.actual = isfinite(sum) ? sum : __DBL_MAX__;
   e.thermal = e.actual - Thermal();
-  if (e.actual < best_error_) {
-    best_error_ = e.actual;
-    best_parameters_ = p;
-  }
   return e;
 }
 
@@ -519,15 +571,19 @@ double NelderMeadOptimizer::Thermal() const {
 //***************************************************************************
 // Factory.
 
-AbstractOptimizer *OptimizerFactory(int num_errors, OptimizerType type) {
+AbstractOptimizer *OptimizerFactory(OptimizerType type) {
   switch (type) {
+    case OptimizerType::UNKNOWN:
+      return 0;
     case OptimizerType::LEVENBERG_MARQUARDT:
     case OptimizerType::SUBSPACE_DOGLEG:
-      return new CeresInteractiveOptimizer(num_errors, type);
+      return new CeresInteractiveOptimizer(type);
     case OptimizerType::RANDOM_SEARCH:
       return new RandomSearchOptimizer;
     case OptimizerType::NELDER_MEAD:
       return new NelderMeadOptimizer;
+    case OptimizerType::REPEATED_LEVENBERG_MARQUARDT:
+      return new RepeatedOptimizer(OptimizerType::LEVENBERG_MARQUARDT);
   }
   return 0;
 };
@@ -591,8 +647,8 @@ class CeresCostFunction : public ceres::CostFunction {
 
   CeresCostFunction(CeresInteractiveOptimizer *opt) : opt_(opt) {
     mutable_parameter_block_sizes()->resize(1);
-    mutable_parameter_block_sizes()->at(0) = opt_->num_parameters_;
-    set_num_residuals(opt_->num_errors_);
+    mutable_parameter_block_sizes()->at(0) = opt_->ParameterInfo().size();
+    set_num_residuals(opt_->NumErrors());
   }
 
   // This is the function that is called by ceres.
@@ -646,7 +702,7 @@ class CeresCostFunction : public ceres::CostFunction {
           // Compute jacobian numerically (using central difference).
           // jacobians[0][j*num_params + i] = d residual[j] / d params[i]
           for (int i = 0; i < num_params; i++) {
-            const double step = opt_->parameter_info_[i].gradient_step;
+            const double step = opt_->ParameterInfo()[i].gradient_step;
             if (step <= 0) {
               Panic("Jacobian requested but not supplied, and gradient_step "
                     "is 0 for parameter %d", i);
@@ -688,7 +744,7 @@ class CeresCostFunction : public ceres::CostFunction {
   // This is used for debugging.
   double ComputeError(const vector<double> parameters) {
     const double *pp = parameters.data();
-    vector<double> residuals(opt_->num_errors_);
+    vector<double> residuals(opt_->NumErrors());
     if (!Evaluate(&pp, residuals.data(), 0)) {
       Panic("Could not evaluate");
     }
@@ -700,10 +756,7 @@ class CeresCostFunction : public ceres::CostFunction {
   }
 };
 
-CeresInteractiveOptimizer::CeresInteractiveOptimizer(int num_errors,
-                                                     OptimizerType type) {
-  num_parameters_ = 0;
-  num_errors_ = num_errors;
+CeresInteractiveOptimizer::CeresInteractiveOptimizer(OptimizerType type) {
   type_ = type;
 }
 
@@ -711,25 +764,32 @@ CeresInteractiveOptimizer::~CeresInteractiveOptimizer() {
   Shutdown();
 }
 
-bool CeresInteractiveOptimizer::Optimize(
-                      const vector<InteractiveOptimizer::ParameterInfo> &start,
-                      vector<double> *optimized_parameters) {
+bool CeresInteractiveOptimizer::Optimize() {
+  // Settings.
+  Settings default_settings;
+  Settings *settings = &default_settings;
+  if (settings_) {
+    settings = dynamic_cast<Settings*>(settings_);
+    if (!settings_) {
+      Panic("Settings don't have the correct type");
+    }
+  }
+
   // Parameters that will be mutated in place by the solver.
-  num_parameters_ = start.size();
-  optimized_parameters->resize(num_parameters_);
-  for (int i = 0; i < num_parameters_; i++) {
-    (*optimized_parameters)[i] = start[i].starting_value;
+  vector<double> optimized_parameters(ParameterInfo().size());
+  for (int i = 0; i < ParameterInfo().size(); i++) {
+    optimized_parameters[i] = ParameterInfo()[i].starting_value;
   }
 
   // Build the problem.
   ceres::Problem problem;
   CeresCostFunction *fn = new CeresCostFunction(this);
-  problem.AddResidualBlock(fn, NULL, optimized_parameters->data());
-  for (int i = 0; i < start.size(); i++) {
-    problem.SetParameterLowerBound(optimized_parameters->data(), i,
-                                   start[i].min_value);
-    problem.SetParameterUpperBound(optimized_parameters->data(), i,
-                                   start[i].max_value);
+  problem.AddResidualBlock(fn, NULL, optimized_parameters.data());
+  for (int i = 0; i < ParameterInfo().size(); i++) {
+    problem.SetParameterLowerBound(optimized_parameters.data(), i,
+                                   ParameterInfo()[i].min_value);
+    problem.SetParameterUpperBound(optimized_parameters.data(), i,
+                                   ParameterInfo()[i].max_value);
   }
 
   // Run the solver.
@@ -743,9 +803,9 @@ bool CeresInteractiveOptimizer::Optimize(
     options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
   }
   options.use_nonmonotonic_steps = true;                // @@@ Is this useful?
-  options.function_tolerance = function_tolerance_;
-  options.parameter_tolerance = parameter_tolerance_;
-  options.gradient_tolerance = gradient_tolerance_;
+  options.function_tolerance = settings->function_tolerance;
+  options.parameter_tolerance = settings->parameter_tolerance;
+  options.gradient_tolerance = settings->gradient_tolerance;
   options.minimizer_progress_to_stdout = false;
   // For small (a few hundred parameters) or dense problems we use DENSE_QR:
   options.linear_solver_type = ceres::DENSE_QR;
@@ -756,7 +816,7 @@ bool CeresInteractiveOptimizer::Optimize(
 
   // Optionally see if the solution is really a minimum.
   if (kDebugIsSolutionMinimum) {
-    vector<double> p(*optimized_parameters);
+    vector<double> p(optimized_parameters);
     double E = fn->ComputeError(p);
     printf("Checking for local minimum. Solution error = %e\n", E);
     for (int i = 0; i < p.size(); i++) {
@@ -794,7 +854,7 @@ static void OptimizerTest(AbstractOptimizer *opt, bool early_termination,
                           bool numerical_jacobian, int max_iterations) {
   // Optimize the Rosenbrock bananna function and see how that goes.
 
-  vector<AbstractOptimizer::ParameterInfo> start(2);
+  vector<AbstractOptimizer::ParameterInformation> start(2);
   for (int i = 0; i < start.size(); i++) {
     start[i].starting_value = 0;
     start[i].min_value = -100;
@@ -802,15 +862,11 @@ static void OptimizerTest(AbstractOptimizer *opt, bool early_termination,
     start[i].gradient_step = 1e-6;
   }
 
-  opt->Initialize(start);
+  opt->Initialize(start, 2);
 
   vector<double> errors(2), jacobians;
   int iteration_number = 0;
   do {
-    if (opt->Parameters().empty()) {
-      printf("Optimization failed\n");
-      return;
-    }
     printf("EVALUATING ERRORS, iteration = %d, params =", iteration_number);
     for (int i = 0; i < opt->Parameters().size(); i++) {
       printf(" %.6f", opt->Parameters()[i]);
@@ -842,8 +898,8 @@ static void OptimizerTest(AbstractOptimizer *opt, bool early_termination,
 
   if (opt) {
     printf("FINAL PARAMETERS =");
-    for (int i = 0; i < opt->Parameters().size(); i++) {
-      printf(" %.6f", opt->Parameters()[i]);
+    for (int i = 0; i < opt->BestParameters().size(); i++) {
+      printf(" %.6f", opt->BestParameters()[i]);
     }
     printf("\n");
   }
@@ -853,13 +909,13 @@ static void OptimizerTest(AbstractOptimizer *opt, bool early_termination,
     Panic("We took too many iterations");
   }
   if (!early_termination) {
-    if (opt && opt->Parameters().size() != 2) {
+    if (opt && opt->BestParameters().size() != 2) {
       Panic("Expecting 2 output parameters");
     }
   }
   if (opt) {
-    for (int i = 0; i < opt->Parameters().size(); i++) {
-      if (fabs(opt->Parameters()[i] - 1) > 1e-4) {
+    for (int i = 0; i < opt->BestParameters().size(); i++) {
+      if (fabs(opt->BestParameters()[i] - 1) > 1e-4) {
         Panic("Incorrect solution");
       }
     }
@@ -883,10 +939,12 @@ TEST_FUNCTION(CeresInteractiveOptimizer) {
   for (int early_termination = 0; early_termination < 2; early_termination++) {
     for (int numerical_jacobian = 0; numerical_jacobian < 2;
          numerical_jacobian++) {
-      auto *opt = new CeresInteractiveOptimizer(2,
-                                            OptimizerType::LEVENBERG_MARQUARDT);
-      opt->SetFunctionTolerance(1e-4);
-      opt->SetParameterTolerance(1e-4);
+      auto *opt =
+          new CeresInteractiveOptimizer(OptimizerType::LEVENBERG_MARQUARDT);
+      CeresInteractiveOptimizer::Settings settings;
+      settings.function_tolerance = 1e-4;
+      settings.parameter_tolerance = 1e-4;
+      opt->SetSettings(settings);
       OptimizerTest(opt, early_termination, numerical_jacobian,
                     numerical_jacobian ? 175 : 50);
     }
