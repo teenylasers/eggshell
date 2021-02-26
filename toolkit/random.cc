@@ -51,7 +51,7 @@ int RandomInt(int n) {
   return d(generator);
 }
 
-TEST_FUNCTION(Random) {
+TEST_FUNCTION(RandomDouble) {
   // Check the random is correct.
   double min = __DBL_MAX__;
   double max = -__DBL_MAX__;

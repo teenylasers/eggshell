@@ -11,6 +11,7 @@
 // more details.
 
 #include "testing.h"
+#include "random.h"
 #include <stdio.h>
 #include <vector>
 
@@ -39,6 +40,10 @@ void testing::__RegisterTest(void (*fn)(), const char *name,
 }
 
 void testing::RunAll() {
+  // Make sure testing is deterministic:
+  RandomSeed(0);
+
+  // Run all tests.
   for (int i = 0; i < test_functions->size(); i++) {
     printf("********** Test %s (%s:%d)\n", test_functions->at(i).name,
            test_functions->at(i).filename, test_functions->at(i).line_number);
