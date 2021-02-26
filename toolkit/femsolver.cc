@@ -237,7 +237,7 @@ TEST_FUNCTION(ComputeSolutionDerivative) {
   dbdp.setZero();
   for (int i = 0; i < solver.triplets.size(); i++) {
     ExampleFEMProblem::Number value = solver.triplets[i].value();
-    double deriv = Random() * 2 - 1;
+    double deriv = RandomDouble() * 2 - 1;
     dAdp(solver.triplets[i].row(), solver.triplets[i].col()) += deriv;
     value.derivative = deriv;
     new_triplets.push_back(ExampleFEMProblem::Triplet(
@@ -245,7 +245,7 @@ TEST_FUNCTION(ComputeSolutionDerivative) {
   }
   solver.triplets.swap(new_triplets);
   for (int i = 0; i < solver.rhs.size(); i++) {
-    double deriv = Random() * 2 - 1;
+    double deriv = RandomDouble() * 2 - 1;
     solver.rhs[i].derivative = deriv;
     dbdp[i] = deriv;
   }

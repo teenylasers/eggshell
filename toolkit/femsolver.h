@@ -227,10 +227,10 @@ struct ExampleFEMProblem : public FEMProblem {
                         test_a(NumTriangles() * 3), test_b(NumTriangles() * 3) {
     for (int i = 0; i < NumTriangles() * 3; i++) {
       // g and a are positive to help keep the system matrix positive definite.
-      test_f[i] = (Random() * 2 - 1) + i / 20.0;
-      test_g[i] = Random();
-      test_a[i] = Random();
-      test_b[i] = Random() * 2 - 1;
+      test_f[i] = (RandomDouble() * 2 - 1) + i / 20.0;
+      test_g[i] = RandomDouble();
+      test_a[i] = RandomDouble();
+      test_b[i] = RandomDouble() * 2 - 1;
     }
     // We can make e.g. g piecewise constant like this:
     //   for (int i = 0; i < NumTriangles(); i++) {

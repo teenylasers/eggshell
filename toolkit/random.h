@@ -15,37 +15,18 @@
 // quality random numbers on some platforms, and the Eigen Random() is hard to
 // remember the syntax for (and actually maps to std::rand() under the hood).
 // Here we provide an easy-to-remember interface, that is based on the C++11
-// random number implementation.
+// random number implementation. All these functions are thread safe.
 
 #ifndef __TOOLKIT_RANDOM_H__
 #define __TOOLKIT_RANDOM_H__
 
-#include <random>
+// Seed the random number generator. The default seed is nondeterministic.
+void RandomSeed(int seed);
 
-// Return a random double from 0 to 1 (if no argument is given) or seed the
-// random number generator (if an integer >= 0 is given).
-inline double Random(int seed = -1) {
-  static std::mt19937_64 g;
-  static std::uniform_real_distribution<> d(0, 1);
-  if (seed >= 0) {
-    g.seed(seed);
-    return 0;
-  } else {
-    return d(g);
-  }
-}
+// Return a random double from 0 to 1.
+double RandomDouble();
 
-// Return a random integer from 0 to n-1 (if no argument is given) or seed the
-// random number generator (if an integer >= 0 is given).
-inline int RandomInt(int n, int seed = -1) {
-  static std::mt19937_64 g;
-  std::uniform_int_distribution<> d(0, n - 1);
-  if (seed >= 0) {
-    g.seed(seed);
-    return 0;
-  } else {
-    return d(g);
-  }
-}
+// Return a random integer from 0 to n-1.
+int RandomInt(int n);
 
 #endif

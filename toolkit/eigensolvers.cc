@@ -62,7 +62,7 @@ VectorXd TestEigenSolver(const SMatrix &A, const SMatrix *B, double sigma,
 }
 
 TEST_FUNCTION(LaplacianEigenSolver) {
-  Random(123);
+  RandomSeed(123);
 
   // Create a laplacian sparse matrix for an N*N 2D grid. This will have
   // dirichlet boundary conditions and therefore be nonsingular.
@@ -103,7 +103,7 @@ TEST_FUNCTION(LaplacianEigenSolver) {
   vector<Triplet<double> > Btrips;
   for (int i = 0; i < N*N; i++) {
     Btrips.push_back(Triplet<double>(i, i, 0.015));
-    if (i > 0) Btrips.push_back(Triplet<double>(i, i-1, 0.01 * Random()));
+    if (i > 0) Btrips.push_back(Triplet<double>(i, i-1, 0.01 * RandomDouble()));
   }
   SMatrix B(N*N, N*N);
   B.setFromTriplets(Btrips.begin(), Btrips.end());

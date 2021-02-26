@@ -250,7 +250,7 @@ TEST_FUNCTION(LevenbergMarquardt_PointsInARow) {
   PointDistance fn;
   VectorXd p(100);
   for (int i = 0; i < p.size(); i++) {
-    p[i] = Random() * 100 - 50;
+    p[i] = RandomDouble() * 100 - 50;
   }
   OptimizerStatus status;
   if (!fn.Optimize(opt, &p, &status)) {

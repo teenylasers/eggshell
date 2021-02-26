@@ -121,8 +121,8 @@ template<int D> void SweepAndPruneTester() {
   vector<collision::AABB<D> > aabb(n);
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < D; j++) {
-      aabb[i].min[j] = Random();
-      aabb[i].max[j] = aabb[i].min[j] + 0.1*Random();
+      aabb[i].min[j] = RandomDouble();
+      aabb[i].max[j] = aabb[i].min[j] + 0.1*RandomDouble();
     }
   }
 

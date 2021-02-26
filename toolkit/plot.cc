@@ -965,9 +965,9 @@ TEST_FUNCTION(Test125eN) {
 
 TEST_FUNCTION(TestMajorityFloorLog10) {
   for (int iter = 0; iter < 10000; iter++) {
-    double scale = pow(10, Random() * 10 - 5);
-    double v1 = scale * (Random() * 2 - 1);
-    double v2 = scale * (Random() * 2 - 1);
+    double scale = pow(10, RandomDouble() * 10 - 5);
+    double v1 = scale * (RandomDouble() * 2 - 1);
+    double v2 = scale * (RandomDouble() * 2 - 1);
     double lo = std::min(v1, v2);
     double hi = std::max(v1, v2);
     double majority = MajorityFloorLog10(lo, hi);

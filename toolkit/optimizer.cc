@@ -292,7 +292,7 @@ void RepeatedOptimizer::CreateSubOptimizer() {
   auto info = ParameterInfo();
   for (int i = 0; i < info.size(); i++) {
     info[i].starting_value = info[i].min_value +
-                             Random() * (info[i].max_value - info[i].min_value);
+                      RandomDouble() * (info[i].max_value - info[i].min_value);
   }
   opt_ = OptimizerFactory(type_);
   if (GetSettings()) {
@@ -322,7 +322,7 @@ bool RandomSearchOptimizer::DoOneIteration2(const std::vector<double> &errors,
   // Compute a new set of random parameters.
   for (int i = 0; i < ParameterInfo().size(); i++) {
     parameters_[i] = ParameterInfo()[i].min_value +
-        Random() *
+        RandomDouble() *
         (ParameterInfo()[i].max_value - ParameterInfo()[i].min_value);
   }
   return false;
@@ -395,7 +395,7 @@ bool NelderMeadOptimizer::Optimize() {
       double range = settings->initial_fraction *
                   (ParameterInfo()[j].max_value - ParameterInfo()[j].min_value);
       double value = ParameterInfo()[j].starting_value +
-                     (Random() - 0.5) * range;
+                     (RandomDouble() - 0.5) * range;
       vertex[i].p[j] = std::max(ParameterInfo()[j].min_value,
                                 std::min(ParameterInfo()[j].max_value, value));
     }
@@ -573,7 +573,7 @@ double NelderMeadOptimizer::Thermal() const {
   // Return a positive error perturbation that depends on the current
   // temperature. The distribution of the return value has a mean and standard
   // deviation of 'temperature'. Make sure we never compute log(0).
-  return -temperature_ * log(Random() + 1e-20);
+  return -temperature_ * log(RandomDouble() + 1e-20);
 }
 
 //***************************************************************************

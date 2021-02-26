@@ -286,8 +286,8 @@ TEST_FUNCTION(DXF_FitCircleTo3Points) {
   for (int iter = 0; iter < 10; iter++) {
     Point p[3];
     for (int i = 0; i < 3; i++) {
-      p[i][0] = Random();
-      p[i][1] = Random();
+      p[i][0] = RandomDouble();
+      p[i][1] = RandomDouble();
       // printf("p[%d] = %f,%f\n", i, p[i][0], p[i][1]);
     }
     double radius;
