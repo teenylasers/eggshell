@@ -363,6 +363,7 @@ class LuaModelViewer : public GLViewer {
   // IdleProcessing().
   bool OnInvisibleHandSweep();
   bool OnInvisibleHandOptimize();
+  void MessageBestOptimizerParameters();
 };
 
 #endif

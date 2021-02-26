@@ -554,6 +554,11 @@ void LuaModelViewer::Sweep(const string &parameter_name,
                            double start_value, double end_value,
                            int num_steps, bool sweep_over_test_output,
                            const string &image_filename) {
+  // Don't start a new sweep if something is already running.
+  if (ih_.state != InvisibleHand::OFF) {
+    Error("An optimization or sweep is already running - stop it first");
+    return;
+  }
   if (!IsModelValid()) {
     Error("The model is not yet valid");
     return;
@@ -595,6 +600,12 @@ void LuaModelViewer::Sweep(const string &parameter_name,
 void LuaModelViewer::Optimize() {
   // Optimizing parameters is the same as an invisible hand moving the sliders
   // and recording the results after each solve.
+
+  // Don't start a new optimization if something is already running.
+  if (ih_.state != InvisibleHand::OFF) {
+    Error("An optimization or sweep is already running - stop it first");
+    return;
+  }
   ih_.Start();
 
   if (!IsModelValid()) {
@@ -633,8 +644,13 @@ void LuaModelViewer::Optimize() {
       ih_.optimizer_type == OptimizerType::SUBSPACE_DOGLEG ||
       ih_.optimizer_type == OptimizerType::REPEATED_LEVENBERG_MARQUARDT) {
     CeresInteractiveOptimizer::Settings settings;
-    settings.function_tolerance = 1e-6;    //@@@ revisit
-    settings.parameter_tolerance = 1e-4;   //@@@ revisit
+    if (ih_.optimizer_type == OptimizerType::REPEATED_LEVENBERG_MARQUARDT) {
+      settings.function_tolerance = 1e-2;    // @@@ revisit
+      settings.parameter_tolerance = 1e-2;   // @@@ revisit
+    } else {
+      settings.function_tolerance = 1e-6;    //@@@ revisit
+      settings.parameter_tolerance = 1e-4;   //@@@ revisit
+    }
     // Gradients computed from mesh derivatives are not perfectly accurate, so:
     settings.gradient_tolerance = 0;
     ih_.optimizer->SetSettings(settings);
@@ -1489,6 +1505,7 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
 
   for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
     if (!SetParameter(ih_.opt_parameter_names[i], params[i])) {
+      MessageBestOptimizerParameters();
       Error("Optimizer interrupted (could not set parameter value)");
       return false;
     }
@@ -1503,6 +1520,7 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
   derivative_index_ = 0;
   PrepareForOptimize();
   if (!RerunScript(false, &optimize_errors) || optimize_errors.empty()) {
+    MessageBestOptimizerParameters();
     Error("Optimizer interrupted (script failed)");
     return false;
   }
@@ -1525,7 +1543,8 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
         derivative_index_ = i;
         if (!RerunScript(false, &optimize_errors, 0, true) ||
             optimize_errors.empty()) {
-          Error("Optimizer interrupted (script failed)");
+          MessageBestOptimizerParameters();
+          Error("Optimizer interrupted (script failed computing derivatives)");
           return false;
         }
       }
@@ -1556,6 +1575,7 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
       return true;
     } else {
       //@@@ should we Refresh() on all error exits?
+      MessageBestOptimizerParameters();
       Error("Optimizer failed");
       return false;
     }
@@ -1566,6 +1586,18 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
 
   // Schedule the next iteration of the optimization.
   return true;
+}
+
+// When an optimization fails because e.g. the model is invalid, make sure we
+// have a record of the best parameters found so far ... it would suck if we
+// lost these after a long running optimization.
+void LuaModelViewer::MessageBestOptimizerParameters() {
+  Message("-- Best parameters found:\ndefault_parameters = {");
+  for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
+    Message("  ['%s'] = %.10g,", ih_.opt_parameter_names[i].c_str(),
+            ih_.optimizer->BestParameters()[i]);
+  }
+  Message("}");
 }
 
 //***************************************************************************

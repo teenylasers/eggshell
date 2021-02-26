@@ -225,6 +225,7 @@ class RepeatedOptimizer : public AbstractOptimizer {
  private:
   OptimizerType type_;
   AbstractOptimizer *opt_ = 0;
+  int count_ = 0;
   void CreateSubOptimizer();
 };
 

@@ -266,8 +266,13 @@ bool RepeatedOptimizer::DoOneIteration2(const std::vector<double> &errors,
   bool result = opt_->DoOneIteration(errors, jacobians);
   if (result) {
     // Sub-optimization is finished. Collect the best result then start a new
-    // one.
+    // one. Log the best parameters found so far, in case of weird failures in
+    // long running optimizations.
     UpdateBest(opt_->BestParameters(), opt_->BestError());
+    Message("Best parameters found so far:");
+    for (int i = 0; i < BestParameters().size(); i++) {
+      Message("  %d: %.10g", i+1, BestParameters()[i]);
+    }
     delete opt_;
     opt_ = 0;
     CreateSubOptimizer();
@@ -280,6 +285,9 @@ bool RepeatedOptimizer::DoOneIteration2(const std::vector<double> &errors,
 }
 
 void RepeatedOptimizer::CreateSubOptimizer() {
+  count_++;
+  Message("Starting optimization %d", count_);
+
   // Randomize starting parameters.
   auto info = ParameterInfo();
   for (int i = 0; i < info.size(); i++) {
