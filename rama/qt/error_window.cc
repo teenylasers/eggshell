@@ -86,5 +86,9 @@ void ErrorWindow::AddLine(QString s, int type) {
 
 void ErrorWindow::ShowAndRaise() {
   show();
-  raise();
+  // Only raise the error window if this application has the focus, otherwise
+  // we risk disrupting something else the user is trying to do.
+  if (QApplication::focusWidget()) {
+    raise();
+  }
 }
