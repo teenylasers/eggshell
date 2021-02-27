@@ -176,7 +176,7 @@ ifeq ($(PLATFORM), windows)
 endif
 
 ifeq ($(PLATFORM), osx)
-  CFLAGS += -mmacosx-version-min=10.12
+  CFLAGS += -mmacosx-version-min=10.13
 endif
 
 ifeq ($(OPTIMIZE), 1)
