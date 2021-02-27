@@ -213,7 +213,9 @@ class InteractiveOptimizer : public AbstractOptimizer {
 
 // An optimizer that encapsulates another. It runs the second optimizer
 // repeatedly with random starting points, keeping track of the best solution
-// found. The settings given to this optimizer are passed to the sub-optimizer.
+// found. The settings given to the RepeatedOptimizer are passed to the
+// sub-optimizer. The starting values of the parameters are evaluated first, on
+// the assumption that the currently solution might already been pretty good.
 
 class RepeatedOptimizer : public AbstractOptimizer {
  public:
@@ -225,7 +227,8 @@ class RepeatedOptimizer : public AbstractOptimizer {
  private:
   OptimizerType type_;
   AbstractOptimizer *opt_ = 0;
-  int count_ = 0;
+  int count_ = 0;                 // Number of sub optimizations run so far
+  bool evaluated_starting_value_ = false;
   void CreateSubOptimizer();
 };
 

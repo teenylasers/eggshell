@@ -258,11 +258,25 @@ RepeatedOptimizer::~RepeatedOptimizer() {
 }
 
 void RepeatedOptimizer::Initialize2() {
-  CreateSubOptimizer();
+  // Evaluate the starting parameters first.
+  auto info = ParameterInfo();
+  parameters_.resize(info.size());
+  for (int i = 0; i < info.size(); i++) {
+    parameters_[i] = info[i].starting_value;
+  }
+  jacobians_needed_ = false;
 }
 
 bool RepeatedOptimizer::DoOneIteration2(const std::vector<double> &errors,
                                         const std::vector<double> &jacobians) {
+  if (!evaluated_starting_value_) {
+    // The best parameters have already been updated with the starting value.
+    // Now start the optimizations.
+    evaluated_starting_value_ = true;
+    CreateSubOptimizer();
+    return false;
+  }
+
   bool result = opt_->DoOneIteration(errors, jacobians);
   if (result) {
     // Sub-optimization is finished. Collect the best result then start a new
