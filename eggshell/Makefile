@@ -81,11 +81,13 @@ else
   endif
 endif
 
+CFLAGS += -mmacosx-version-min=10.15 -DGL_SILENCE_DEPRECATION
+
 GUI_LIBS += -L$(QT_DIR)/lib -L$(QT_DIR)/plugins/platforms -L$(QT_DIR)/plugins/styles \
   -L$(QT_DIR)/plugins/imageformats \
   -lQt5Widgets$(D) -lQt5Gui$(D) -lQt5Core$(D) -lQt5Network$(D) \
   -lqtharfbuzz$(D) -lqtpcre2$(D) \
-  -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D) -lqjpeg$(D)
+  -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D) -lqjpeg$(D) -ljpeg
 ifeq ($(PLATFORM), osx)
   GUI_LIBS += -lqtlibpng$(D) -lqtfreetype$(D) -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
     -lQt5ClipboardSupport$(D) -lQt5AccessibilitySupport$(D) \
