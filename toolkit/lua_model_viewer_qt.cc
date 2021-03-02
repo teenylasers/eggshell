@@ -22,6 +22,7 @@
 #include "trace.h"
 #include "platform.h"
 #include "shaders.h"
+#include "testing.h"
 
 #include <QCheckBox>
 #include <QLineEdit>
@@ -157,6 +158,9 @@ class MyLua : public Lua {
 
   // Note: this must be thread safe as it's called by LuaErrorHandler.
   void Output(const char *message, int icon_number) {
+    if (!message) {
+      return;
+    }
     // If the message contains multiple lines separated by \n's then insert
     // each one separately.
     if (strchr(message, '\n')) {
@@ -377,6 +381,7 @@ LuaModelViewer::LuaModelViewer(QWidget *parent)
   plot_ = 0;
   model_pane_ = plot_pane_ = script_messages_pane_ = 0;
   runscript_resets_param_map_ = true;
+  runscript_resets_view_ = true;
   num_ticked_count_ = 0;
   derivative_index_ = 0;
   rebuild_parameters_ = false;
@@ -408,7 +413,7 @@ LuaModelViewer::LuaModelViewer(QWidget *parent)
   // Setup the idle event processing mechanism.
   auto *dispatcher = QAbstractEventDispatcher::instance();
   connect(dispatcher, SIGNAL(aboutToBlock()),
-          this, SLOT(IdleProcessing()));
+          this, SLOT(AboutToBlock()));
 }
 
 LuaModelViewer::~LuaModelViewer() {
@@ -419,7 +424,33 @@ LuaModelViewer::~LuaModelViewer() {
   delete info_icon_;
 }
 
+void LuaModelViewer::AboutToBlock() {
+  // This is called before the event loop calls a function that could block. We
+  // do idle processing here to make sure that the invisible-hand mechanism has
+  // a minimal level of responsiveness. One subtlety: if we call
+  // ScheduleIdleProcessing() here it will call QTimer::singleShot(), which
+  // will lead to another call to AboutToBlock(), resulting in an infinite loop
+  // that takes 100% of the CPU. Instead, call IdleProcessing() directly if
+  // necessary and skip the timer.
+  if (!idle_processing_pending_) {
+    IdleProcessing();
+  }
+}
+
+void LuaModelViewer::ScheduleIdleProcessing() {
+  // Call this to make sure IdleProcessing() is eventually called. Don't call
+  // QTimer::singleShot() directly in various places, because that seems to
+  // result in multiple timer events in the event queue which causes a gradual
+  // loss of responsiveness in the UI when optimizing.
+  if (!idle_processing_pending_) {
+    idle_processing_pending_ = true;
+    QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+  }
+}
+
 void LuaModelViewer::IdleProcessing() {
+  idle_processing_pending_ = false;
+
   // This is called from a single shot QTimer or when the event loop is about
   // to block (i.e. when there is no other work to do in the system. It's a
   // good place to start traces and to collect trace reports.
@@ -450,7 +481,7 @@ void LuaModelViewer::IdleProcessing() {
     want_more_idles = OnInvisibleHandOptimize();
   }
   if (want_more_idles) {
-    QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+    ScheduleIdleProcessing();
   } else {
     // ih_.Stop() makes sure that future idle processing does nothing as the
     // state will be OFF.
@@ -523,6 +554,11 @@ void LuaModelViewer::Sweep(const string &parameter_name,
                            double start_value, double end_value,
                            int num_steps, bool sweep_over_test_output,
                            const string &image_filename) {
+  // Don't start a new sweep if something is already running.
+  if (ih_.state != InvisibleHand::OFF) {
+    Error("An optimization or sweep is already running - stop it first");
+    return;
+  }
   if (!IsModelValid()) {
     Error("The model is not yet valid");
     return;
@@ -551,16 +587,25 @@ void LuaModelViewer::Sweep(const string &parameter_name,
     for (int i = 0; i < num_steps; i++) {
       ih_.sweep_values[i] = double(i) / double(num_steps - 1) *
                             (end_value - start_value) + start_value;
+      if (p.integer) {
+        ih_.sweep_values[i] = round(ih_.sweep_values[i]);
+      }
     }
   }
   ih_.state = InvisibleHand::SWEEPING;
   // Run IdleProcessing() to kick off the actual sweep.
-  QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+  ScheduleIdleProcessing();
 }
 
 void LuaModelViewer::Optimize() {
   // Optimizing parameters is the same as an invisible hand moving the sliders
   // and recording the results after each solve.
+
+  // Don't start a new optimization if something is already running.
+  if (ih_.state != InvisibleHand::OFF) {
+    Error("An optimization or sweep is already running - stop it first");
+    return;
+  }
   ih_.Start();
 
   if (!IsModelValid()) {
@@ -571,7 +616,7 @@ void LuaModelViewer::Optimize() {
   // Make sure the config.optimize() function is defined and useful.
   if (num_optimize_outputs_ <= 0) {
     Error("The config.optimize() function must return one or more error "
-            "values.");
+          "values.");
     return;
   }
 
@@ -593,21 +638,79 @@ void LuaModelViewer::Optimize() {
     return;
   }
 
-  // Create the optimizer if necessary.
-  ih_.optimizer = new CeresInteractiveOptimizer(num_optimize_outputs_,
-                                                ih_.optimizer_type);
-  ih_.optimizer->SetFunctionTolerance(1e-6);    //@@@ revisit
-  ih_.optimizer->SetParameterTolerance(1e-4);   //@@@ revisit
-  // Gradients computed from mesh derivatives are not perfectly accurate, so:
-  ih_.optimizer->SetGradientTolerance(0);
+  // Create the optimizer.
+  ih_.optimizer = OptimizerFactory(ih_.optimizer_type);
+  if (ih_.optimizer_type == OptimizerType::LEVENBERG_MARQUARDT ||
+      ih_.optimizer_type == OptimizerType::SUBSPACE_DOGLEG ||
+      ih_.optimizer_type == OptimizerType::REPEATED_LEVENBERG_MARQUARDT) {
+    CeresInteractiveOptimizer::Settings settings;
+    if (ih_.optimizer_type == OptimizerType::REPEATED_LEVENBERG_MARQUARDT) {
+      settings.function_tolerance = 1e-2;    // @@@ revisit
+      settings.parameter_tolerance = 1e-2;   // @@@ revisit
+    } else {
+      settings.function_tolerance = 1e-6;    //@@@ revisit
+      settings.parameter_tolerance = 1e-4;   //@@@ revisit
+    }
+    // Gradients computed from mesh derivatives are not perfectly accurate, so:
+    settings.gradient_tolerance = 0;
+    ih_.optimizer->SetSettings(settings);
+  }
+  if (ih_.optimizer_type == OptimizerType::NELDER_MEAD) {
+    ih_.optimizer->SetSettings(ih_.nmop);
+  }
+
+  // Initialize optimizer.
+  {
+    vector<AbstractOptimizer::ParameterInformation>
+        start(ih_.opt_parameter_names.size());
+    for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
+      const Parameter &p = GetParameter(ih_.opt_parameter_names[i]);
+      start[i].starting_value = p.value;
+      start[i].min_value = p.the_min;
+      start[i].max_value = p.the_max;
+      start[i].gradient_step = 0;       // Numerical jacobians disallowed
+    }
+    ih_.optimizer->Initialize(start, num_optimize_outputs_);
+    if (ih_.optimizer->Parameters().empty()) {
+      Error("Optimizer interrupted (could not initialize)");
+      ih_.Stop();
+      return;
+    }
+    CHECK(ih_.optimizer->Parameters().size() == ih_.opt_parameter_names.size());
+  }
 
   // Start optimization.
   ih_.state = InvisibleHand::OPTIMIZING;
   // Run IdleProcessing() to kick off the actual optimization.
-  QTimer::singleShot(0, this, &LuaModelViewer::IdleProcessing);
+  ScheduleIdleProcessing();
 }
 
 void LuaModelViewer::StopSweepOrOptimize() {
+  // The optimization is being aborted before it has converged. The last set of
+  // parameters evaluated is not necessarily the best one found so far, so
+  // update the parameters and the model to the best found. For some kinds of
+  // optimization (such as random search) this is the only way to retrieve a
+  // solution.
+  if (ih_.optimizer) {
+    CHECK(ih_.optimizer->BestParameters().size() ==
+          ih_.opt_parameter_names.size());
+    for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
+      if (!SetParameter(ih_.opt_parameter_names[i],
+                        ih_.optimizer->BestParameters()[i])) {
+        Error("Optimizer interrupted (could not set final parameter value)");
+        ih_.Stop();
+        return;
+      }
+    }
+
+    // Rerun the script with the new parameter values.
+    PrepareForOptimize();
+    if (!RerunScript(true)) {
+      Error("Optimizer interrupted (final script failed)");
+      ih_.Stop();
+      return;
+    }
+  }
   ih_.Stop();
 }
 
@@ -676,7 +779,7 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
   // deleted all those controls.
   for (ParamMap::iterator it = param_map_.begin();
        it != param_map_.end(); ++it) {
-    it->second.text_ctrl = 0;
+    it->second.checkbox = 0;
     it->second.slider = 0;
     it->second.text_ctrl = 0;
   }
@@ -704,7 +807,7 @@ bool LuaModelViewer::RunScript(const char *script, bool rerun_even_if_same,
   parameter_layout_->setRowStretch(parameter_layout_->rowCount()-1, 1);
 
   // Make sure the whole model is visible in all cameras.
-  if (!IsModelEmpty()) {
+  if (!IsModelEmpty() && runscript_resets_view_) {
     int c = GetCameraIndex();
     for (int i = 0; i < MAX_CAMERAS; i++) {
       SwitchCamera(i);
@@ -948,7 +1051,13 @@ int LuaModelViewer::LuaCreateParameter(lua_State *L) {
   JetNum the_min = lua_tonumber(L, 2);
   JetNum the_max = lua_tonumber(L, 3);
   if (p.label.empty()) {
-    // Previously unseen parameters get default values.
+    // Previously unseen parameters get default values. This should only happen
+    // when we're rebuilding parameters.
+    if (!rebuild_parameters_) {
+      LuaError(L, "Unexpected new parameter. The parameters created by the "
+                  "script shoud be stable\nand e.g. parameter creation should "
+                  "not depend on the value of other parameters.");
+    }
     p.the_min = ToDouble(the_min);
     p.the_max = ToDouble(the_max);
     p.the_default = ToDouble(lua_tonumber(L, 4));
@@ -1083,13 +1192,13 @@ void LuaModelViewer::AddScriptMessageNotThreadSafe(QString msg,
                                                    int icon_number) {
   auto item = new QListWidgetItem(msg, 0);
   if (icon_number == ICON_ERROR) {
-    item->setTextColor(QColor(255, 0, 0));
+    item->setForeground(QColor(255, 0, 0));
     item->setIcon(*error_icon_);
   } else if (icon_number == ICON_WARNING) {
-    item->setTextColor(QColor(255, 128, 0));
+    item->setForeground(QColor(255, 128, 0));
     item->setIcon(*warning_icon_);
   } else if (icon_number == ICON_INFO) {
-    item->setTextColor(QColor(0, 0, 255));
+    item->setForeground(QColor(0, 0, 255));
     item->setIcon(*info_icon_);
   }
   script_messages_->insertItem(script_messages_->count(), item);
@@ -1389,30 +1498,14 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
   Trace trace(__func__);
   CHECK(ih_.optimizer);
 
-  // Initialize optimizer if necessary.
-  if (!ih_.optimizer->IsInitialized()) {
-    vector<InteractiveOptimizer::Parameter>
-        start(ih_.opt_parameter_names.size());
-    for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
-      const Parameter &p = GetParameter(ih_.opt_parameter_names[i]);
-      start[i].starting_value = p.value;
-      start[i].min_value = p.the_min;
-      start[i].max_value = p.the_max;
-      start[i].gradient_step = 0;       // Numerical jacobians disallowed
-    }
-    ih_.optimizer->Initialize(start);
-    if (ih_.optimizer->Parameters().empty()) {
-      Error("Optimizer interrupted (could not initialize)");
-      return false;
-    }
-    CHECK(ih_.optimizer->Parameters().size() == ih_.opt_parameter_names.size());
-  }
+  // Copy optimizer parameters so RerunScript() can pick them up, also update
+  // all parameter controls so the user can see evidence of progress.
+  const vector<double> &params = ih_.optimizer_done_ ?
+      ih_.optimizer->BestParameters() : ih_.optimizer->Parameters();
 
-  // Copy optimizer parameters so RerunScript() can pick them up, also also
-  // update all parameter controls so the user can see evidence of progress.
   for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
-    if (!SetParameter(ih_.opt_parameter_names[i],
-                      ih_.optimizer->Parameters()[i])) {
+    if (!SetParameter(ih_.opt_parameter_names[i], params[i])) {
+      MessageBestOptimizerParameters();
       Error("Optimizer interrupted (could not set parameter value)");
       return false;
     }
@@ -1427,6 +1520,7 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
   derivative_index_ = 0;
   PrepareForOptimize();
   if (!RerunScript(false, &optimize_errors) || optimize_errors.empty()) {
+    MessageBestOptimizerParameters();
     Error("Optimizer interrupted (script failed)");
     return false;
   }
@@ -1449,7 +1543,8 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
         derivative_index_ = i;
         if (!RerunScript(false, &optimize_errors, 0, true) ||
             optimize_errors.empty()) {
-          Error("Optimizer interrupted (script failed)");
+          MessageBestOptimizerParameters();
+          Error("Optimizer interrupted (script failed computing derivatives)");
           return false;
         }
       }
@@ -1471,16 +1566,19 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
   // Do one iteration of the optimizer.
   ih_.optimizer_done_ =
         ih_.optimizer->DoOneIteration(optimize_errors_d, jacobians);
-  if (ih_.optimizer->Parameters().empty()) {
-    //@@@ should we Refresh() on all error exits?
-    Error("Optimizer interrupted (iteration failed)");
-    return false;
-  }
   if (ih_.optimizer_done_) {
-    // Optimization is complete. The optimizer does not guarantee that the last
-    // model evaluated is the optimal one, so we need to do a final iteration
-    // with the optimal parameters.
-    return true;
+    // Optimization is complete.
+    if (ih_.optimizer->OptimizerSucceeded()) {
+      // The optimizer does not guarantee that the last model evaluated is the
+      // optimal one, so we return true here so that this function will be
+      // called again to do a final iteration with the optimal parameters.
+      return true;
+    } else {
+      //@@@ should we Refresh() on all error exits?
+      MessageBestOptimizerParameters();
+      Error("Optimizer failed");
+      return false;
+    }
   }
 
   // Display the result.
@@ -1488,4 +1586,24 @@ bool LuaModelViewer::OnInvisibleHandOptimize() {
 
   // Schedule the next iteration of the optimization.
   return true;
+}
+
+// When an optimization fails because e.g. the model is invalid, make sure we
+// have a record of the best parameters found so far ... it would suck if we
+// lost these after a long running optimization.
+void LuaModelViewer::MessageBestOptimizerParameters() {
+  Message("-- Best parameters found:\ndefault_parameters = {");
+  for (int i = 0; i < ih_.opt_parameter_names.size(); i++) {
+    Message("  ['%s'] = %.10g,", ih_.opt_parameter_names[i].c_str(),
+            ih_.optimizer->BestParameters()[i]);
+  }
+  Message("}");
+}
+
+//***************************************************************************
+
+TEST_FUNCTION(DynamicCast) {
+  // Make sure dynamic_cast<> works, i.e. RTTI is enabled.
+  auto *opt = OptimizerFactory(OptimizerType::LEVENBERG_MARQUARDT);
+  CHECK(dynamic_cast<CeresInteractiveOptimizer*>(opt));
 }

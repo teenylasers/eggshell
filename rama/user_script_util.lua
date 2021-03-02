@@ -14,10 +14,15 @@
 
 Infinity = 1.7976931348623157e+308  -- Close enough, this is the maximum double
 
+-- Parameters created so far by Parameter().
+local __Parameters__ = {}
+
+-- A front end to the C++-implemented _CreateParameter(), that checks the
+-- arguments and handles duplicate labels.
 function Parameter(T)
   -- Check that all keys in T have valid type.
   local keys = {label='string', min='number', max='number', default='number',
-                integer='boolean'}
+                defaults='table', weak_default='number', integer='boolean'}
   for k,v in pairs(T) do
     if keys[k] then
       if type(v) ~= keys[k] then
@@ -33,6 +38,8 @@ function Parameter(T)
   -- Check that all necessary keys are present).
   keys.integer = nil            -- Optional field
   keys.default = nil            -- Optional field
+  keys.defaults = nil           -- Optional field
+  keys.weak_default = nil       -- Optional field
   if next(keys) ~= nil then
     error("In argument table, missing '"..next(keys).."' key")
   end
@@ -40,8 +47,8 @@ function Parameter(T)
   -- Check numerical values.
   local min = tonumber(T.min)
   local max = tonumber(T.max)
-  local def_params = rawget(_G, 'default_parameters') or {}
-  local default = tonumber(T.default or def_params[T.label]) or min
+  local defaults = T.defaults or rawget(_G, 'default_parameters') or {}
+  local default = tonumber(T.default or defaults[T.label] or T.weak_default) or min
   local integer = T.integer or false
   if integer then
     if min ~= math.floor(min) or max ~= math.floor(max) or
@@ -57,7 +64,7 @@ function Parameter(T)
     error("In argument table, you must have default between min and max")
   end
 
-  -- Create the parameter and return its current value.
+  -- Check the label.
   local label = tostring(T.label)
   if label == '' then
     error('The label can not be the empty string')
@@ -66,7 +73,22 @@ function Parameter(T)
     error("The label can not using the single quote character: '")
     -- ...since we don't escape it when copying parameters to the clipboard
   end
-  return _CreateParameter(label, min, max, default, integer)
+
+  -- Before we create a new parameter, check to see if this exact parameter has
+  -- already been created. If so return the existing value.
+  local P = __Parameters__[label]
+  if P then
+    if min ~= P.min or max ~= P.max or default ~= P.default or integer ~= P.integer then
+      error('Parameter{} called with the same label should have the same '..
+            'min,max,default,integer')
+    end
+    return P.value
+  end
+
+  -- Create the parameter and return its current value.
+  local value = _CreateParameter(label, min, max, default, integer)
+  __Parameters__[label] = {min=min, max=max, default=default, integer=integer, value=value}
+  return value
 end
 
 function ParameterMarker(T)
@@ -160,7 +182,8 @@ end
 
 -- Create a table that returns a zero for every index. This is sometimes useful
 -- as arguments to config.optimize().
-__ZeroTable__ = setmetatable({}, {__index = function(T,k) return 0 end })
+__ZeroTable__ = setmetatable({}, {__index = function(T,k) return 0 end,
+                                  __len = function(T) return 1 end})
 
 -- The third argument to optimize, a table which contains field lookup
 -- functions.
@@ -206,10 +229,6 @@ __DummyOptimize3rdArg__ = {
 }
 
 -- Utility functions.
-
-function MakeMachinable(shape, radius, limit)
-  return shape:Grow(-radius, 'round', limit):Grow(radius, 'round', limit)
-end
 
 function LinearRange(start, stop, n)
   local T = {}
@@ -576,6 +595,18 @@ util.PortCharge = function(s, sel_table, n, charge)
 end
 
 -----------------------------------------------------------------------------
+-- Additional vec table functions.
+
+vec.New = function(...)
+  local T = table.pack(...)
+  local v = Vector():Resize(#T)
+  for i = 1,#T do
+    v[i] = T[i]
+  end
+  return v
+end
+
+-----------------------------------------------------------------------------
 -- Other utilities.
 
 util.Dump = function(s)
@@ -593,4 +624,22 @@ end
 
 util.LoadSTL = function(filename)
   return Shape():LoadSTL(filename):Scale(0.001 / util.DistanceScale())
+end
+
+util.MakeMachinable = function(shape, radius, limit)
+  return shape:Grow(-radius, 'round', limit):Grow(radius, 'round', limit)
+end
+
+local __included_files__ = {}
+util.include = function(filename)
+  if not __included_files__[filename] then
+    __included_files__[filename] = true
+    dofile(filename)
+  end
+end
+
+util.VertexOnPort = function(v)
+  local port0 = __EdgeKind__(v.kind0)
+  local port1 = __EdgeKind__(v.kind1)
+  return port0 > 0 or port1 > 0
 end

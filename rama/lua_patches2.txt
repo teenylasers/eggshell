@@ -1,7 +1,7 @@
-diff -r -u -w lua-5.4.0-original/src/lauxlib.c lua-5.4.0/src/lauxlib.c
---- lua-5.4.0-original/src/lauxlib.c	2020-05-08 03:46:20.000000000 -0700
-+++ lua-5.4.0/src/lauxlib.c	2020-05-23 12:57:28.000000000 -0700
-@@ -867,7 +867,7 @@
+diff -r -u -w lua-5.4.1-original/src/lauxlib.c lua-5.4.1/src/lauxlib.c
+--- lua-5.4.1-original/src/lauxlib.c	2020-09-30 02:36:48.000000000 -0700
++++ lua-5.4.1/src/lauxlib.c	2020-10-26 19:02:53.000000000 -0700
+@@ -869,7 +869,7 @@
          if (lua_isinteger(L, idx))
            lua_pushfstring(L, "%I", (LUAI_UACINT)lua_tointeger(L, idx));
          else
@@ -10,7 +10,7 @@ diff -r -u -w lua-5.4.0-original/src/lauxlib.c lua-5.4.0/src/lauxlib.c
          break;
        }
        case LUA_TSTRING:
-@@ -1050,6 +1050,6 @@
+@@ -1054,6 +1054,6 @@
      luaL_error(L, "core and library have incompatible numeric types");
    else if (v != ver)
      luaL_error(L, "version mismatch: app. needs %f, Lua core provides %f",
@@ -18,9 +18,9 @@ diff -r -u -w lua-5.4.0-original/src/lauxlib.c lua-5.4.0/src/lauxlib.c
 +                  (LUAI_UACNUMBER)ToDouble(ver), (LUAI_UACNUMBER)ToDouble(v));
  }
  
-diff -r -u -w lua-5.4.0-original/src/lbaselib.c lua-5.4.0/src/lbaselib.c
---- lua-5.4.0-original/src/lbaselib.c	2020-05-06 04:33:35.000000000 -0700
-+++ lua-5.4.0/src/lbaselib.c	2020-05-23 12:12:20.000000000 -0700
+diff -r -u -w lua-5.4.1-original/src/lbaselib.c lua-5.4.1/src/lbaselib.c
+--- lua-5.4.1-original/src/lbaselib.c	2020-09-30 02:36:48.000000000 -0700
++++ lua-5.4.1/src/lbaselib.c	2020-10-26 19:02:53.000000000 -0700
 @@ -199,7 +199,7 @@
      case LUA_GCCOUNT: {
        int k = lua_gc(L, o);
@@ -30,10 +30,10 @@ diff -r -u -w lua-5.4.0-original/src/lbaselib.c lua-5.4.0/src/lbaselib.c
        return 1;
      }
      case LUA_GCSTEP: {
-diff -r -u -w lua-5.4.0-original/src/liolib.c lua-5.4.0/src/liolib.c
---- lua-5.4.0-original/src/liolib.c	2020-05-06 04:33:35.000000000 -0700
-+++ lua-5.4.0/src/liolib.c	2020-05-23 12:55:43.000000000 -0700
-@@ -653,7 +653,7 @@
+diff -r -u -w lua-5.4.1-original/src/liolib.c lua-5.4.1/src/liolib.c
+--- lua-5.4.1-original/src/liolib.c	2020-09-30 02:36:49.000000000 -0700
++++ lua-5.4.1/src/liolib.c	2020-10-26 19:02:53.000000000 -0700
+@@ -661,7 +661,7 @@
                  ? fprintf(f, LUA_INTEGER_FMT,
                               (LUAI_UACINT)lua_tointeger(L, arg))
                  : fprintf(f, LUA_NUMBER_FMT,
@@ -42,10 +42,10 @@ diff -r -u -w lua-5.4.0-original/src/liolib.c lua-5.4.0/src/liolib.c
        status = status && (len > 0);
      }
      else {
-diff -r -u -w lua-5.4.0-original/src/lobject.c lua-5.4.0/src/lobject.c
---- lua-5.4.0-original/src/lobject.c	2020-05-06 04:33:36.000000000 -0700
-+++ lua-5.4.0/src/lobject.c	2020-05-30 10:10:49.000000000 -0700
-@@ -540,8 +540,8 @@
+diff -r -u -w lua-5.4.1-original/src/lobject.c lua-5.4.1/src/lobject.c
+--- lua-5.4.1-original/src/lobject.c	2020-09-30 02:36:50.000000000 -0700
++++ lua-5.4.1/src/lobject.c	2020-10-26 19:02:53.000000000 -0700
+@@ -549,8 +549,8 @@
  
  
  #define RETS	"..."
@@ -56,9 +56,9 @@ diff -r -u -w lua-5.4.0-original/src/lobject.c lua-5.4.0/src/lobject.c
  
  #define addstr(a,b,l)	( memcpy(a,b,(l) * sizeof(char)), a += (l) )
  
-diff -r -u -w lua-5.4.0-original/src/lstrlib.c lua-5.4.0/src/lstrlib.c
---- lua-5.4.0-original/src/lstrlib.c	2020-05-06 04:33:36.000000000 -0700
-+++ lua-5.4.0/src/lstrlib.c	2020-05-23 12:57:45.000000000 -0700
+diff -r -u -w lua-5.4.1-original/src/lstrlib.c lua-5.4.1/src/lstrlib.c
+--- lua-5.4.1-original/src/lstrlib.c	2020-09-30 02:36:51.000000000 -0700
++++ lua-5.4.1/src/lstrlib.c	2020-10-26 19:02:53.000000000 -0700
 @@ -1266,7 +1266,7 @@
          case 'e': case 'E': case 'g': case 'G': {
            lua_Number n = luaL_checknumber(L, arg);
@@ -92,9 +92,9 @@ diff -r -u -w lua-5.4.0-original/src/lstrlib.c lua-5.4.0/src/lstrlib.c
          lua_Number num;
          copywithendian(u.buff, data + pos, size, h.islittle);
          if (size == sizeof(u.f)) num = (lua_Number)u.f;
-diff -r -u -w lua-5.4.0-original/src/ltable.c lua-5.4.0/src/ltable.c
---- lua-5.4.0-original/src/ltable.c	2020-05-06 04:33:36.000000000 -0700
-+++ lua-5.4.0/src/ltable.c	2020-05-23 12:11:30.000000000 -0700
+diff -r -u -w lua-5.4.1-original/src/ltable.c lua-5.4.1/src/ltable.c
+--- lua-5.4.1-original/src/ltable.c	2020-09-30 02:36:51.000000000 -0700
++++ lua-5.4.1/src/ltable.c	2020-10-26 19:02:53.000000000 -0700
 @@ -114,7 +114,7 @@
  static int l_hashfloat (lua_Number n) {
    int i;
@@ -104,9 +104,9 @@ diff -r -u -w lua-5.4.0-original/src/ltable.c lua-5.4.0/src/ltable.c
    if (!lua_numbertointeger(n, &ni)) {  /* is 'n' inf/-inf/NaN? */
      lua_assert(luai_numisnan(n) || l_mathop(fabs)(n) == cast_num(HUGE_VAL));
      return 0;
-diff -r -u -w lua-5.4.0-original/src/lua.h lua-5.4.0/src/lua.h
---- lua-5.4.0-original/src/lua.h	2020-05-06 04:33:37.000000000 -0700
-+++ lua-5.4.0/src/lua.h	2020-05-23 11:14:23.000000000 -0700
+diff -r -u -w lua-5.4.1-original/src/lua.h lua-5.4.1/src/lua.h
+--- lua-5.4.1-original/src/lua.h	2020-09-30 02:36:51.000000000 -0700
++++ lua-5.4.1/src/lua.h	2020-10-26 19:02:53.000000000 -0700
 @@ -219,9 +219,10 @@
  
  LUA_API void  (lua_arith) (lua_State *L, int op);
@@ -121,9 +121,9 @@ diff -r -u -w lua-5.4.0-original/src/lua.h lua-5.4.0/src/lua.h
  
  LUA_API int   (lua_rawequal) (lua_State *L, int idx1, int idx2);
  LUA_API int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);
-diff -r -u -w lua-5.4.0-original/src/luaconf.h lua-5.4.0/src/luaconf.h
---- lua-5.4.0-original/src/luaconf.h	2020-05-06 04:33:37.000000000 -0700
-+++ lua-5.4.0/src/luaconf.h	2020-05-31 16:59:01.000000000 -0700
+diff -r -u -w lua-5.4.1-original/src/luaconf.h lua-5.4.1/src/luaconf.h
+--- lua-5.4.1-original/src/luaconf.h	2020-09-30 02:36:51.000000000 -0700
++++ lua-5.4.1/src/luaconf.h	2020-10-26 19:02:53.000000000 -0700
 @@ -8,6 +8,8 @@
  #ifndef luaconf_h
  #define luaconf_h
@@ -186,3 +186,12 @@ diff -r -u -w lua-5.4.0-original/src/luaconf.h lua-5.4.0/src/luaconf.h
  
  
  /*
+@@ -639,7 +637,7 @@
+ ** availability of these variants. ('math.h' is already included in
+ ** all files that use these macros.)
+ */
+-#if defined(LUA_USE_C89) || (defined(HUGE_VAL) && !defined(HUGE_VALF))
++#if 0  // Make sure this doesn't happen on Windows, where it breaks math.random()
+ #undef l_mathop  /* variants not available */
+ #undef lua_str2number
+ #define l_mathop(op)		(lua_Number)op  /* no variant */

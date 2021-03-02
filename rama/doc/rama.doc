@@ -41,6 +41,7 @@
 @spelling{Atacama} @spelling{utf} @spelling{false} @spelling{JetComplex}
 @spelling{ZFillCallback} @spelling{PNG} @spelling{linux} @spelling{matlab}
 @spelling{Poisson's} @spelling{quasi-static} @spelling{isovoltage}
+@spelling{Nelder-Mead}
 
 
 @title{Rama}
@@ -281,15 +282,7 @@ model. The window under each of these tabs can be dragged away to a separate
 window - in this way it is possible to see several of those windows at once.
 
 The ``model'' tab shows the geometry of the model, the mesh, and the field
-solution. Mouse buttons can be used to change the view:
-@list{
-@* Right click + drag: pan the view.
-@* Mouse wheel: zoom in or out, centered around the mouse pointer.
-@* Ctrl + right click + drag: zoom around the mouse pointer.
-}
-
-On Mac trackpads, pinch and zoom can be used to zoom around the mouse pointer,
-and two finger swipes pan the view.
+solution.
 
 The ``Sweep'' tab is a plot that shows values computed as a parameter varies.
 It is often used to show S-parameters of model ports, but can also plot any
@@ -305,6 +298,33 @@ defined.
 The ``Script messages'' tab shows errors and other printed output from the
 model. When there is a model script error the view will automatically switch to
 this tab, where the error messages are.
+
+
+@subsection{Panning, Zooming, Rotating}
+
+Mouse buttons can be used to change the view in the model tab:
+@list{
+@* Right click + drag: pan the view.
+@* Mouse wheel: zoom in or out, centered around the mouse pointer.
+@* Control + right click + drag: zoom around the mouse pointer.
+@* Middle click + drag: rotate the view (in 3D mode).
+}
+
+The next two actions are convenient to use on track pads without buttons. For
+these actions the left button can be held down while dragging, or it can be
+tapped (pressed and released) before dragging:
+@list{
+@* Control + left button tap + drag: pans the view.
+@* Command + left button tap + drag: rotates the view in 3D mode.
+}
+
+On the Mac track pad:
+@list{
+@* Pinch and zoom: zoom around the mouse pointer.
+@* Two finger swipes: pan the view.
+}
+
+On Windows track pads, two finger swipes can be used to zoom.
 
 
 @subsection{The model}
@@ -411,7 +431,9 @@ vectors) can be changed with the brightness slider.
       The coordinates in the DXF are in the @c{config.unit} units, but the
       value of @c{config.unit} is not saved in the DXF file. Therefore you must
       set the units manually or scale the model when importing into a CAD
-      program.
+      program. The values @c{config.dxf_arc_dist} and @c{config.dxf_arc_angle}
+      can be set to detect and export boundary arcs, otherwise the DXF will
+      only contain line segments.
    @* @b{Export boundary as x,y list} Export the model boundary shape
       (@c{config.cd}) as text file list of coordinates.
    @* @b{Export field as matlab data}. Save the mesh and current field
@@ -420,6 +442,10 @@ vectors) can be changed with the brightness slider.
       @* @c{p}: Mesh point coordinates.
       @* @c{t}: Mesh triangles, indexes into @c{p}.
       @* @c{u}: Solution complex values, one for each point.
+      @* @c{pp}: If there are material properties defined, the complex epsilon
+                 values, one for each point.
+      @* @c{A}: The system matrix (sparse, complex). We have @m{A \: u = \mbox{rhs}}.
+      @* @c{rhs}: The system right hand side vector (complex).
       }
       In matlab the solution can be visualized with:
 @===[
@@ -469,8 +495,8 @@ vectors) can be changed with the brightness slider.
    @* @b{Increase / Decrease animation time}. Move the current animation time
       forwards or backwards by one unit.
    @* @b{Show boundary}: Select which features of the boundary are displayed:
-      lines, ports, or vertices. Vertex derivatives with respect to the first
-      checked parameter can also be displayed, as vectors.
+      lines, ports, the interior, or vertices. Vertex derivatives with respect
+      to the first checked parameter can also be displayed, as vectors.
    @* @b{Show grid}. Toggle the grid.
    @* @b{Show markers}. Show the handles for markers, which are 2D parameter
       values. The handles can be dragged to adjust those parameters.
@@ -479,6 +505,8 @@ vectors) can be changed with the brightness slider.
    @* @b{Antialiasing}. Render the model and field more smoothly, using
       antialiasing. On some platforms this can be slow, and so can be switched
       off.
+   @* @b{3D}. Toggle 3D view mode, where the solution, boundary, mesh etc are
+      rendered in 3D.
    @* @b{Switch to model after each solve}. When this option is turned on,
       each time a new field solution is computed the model tab is made visible.
       Turn this option off to allow other tabs to remain visible.
@@ -488,8 +516,8 @@ vectors) can be changed with the brightness slider.
    @* @b{Sweep}. Plot S-parameters or other values over parameter values.
       See the section on @link{sweeps}{sweeps}.
    @* @b{Select optimizer}. Select the numerical technique that will be used to
-      perform optimizations. For certain problems some techniques perform
-      better than others. Options are Levenberg-Marquardt, and Subspace dogleg.
+      perform optimizations. The options are discussed in the section on
+      @link{optimization}{optimization}.
    @* @b{Start optimization}. Adjust the selected parameters to improve the
       output of the @c{config.optimize} function.
       See the section on @link{optimization}{optimization}.
@@ -835,10 +863,18 @@ the following fields:
   @* @c{max_modes}
   @| For @c{TE} and @c{TM} type, this is the number of modes to compute.
 
-  @* @c{wideband_window}
+  @* @c{wideband_window} (optional)
   @| For a multi-frequency simulation this is the scaling window that is used
      to display wideband pulses. Valid values are @c{rectangle} and @c{hamming}.
      If this field is missing then a rectangular window is assumed.
+
+  @* @c{dxf_arc_dist} (optional)
+  @| For DXF export, concentric points closer than this distance to their
+     neighbors are potentially considered to be part of arcs.
+
+  @* @c{dxf_arc_angle} (optional)
+  @| For DXF export, concentric points with angles less than this to their
+     neighbors are potentially considered to be part of arcs (degrees).
 }
 
 @subsection{Parameters}
@@ -864,7 +900,7 @@ be the @c{default}, but when the user changes the parameter the script will be
 rerun, @c{Parameter()} will return the new value and an updated solution will
 be computed for any new geometry.
 
-By default parameters can take any real value. Parameters that are restricted
+By default, parameters can take any real value. Parameters that are restricted
 to integers can be generated by:
 
 @===[
@@ -899,11 +935,23 @@ are consistent).
 
 @subsection{Parameter defaults}
 
-The @c{default} argument to the @c{Parameter@{@}} function is actually optional.
-If it is not given, the default value will be read from the global
-@c{default_parameters} table using the parameter label as a key, if that table
-and key exists. If that table or key doesn't exist the parameter will take the
-@c{min} value. This mechanism allows easy copying of the current parameter
+Parameter defaults can come from a variety of places. The rules used to
+determine the default are:
+
+@numlist{
+@* If the @c{default} argument to the @c{Parameter@{@}} function is present,
+   use that number as the default, otherwise:
+@* If the @c{defaults} argument is a table then look up the default in that
+   table using the parameter label as a key, otherwise:
+@* If the global @c{default_parameters} table exists then look up the default
+   in that table using the parameter label as a key, otherwise:
+@* If the @c{weak_default} argument is present, use that number as the default.
+   This is useful for defaults that should be used only if another module does
+   not provide a table based default. Otherwise:
+@* Use the @c{min} value as the default.
+}
+
+Reading defaults from tables allows easy copying of the current parameter
 values back into the script: simply select ``Edit / Copy'' from the menu and
 the current parameters will be copied to the clipboard in this form:
 
@@ -949,8 +997,9 @@ another function, so for example the following is a convenient idiom:
 @subsection{@label{luafnvars} Global functions and variables available to the script}
 
 The following @link{http://www.lua.org/manual/5.4/manual.html}{Lua standard libraries}
-can be used: base, table, string, utf8 and
-math. The standard Lua @c{print()} function sends text to the ``script messages''
+can be used: @c{base}, @c{table}, @c{string}, @c{utf8}, @c{math}, and the time
+related functions in the @c{os} library.
+The standard Lua @c{print()} function sends text to the ``script messages''
 tab. The standard Lua @c{error()} function will output its error message to this
 tab also. The following extra miscellaneous functions are defined:
 
@@ -1006,12 +1055,24 @@ number).
   @| Create a new zero size vector.
   @* @c{@#a}
   @| The number of elements in @c{a}.
+  @* @c{a.length}
+  @| The length of @c{a} (i.e. its @m{L_2} norm).
+  @* @c{a.normalized}
+  @| The vector @c{a} normalized to unit length.
   @* @c{a:Resize(n)}
   @| Resize the vector to have @c{n} elements. All elements will be set to
      zero. Return @c{a}, so that @c{v = Vector():Resize(n)} can be written.
   @* @c{a[i]}
   @| Access the @c{i}'th element of @c{a}, where @c{i} is in the range
      @c{1...@#a}.
+  @* @c{a:dot(b)}
+  @| Return the dot product of @c{a} and @c{b}.
+  @* @c{a:cross(b)}
+  @| Return the cross product of 3-vectors @c{a} and @c{b}. Or, if @c{a} and
+     @c{b} are 2-vectors, return the Z value of the cross product of two
+     vectors in the XY plane.
+  @* @c{vec.New(a1, a2, ...)}
+  @| Create a new vector with elements initialized to @c{a1}, @c{a2}, etc.
   @* @c{vec.abs(a)},@~@c{vec.acos(a)}, @_
      @c{vec.asin(a)},@~@c{vec.atan(a)}, @_
      @c{vec.atan2(a,b)},@~@c{vec.ceil(a)}, @_
@@ -1193,6 +1254,26 @@ All of these are implemented in Lua in the @c{user_script_util.lua} source file.
   @* @c{LoadSTL(filename)}
   @| Uses @link{shapegeomfn}{@c{Shape():LoadSTL}} to read an STL file, assuming
      that the STL coordinates are in mm.
+
+  @* @c{MakeMachinable(shape, @_@~@~radius, limit)}
+  @| Returns a ``machinable'' version of shape, assuming a cutting tool of the
+     given @c{radius}. If @c{radius} > 0 then the shape is assumed to be a
+     pocket machined out of some larger slab. If @c{radius} < 0 then the shape
+     is assumed to be a plate machined from the outside. The @c{limit} is the
+     maximum distance allowed between a polygon approximation of an arc and a
+     true circle.
+
+  @* @c{include(filename)}
+  @| This is like the standard Lua @c{dofile} except that it does nothing for
+     files that have been previously passed to @c{include}. You can use this to
+     run utility code in separate files that should be executed only once.
+
+  @* @c{script_filename}
+  @| The file name of the top level script.
+
+  @* @c{VertexOnPort(v)}
+  @| Examine the internal fields of shape vertex @c{v}, return true if this
+     vertex is part of a port or false otherwise.
 }
 
 #############################################################################
@@ -1291,8 +1372,8 @@ referenced with the following syntax:
   @| The @c{n}'th vertex of a single piece shape, where n is in the range 1 to
      @c{@#s}. It is an error if @c{s} has more than once piece. The vertex is
      returned as a table containing number fields @c{x} and @c{y}, and also
-     the fields @c{kind0}, @c{kind1}, @c{dist0}, @c{dist0} which are used for
-     debugging.
+     the ``internal'' fields @c{kind0}, @c{kind1}, @c{dist0}, @c{dist1} which
+     are used for debugging.
 
   @* @c{s.material}
   @| The material table of a single piece shape. The table contains keys
@@ -1323,7 +1404,8 @@ If you have a shape object @c{s} then:
 
   @* @c{s.bounds}
   @| A table containing the bounding box of the shape in the form
-     @m{\{\min_x, \min_y, \max_x, \max_y\}}. It is an error if @c{s} is empty.
+     @c{@{min_x=@m{value},min_y=@m{value},max_x=@m{value},max_y=@m{value}@}}.
+     It is an error if @c{s} is empty.
 
   @* @c{s.empty}
   @| @c{true} if the shape has no polygons, @c{false} if this is a valid shape.
@@ -1331,6 +1413,9 @@ If you have a shape object @c{s} then:
   @* @c{s.orientation}
   @| @c{true} if this is an outer boundary or @c{false} if this in an interior
      hole. It is an error if the shape does not have a single piece.
+
+  @* @c{s.self_intersection}
+  @| @c{true} if any pieces of this shape have a self intersecting boundary.
 }
 
 @subsection{Shape operators}
@@ -1338,15 +1423,19 @@ If you have a shape object @c{s} then:
 If @c{A} and @c{B} are two shapes then a third shape can be created by:
 
 @table{
-  @* @c{A + B}
+  @* @c{A+B}
   @| The union of @c{A} and @c{B}.
-  @* @c{A - B}
+  @* @c{A-B}
   @| The subtraction of @c{B} from @c{A}.
-  @* @c{A * B}
+  @* @c{A*B}
   @| The intersection of @c{A} and @c{B}.
-  @* @c{A ~ B}
+  @* @c{A~B}
   @| The xor of @c{A} and @c{B} (i.e. points in @c{A} or @c{B} but not both).
      This is rarely used.
+  @* @c{A..B}
+  @| The concatenation of all pieces of @c{A} and all pieces of @c{B}. When all
+     those pieces are disjoint then this is the same as @c{A + B}, otherwise
+     the result will have overlapping pieces.
 }
 
 The coincident vertex rule: If @c{A} and @c{B} have a coincident vertex, and
@@ -1373,6 +1462,10 @@ rotate @c{s} about (3,4) you could do this:
   @| Adds the point (x,y) to the end of the last polygon piece. This is used to
      create new shapes from a list of coordinates. Returns @c{s}.
 
+  @* @c{s:AddPoint(T)}
+  @| Adds the point using x,y and internal fields from the table @c{T}, which
+     has the same format as the table returned by @c{s[n]}. Returns @c{s}.
+
   @* @c{s:APointInside()}
   @| Returns two numbers (x,y) that are a point guaranteed to be inside the
      shape. This requires @c{s} to be a nonempty single piece polygon of any
@@ -1382,12 +1475,21 @@ rotate @c{s} about (3,4) you could do this:
   @* @c{s:ChamferVertex(x,y, @_@~@~predist,postdist)}
   @| Add a chamfer of the given pre- and post- vertex distances to the vertex
      closest to @c{x},@c{y}. It is a runtime error if the shape is empty.
+     Return @c{x1,y1,x2,y2} the coordinates of the new pre- and post- vertices.
 
   @* @c{s:Clean(threshold)}
   @| Remove all vertices from shape polygons that are closer than @c{threshold}
      to adjacent vertices. Cleaning is automatically done on the final
      @c{config.cd} shape to avoid making meshes with extremely small triangles.
      It is however occasionally necessary to clean intermediate shapes.
+
+  @* @c{s:Clean(threshold, angle_threshold, mode)}
+  @| Like @c{s:Clean()} but provides more control. If @c{mode} is 1 then remove
+     redundant co-linear vertices that are closer than the threshold to their
+     neighboring vertices. If @c{mode} is 2 then do an additional pass and
+     remove @emph{any} vertices that are closer than the threshold to their
+     neighboring vertices. The @c{angle_threshold} is the angle between two
+     lines (in radians) to be considered colinear.
 
   @* @c{s:Clone()}
   @| Returns a new copy of @c{s} so that @c{s} and its copy can be changed
@@ -1397,11 +1499,18 @@ rotate @c{s} about (3,4) you could do this:
   @| Returns @c{true} if the point (x,y) is inside the shape (but not inside
      one of its holes) or @c{false} otherwise.
 
-  @* @c{s:FilletVertex(x,y, @_@~@~radius,limit)}
-  @| Add a fillet of the given @c{radius} to the vertex closest to @c{x},@c{y}.
-     The @c{limit} is the maximum distance allowed between a polygon
-     approximation of an arc and a true circle. It is a runtime error if the
-     shape is empty.
+  @* @c{s:FilletVertex(x,y, @_@~@~radius,limit,[mutate])}
+  @| Add a fillet arc of the given @c{radius} to the vertex closest to
+     @c{x},@c{y}. The @c{limit} is the maximum distance allowed between a
+     polygon approximation of an arc and a true circle. It is a runtime error
+     if the shape is empty. Fillets that are tangent to both edges of the
+     vertex are preferred, otherwise fillets that are tangent to just one edge
+     are used. If no fillet of the given radius can be constructed, nothing
+     will be done. Return @c{pstart,pend,center}: the coordinates of the new
+     vertices that start and end the arc, and the center of the arc. Each
+     return value is a @link{vectors}{Vector} of size 2. If no arc was created
+     the return values will all be @c{nil}. If @c{mutate} is false then the
+     return values will be computed but the shape will not be modified.
 
   @* @c{s:Grow(delta,style,limit)} @_
      or @_
@@ -1561,13 +1670,6 @@ should generally be one of the last steps in model creation.}
 @subsection{Utility functions}
 
 @table{
-  @* @c{MakeMachinable(shape, @_@~@~radius, limit)}
-  @| Returns a ``machinable'' version of shape, assuming a cutting tool of the
-     given @c{radius}. If @c{radius} > 0 then the shape is assumed to be a
-     pocket machined out of some larger slab. If @c{radius} < 0 then the shape
-     is assumed to be a plate machined from the outside. The @c{limit} is the
-     maximum distance allowed between a polygon approximation of an arc and a
-     true circle.
   @* @c{LinearRange(start,stop,n)}
   @| Return an array of @c{n} numbers linearly distributed between @c{start}
      and @c{stop}.
@@ -1667,8 +1769,30 @@ To use the optimizer, here are the steps:
    solution looks across a range of parameter values, and start with parameter
    values near to where you think a reasonable configuration is.
 @* (Optionally) select the optimization method with the ``Solve / Select
-   optimizer'' menu. For certain problems some techniques perform better than
-   others. The default Levenberg-Marquardt technique works for most problems.
+   optimizer'' menu. The options are:
+   @list{
+   @* Levenberg-Marquardt: a gradient based technique that works for most
+      problems. This is a fast optimization technique, but it is local, in the
+      sense that it will find a locally optimal solution that is close to the
+      starting parameters but can leave unexplored better solutions that are
+      further away.
+   @* Subspace Dogleg: a gradient based local optimization technique that has
+      similar performance to Levenberg-Marquardt. This can be a better choice
+      for a small number of problems.
+   @* @link{https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method}{Nelder-Mead}
+      / @link{https://en.wikipedia.org/wiki/Simulated_annealing}{Simulated annealing}:
+      a hybrid of those two techniques, that first does a global optimization
+      that gradually reduces temperature, then does a downhill only
+      optimization to find the final solution. Selecting this will pop up a
+      dialog box allowing the technique's many parameters to be configured.
+   @* Random search: this just randomly tries solutions until the optimization
+      is stopped, whereupon the best solution found so far is used. This is
+      usually not an efficient choice.
+   @* Repeated Levenberg-Marquardt: This runs Levenberg-Marquardt optimization
+      repeatedly, with randomly chosen starting points every time. This will
+      have to be stopped manually, whereupon the best solution found so far
+      will be returned.
+   }
 @* Run the optimizer with the ``Solve / Start optimization'' menu command.
    The parameters will be adjusted and the field will be solved repeatedly as
    the optimizer searches for a solution. If the process is taking too long
@@ -1996,8 +2120,56 @@ Here is what is added in each new version.
 @* Added the @c{conj} field to complex numbers.
 @* Added @c{LoadSTL} functions to shape and @c{util}.
 @* Fix crashing bug for necked zero area polygons (in @c{SplitPolygonsAtNecks}).
-@* It's now an error if infinity is passed as a numerical arguments to a shape
+@* It's now an error if infinity is passed as a numerical argument to a shape
    function.
 @* Slightly improved display scaling of vector fields.
 @* Added examples: @c{capacitor_electrostatics.lua}, @c{photonic_nanojet.lua}
+@* Fixed waveguide mode vector scaling.
+@* Make available the time related functions in the @c{os} library.
+@* Fix bug that caused sweep integer parameter values to sometimes be slightly
+   non integer.
+@* Warn about parameter creation that depends on other parameters.
+@* Fix @c{math.random()} on windows.
+@* Various minor stability improvement.
+}
+
+@b{v0.38}
+@list{
+@* Added the 3D viewing mode.
+@* Improved Windows track pad support.
+@* @c{FilletVertex} can now construct fillets that are tangent to just one
+   edge of the vertex if it is impossible to make it tangent to both edges.
+@* Fix a bug in @c{Clean} where duplicate points were not removed.
+@* Added @c{dxf_arc_dist} and @c{dxf_arc_angle} to allow DXF files to contain
+   arcs.
+@* Added Nelder-Mead and simulated annealing optimization techniques.
+@* Upgrade to Lua 5.4.1.
+@* Changed the return value of @c{ChamferVertex}.
+@* Default directory for @c{dofile} and saves is the script directory.
+@* Move @c{MakeMachinable} to the @c{util} table.
+@* @c{Parameter@{@}} called again with identical arguments returns the same
+   value as last time.
+@* Added @c{util.include}.
+@* Added @c{util.script_filename}.
+@* Added @c{util.VertexOnPort}.
+@* Added the @c{defaults} argument to @c{Parameter}.
+@* Added vector functions: @c{length}, @c{dot}, @c{cross}, @c{vec.New},
+   @c{vec.Normalize}.
+@* Behavior change in @c{FilletVertex}, and new information returned.
+@* Add shape concatenation operator.
+@* @c{s:AddPoint} can now accept the table returned by @c{s[i]}.
+@* Added the shape @c{s.self_intersection} property.
+@* Expanded arguments to @c{s:Clean()}.
+@* Fixed the documentation for the @c{s.bounds} value.
+}
+
+@b{v0.39}
+@list{
+@* @c{LoadSTL} reads the minimum Z plane instead of the Z=0 plane.
+@* Saving the field solution also saves @c{A}, @c{rhs}.
+@* Fixed a simulated annealing bug that occasionally caused parameters to get
+   stuck at their min or max values.
+@* Add the @c{weak_default} argument to @c{Parameter}.
+@* Add the "Repeated Levenberg-Marquardt" optimizer method.
+@* Upgraded to Qt 5.15.
 }

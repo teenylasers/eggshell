@@ -67,10 +67,10 @@ void ErrorWindow::VAddLine(const char *msg, va_list ap, int type) {
 void ErrorWindow::AddLine(QString s, int type) {
   auto item = new QListWidgetItem(s, 0);
   if (type == Type::ERROR) {
-    item->setTextColor(QColor(255, 0, 0));
+    item->setForeground(QColor(255, 0, 0));
     item->setIcon(error_icon_);
   } else if (type == Type::WARNING) {
-    item->setTextColor(QColor(255, 128, 0));
+    item->setForeground(QColor(255, 128, 0));
     item->setIcon(warning_icon_);
   }
   auto *list = ui->error_list;
@@ -86,5 +86,9 @@ void ErrorWindow::AddLine(QString s, int type) {
 
 void ErrorWindow::ShowAndRaise() {
   show();
-  raise();
+  // Only raise the error window if this application has the focus, otherwise
+  // we risk disrupting something else the user is trying to do.
+  if (QApplication::focusWidget()) {
+    raise();
+  }
 }

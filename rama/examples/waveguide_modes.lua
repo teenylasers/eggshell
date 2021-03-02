@@ -34,10 +34,10 @@ if geom == 0 then
             + (Shape():AddPoint(A/2, A*K/2):AddPoint(0, A*K/2+D):
                        AddPoint(0, -A*K/2-D):AddPoint(A/2, -A*K/2)):Offset(0,OFS)
   if F > 0 then
-    config.cd = MakeMachinable(config.cd, F, 0.1)
+    config.cd = util.MakeMachinable(config.cd, F, 0.1)
   end
   if F > 0 then
-    config.cd = MakeMachinable(config.cd, -F, 0.1)
+    config.cd = util.MakeMachinable(config.cd, -F, 0.1)
   end
 elseif geom == 1 then
   config.cd = Circle(0, 0, A/2, 64):Scale(1, K)

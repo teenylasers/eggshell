@@ -11,6 +11,7 @@
 // more details.
 
 // Write matrix data in Matlab v7 file format.
+// See https://www.mathworks.com/help/pdf_doc/matlab/matfile_format.pdf
 //
 // If this is compiled with __TOOLKIT_MAT_FILE_USE_ZLIB__ then the zlib library
 // is assumed to be available and compressed data will be written. Otherwise,
@@ -31,7 +32,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <errno.h>
-#include "myvector"
+#include <vector>
 #include "mat_file.h"
 #include "error.h"
 #ifdef __TOOLKIT_MAT_FILE_USE_ZLIB__
@@ -385,37 +386,34 @@ void MatFile::WriteScalar(const char *name, double value) {
   WriteMatrix(name, 2, dims, mxDOUBLE_CLASS, &value, 0);
 }
 
-void MatFile::WriteSparseMatrix(const char *name,
-                                const Eigen::SparseMatrix<double> &A_arg) {
+void MatFile::WriteSparseMatrix(const char *name, int rows, int cols,
+                                int mx_class, int nonzeros,
+                                const int *row_indexes, const int *col_indexes,
+                                const void *real_data, const void *imag_data) {
   if (!valid_) {
     return;
   }
 
-  // For fast writes we want compressed matrix storage, which uses a
-  // matlab-compatible data structure.
-  Eigen::SparseMatrix<double> *Astore = 0;
-  auto *A = &A_arg;
-  if (!A->isCompressed()) {
-    Astore = new Eigen::SparseMatrix<double>(A_arg);
-    Astore->makeCompressed();
-    A = Astore;
-  }
-
   // Sizes for the various elements must be 8-byte aligned. Compute padding
   // sizes here.
+  size_t value_size = nonzeros * BytesForClassType(mx_class);
+  if (value_size >> 31) {
+    Panic("Matrix data larger than 2Gb can not be written");
+  }
   int namelen = strlen(name);
   size_t name_pad = (8 - namelen) & 7;
-  size_t ir_size = A->nonZeros() * sizeof(int32_t);
+  size_t ir_size = nonzeros * sizeof(int32_t);
   size_t ir_pad = (8 - ir_size) & 7;
-  size_t jc_size = (A->cols() + 1) * sizeof(int32_t);
+  size_t jc_size = (cols + 1) * sizeof(int32_t);
   size_t jc_pad = (8 - jc_size) & 7;
-  size_t pr_size = A->nonZeros() * sizeof(double);
+  size_t value_pad = (8 - value_size) & 7;
   uint64_t padding = 0;
 
   // We are not currently using compressed data storage here. We could.
   CompressedFile f(fout_, false);
 
   // Write header.
+  int imag = (imag_data != 0);
   ElementHeader hdr;
   hdr.type = TYPE_MATRIX;
   hdr.size = sizeof(ElementHeader) + 8 +                        // Flags
@@ -423,15 +421,18 @@ void MatFile::WriteSparseMatrix(const char *name,
              sizeof(ElementHeader) + namelen + name_pad +       // Name
              sizeof(ElementHeader) + ir_size + ir_pad +         // IR
              sizeof(ElementHeader) + jc_size + jc_pad +         // JC
-             sizeof(ElementHeader) + pr_size;                   // PR
+             (imag + 1)*
+             (sizeof(ElementHeader) + value_size + value_pad);  // PR,PI
   f.Write(&hdr, sizeof(hdr));
 
   // Write flags.
   hdr.type = TYPE_UINT32;
   hdr.size = 8;
   f.Write(&hdr, sizeof(hdr));
+  uint8_t *hdr_as_bytes = (uint8_t *) &hdr;
   hdr.type = mxSPARSE_CLASS;
-  hdr.size = A->nonZeros();
+  hdr_as_bytes[1] = 0x08 * imag;
+  hdr.size = nonzeros;
   f.Write(&hdr, sizeof(hdr));
 
   // Write dimensions.
@@ -439,8 +440,8 @@ void MatFile::WriteSparseMatrix(const char *name,
   hdr.size = 2 * sizeof(int32_t);
   f.Write(&hdr, sizeof(hdr));
   int32_t dims[2];
-  dims[0] = A->rows();
-  dims[1] = A->cols();
+  dims[0] = rows;
+  dims[1] = cols;
   f.Write(dims, hdr.size);
 
   // Write name.
@@ -454,23 +455,52 @@ void MatFile::WriteSparseMatrix(const char *name,
   hdr.type = TYPE_INT32;
   hdr.size = ir_size;
   f.Write(&hdr, sizeof(hdr));
-  f.Write(A->innerIndexPtr(), hdr.size);
+  f.Write(row_indexes, hdr.size);
   f.Write(&padding, ir_pad);
 
   // Write JC (column offsets, one for each column, plus one more for total).
   hdr.type = TYPE_INT32;
   hdr.size = jc_size;
   f.Write(&hdr, sizeof(hdr));
-  f.Write(A->outerIndexPtr(), hdr.size);
+  f.Write(col_indexes, hdr.size);
   f.Write(&padding, jc_pad);
 
-  // Write PR.
+  // Write PR, PI.
   hdr.type = TYPE_DOUBLE;
-  hdr.size = pr_size;
+  hdr.size = value_size;
   f.Write(&hdr, sizeof(hdr));
-  f.Write(A->valuePtr(), hdr.size);
+  f.Write(real_data, hdr.size);
+  f.Write(&padding, value_pad);
+  if (imag_data) {
+    f.Write(&hdr, sizeof(hdr));
+    f.Write(imag_data, hdr.size);
+    f.Write(&padding, value_pad);
+  }
 
   // Finalize.
   valid_ &= f.Finalize();
+}
+
+void MatFile::WriteSparseMatrix(const char *name,
+                                const Eigen::SparseMatrix<double> &A_arg) {
+  if (!valid_) {
+    return;
+  }
+
+  // For fast writes we want "compressed matrix storage", which uses a
+  // matlab-compatible data structure. Note that this means "row,column,value"
+  // format, not z-lib compression.
+  Eigen::SparseMatrix<double> *Astore = 0;
+  auto *A = &A_arg;
+  if (!A->isCompressed()) {
+    Astore = new Eigen::SparseMatrix<double>(A_arg);
+    Astore->makeCompressed();
+    A = Astore;
+  }
+
+  WriteSparseMatrix(name, A->rows(), A->cols(), mxDOUBLE_CLASS, A->nonZeros(),
+                    A->innerIndexPtr(), A->outerIndexPtr(),
+                    A->valuePtr(), 0);
+
   delete Astore;
 }

@@ -41,7 +41,6 @@
 #include <vector>
 #include <Eigen/Dense>
 #include "error.h"
-#include "myvector"
 
 namespace eigensolvers {
 

@@ -107,12 +107,12 @@ endif
 STUFF_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 QT_DIR := $(TOOLS_DIR)/qt5_install
-EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.4
+EIGEN_DIR := $(TOOLS_DIR)/eigen-3.3.8
 CERES_DIR := $(TOOLS_DIR)/ceres-solver-1.13.0
 ARPACK_DIR := $(TOOLS_DIR)/arpack-ng
 LAPACK_DIR := $(TOOLS_DIR)/lapack-3.7.1
 EIGEN_BLAS_LAPACK_LIB := $(STUFF_DIR)/toolkit/eigen-blas-lapack-build/libBlasAndLapack.a
-EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-3.3.4
+EIGEN_BLAS_LAPACK_LIB_DIR := $(TOOLS_DIR)/eigen-3.3.8
 DOCCER := $(STUFF_DIR)/doccer/doccer.exe -t $(STUFF_DIR)/doccer/template.html
 FFTW_INC := $(TOOLS_DIR)/fftw-3.3.6/api
 FFTW_LIB := $(TOOLS_DIR)/fftw-3.3.6/.libs/libfftw3.a
@@ -126,7 +126,7 @@ ifeq ($(PLATFORM), osx)
   # since homebrew gfortran appears to have a bug that prevents passing this
   # flag. If the flag is not passed the object files will not have the correct
   # version.
-  FORTRAN_COMPILER := gfortran-8 -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9
+  FORTRAN_COMPILER := gfortran-10 -mmacosx-version-min=10.9 -Wa,-mmacosx-version-min=10.9 -fallow-argument-mismatch
 endif
 ifeq ($(PLATFORM), windows)
   INNO_SETUP := '/c/Program Files (x86)/Inno Setup 6/Compil32.exe'
@@ -176,7 +176,7 @@ ifeq ($(PLATFORM), windows)
 endif
 
 ifeq ($(PLATFORM), osx)
-  CFLAGS += -mmacosx-version-min=10.12
+  CFLAGS += -mmacosx-version-min=10.13
 endif
 
 ifeq ($(OPTIMIZE), 1)
@@ -194,6 +194,11 @@ endif
 # functions. Therefore we define a single value of this flag here, for all to
 # use.
 EIGEN_FLAGS += -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int
+
+# Turn off some compiler warnings for Eigen.
+ifeq ($(PLATFORM), osx)
+  EIGEN_FLAGS += -Wno-int-in-bool-context
+endif
 
 # Dead code elimination.  This only works on non-OSX platforms if
 # -ffunction-sections is used.

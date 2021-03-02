@@ -13,7 +13,7 @@
 #ifndef __SHAPE_H__
 #define __SHAPE_H__
 
-#include "../toolkit/myvector"
+#include <vector>
 #include "../toolkit/lua_util.h"
 #include "common.h"
 #include "clipper.h"
@@ -213,7 +213,7 @@ class Shape : public LuaUserClass {
   void Dump() const;
 
   // Draw shape to OpenGL.
-  void DrawInterior() const;
+  void DrawInterior(double alpha = 0) const;
   void DrawBoundary(const Eigen::Matrix4d &camera_transform,
                     bool show_lines, bool show_ports, bool show_vertices,
                     double boundary_derivatives_scale = 0) const;
@@ -252,16 +252,19 @@ class Shape : public LuaUserClass {
   // Return the total area of all pieces.
   JetNum TotalArea() const;
 
+  // Return true if any piece in this shape seems to intersect itself.
+  bool SelfIntersection() const;
+
   // Return the sharpest convex angle in the shape, i.e. the angle that would
   // result in the mesher generating the most triangles. 0 is maximum
   // sharpness, pi is least sharp.
   JetNum SharpestAngle() const;
 
   // Return the largest and smallest side lengths.
-  void ExtremeSideLengths(JetNum *length_max, JetNum *length_min) const;
+  void ExtremeSideLengths(double *length_max, double *length_min) const;
 
-  // Add a point to the last piece in the shape.
-  void AddPoint(JetNum x, JetNum y);
+  // Add a point to the last piece in the shape, optionally with EdgeInfo.
+  void AddPoint(JetNum x, JetNum y, const EdgeInfo *e = 0);
 
   // Turn the last piece of this shape into a polyline by adding points
   // s[#s-1],...,s[2] to the polygon. This makes a zero area polygon to
@@ -318,10 +321,15 @@ class Shape : public LuaUserClass {
   void Grow(JetNum delta, CornerStyle style, JetNum limit,
             CornerStyle endcap_style = BUTT);
 
-  // Clean up the shape: remove vertices that are closer than 'threshold' to
-  // other vertices. If threshold is zero then use a default that is a small
-  // fraction of the largest side length.
-  void Clean(JetNum threshold = 0);
+  // Clean up the shape. If mode==1 then remove redundant co-linear vertices
+  // that are closer than the threshold to their neighboring vertices. If
+  // mode==2 then do an additional pass and remove *any* vertices that are
+  // closer than the threshold to their neighboring vertices. If threshold is
+  // zero then use a default that is a small fraction of the largest side
+  // length. The angle_threshold is the angle between two lines (in radians) to
+  // be considered colinear. The default angle threshold is 1 micro-degree.
+  void Clean(JetNum threshold = 0, JetNum angle_threshold = 1.74e-8,
+             int mode = 2);
 
   // Find shape polygons with zero-width necks and split those into multiple
   // pieces at the necks. This is needed because the clipper library is happy
@@ -355,15 +363,25 @@ class Shape : public LuaUserClass {
 
   // Add a fillet of the given radius to the vertex closest to x,y. The limit
   // is the maximum distance allowed between a polygon approximation of an arc
-  // and a true circle. It is a runtime error if the shape is empty.
-  void FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit);
+  // and a true circle. It is a runtime error if the shape is empty. Optionally
+  // return the coordinates of the new arc start and end vertices, and the arc
+  // center. If mutate is false, the pstart (etc) return values will be
+  // computed but the shape will not be modified. Return true if an arc was
+  // created (or does not need to be created because the vertex is colinear) or
+  // false if no arc of this radius can fit.
+  bool FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit,
+                    JetPoint *pstart=0, JetPoint *pend=0, JetPoint *center=0,
+                    bool mutate=true) MUST_USE_RESULT;
 
   // Add a chamfer of the given pre- and post-vertex distances to the vertex
-  // closest to x,y. It is a runtime error if the shape is empty.
-  void ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist);
+  // closest to x,y. It is a runtime error if the shape is empty. Optionally
+  // return the coordinates of the new vertices that are created.
+  void ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist,
+                     JetPoint *p1=0, JetPoint *p2=0);
 
   // Save the shape to various file formats.
-  void SaveBoundaryAsDXF(const char *filename);
+  void SaveBoundaryAsDXF(const char *filename,
+                         double arc_dist, double arc_angle);
   void SaveBoundaryAsXY(const char *filename);
 
   // Load a binary STL file and convert it to a Shape that traces the edges of
@@ -437,18 +455,12 @@ class Shape : public LuaUserClass {
 
   int UpdateBounds(JetNum *min_x, JetNum *min_y, JetNum *max_x, JetNum *max_y)
       const;
-  void ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-               ClipperLib::Paths *paths) const;
-  void FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-                 const ClipperLib::Paths &paths);
+  void ToPaths(ClipperLib::Paths *paths) const;
+  void FromPaths(const ClipperLib::Paths &paths);
   void RunClipper(const Shape *c1, const Shape *c2,
                   ClipperLib::ClipType clip_type);
-  bool ClipperBounds(const Shape *c1, const Shape *c2, JetNum *offset_x,
-                     JetNum *offset_y, JetNum *scale) const;
-  void RunClipper(const Shape *c1, const Shape *c2,
-                  ClipperLib::ClipType clip_type,
-                  JetNum offset_x, JetNum offset_y, JetNum scale);
   const Shape &LuaCheckShape(lua_State *L, int argument_index) const;
+  bool CombinePortCallbacks(const Shape *c1, const Shape *c2);
 };
 
 // ********** Public geometry utility functions.

@@ -61,6 +61,56 @@ int LuaVector::Index(lua_State *L) {
     if (strcmp(s, "Resize") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<LuaVector,
                                              &LuaVector::LuaResize>));
+    } else if (strcmp(s, "dot") == 0) {
+      lua_pushcfunction(L, [](lua_State *L) -> int {
+        if (lua_gettop(L) != 2) {
+          LuaError(L, "dot() expecting 2 arguments");
+        }
+        LuaVector *op1 = LuaCastTo<LuaVector>(L, 1);
+        LuaVector *op2 = LuaCastTo<LuaVector>(L, 2);
+        if (!op1 || !op2 || op1->size() != op2->size()) {
+          LuaError(L, "dot() expecting 2 vector arguments of the same size");
+        }
+        JetNum sum = 0.0;
+        for (int i = 0; i < op1->size(); i++) sum += op1->v_[i] * op2->v_[i];
+        lua_pushnumber(L, sum);
+        return 1;
+      });
+    } else if (strcmp(s, "cross") == 0) {
+      lua_pushcfunction(L, [](lua_State *L) -> int {
+        if (lua_gettop(L) != 2) {
+          LuaError(L, "cross() expecting 2 arguments");
+        }
+        LuaVector *op1 = LuaCastTo<LuaVector>(L, 1);
+        LuaVector *op2 = LuaCastTo<LuaVector>(L, 2);
+        if (!op1 || !op2 || op1->size() != op2->size() ||
+            !(op1->size() == 2 || op1->size() == 3)) {
+          LuaError(L, "cross() expecting 2 vector arguments of size 2 or 3");
+        }
+        if (op1->size() == 3) {
+          LuaVector *result = LuaUserClassCreateObj<LuaVector>(L);
+          result->resize(op1->size());
+          result->v_[0] = op1->v_[1]*op2->v_[2] - op1->v_[2]*op2->v_[1];
+          result->v_[1] = op1->v_[2]*op2->v_[0] - op1->v_[0]*op2->v_[2];
+          result->v_[2] = op1->v_[0]*op2->v_[1] - op1->v_[1]*op2->v_[0];
+        } else {
+          lua_pushnumber(L, op1->v_[0]*op2->v_[1] - op1->v_[1]*op2->v_[0]);
+        }
+        return 1;
+      });
+    } else if (strcmp(s, "length") == 0) {
+      JetNum sum = 0.0;
+      for (int i = 0; i < v_.size(); i++) sum += v_[i] * v_[i];
+      lua_pushnumber(L, sqrt(sum));
+      return 1;
+    } else if (strcmp(s, "normalized") == 0) {
+      JetNum sum = 0.0;
+      for (int i = 0; i < v_.size(); i++) sum += v_[i] * v_[i];
+      LuaVector *result = LuaUserClassCreateObj<LuaVector>(L);
+      result->resize(v_.size());
+      sum = sqrt(sum);
+      for (int i = 0; i < v_.size(); i++) (*result)[i] = v_[i] / sum;
+      return 1;
     } else {
       LuaError(L, "Unknown index to vector: '%s'", s);
     }

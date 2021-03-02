@@ -135,6 +135,42 @@ function TestVector()
   assert(PrintVector(vec.gt(a,b)) == '0 0 0 1 0 0 1 1 0 ')
   assert(PrintVector(vec.le(a,b)) == '1 1 1 0 1 1 0 0 1 ')
 
+  -- Dot product.
+  a:Resize(4)
+  b:Resize(4)
+  a[1] = 1 a[2] = 2 a[3] = 3 a[4] = 0
+  b[1] = 5 b[2] = 4 b[3] = 3 b[4] = 9
+  assert(a:dot(b) == 5+8+9)
+
+  -- Cross product.
+  a:Resize(3)
+  b:Resize(3)
+  a[1] = 5 a[2] = 7 a[3] = -3
+  b[1] = 1 b[2] = -5 b[3] = 8
+  c = a:cross(b)
+  assert(vec.IsVector(c) and c[1] == 41 and c[2] == -43 and c[3] == -32)
+  a:Resize(2)
+  b:Resize(2)
+  a[1] = 5 a[2] = 7
+  b[1] = 1 b[2] = -5
+  c = a:cross(b)
+  assert(type(c) == 'number' and c == -32)
+
+  -- Length.
+  a:Resize(2)
+  a[1] = 3 a[2] = 4
+  assert(a.length == 5);
+
+  -- Normalization.
+  a:Resize(2)
+  a[1] = 3 a[2] = 4
+  a = a.normalized
+  assert(vec.IsVector(a) and a[1] == 3/5 and a[2] == 4/5)
+
+  -- Initialization.
+  a = vec.New(1, 2, 3, 4)
+  assert(vec.IsVector(a) and #a == 4 and a[1] == 1 and a[2] == 2 and a[3] == 3 and a[4] == 4)
+
   -- Check that incorrect indexes generate errors.
   a:Resize(4)
   Try(function() print(a[2]) end, true)
@@ -176,6 +212,16 @@ function TestVector()
   Try(function() vec.atan2(a) end, false)
   Try(function() vec.atan2() end, false)
   Try(function() vec.atan2(a,b) end, false)
+  Try(function() a:dot() end, false)
+  Try(function() a:dot(a,a) end, false)
+  Try(function() a:dot(1) end, false)
+  Try(function() a:dot(b) end, false)
+  a:Resize(2)
+  b:Resize(3)
+  Try(function() a:cross(b) end, false)
+  Try(function() b:cross(a) end, false)
+  Try(function() a:cross(1) end, false)
+  Try(function() b:cross(1) end, false)
 
   print 'Success'
 end

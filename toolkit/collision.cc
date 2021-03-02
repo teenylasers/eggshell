@@ -13,6 +13,8 @@
 #include "collision.h"
 #include "error.h"
 #include "testing.h"
+#include "random.h"
+#include <algorithm>
 
 using std::vector;
 using std::set;
@@ -30,6 +32,7 @@ template<class T> inline pair<T, T> make_sorted_pair(T a, T b) {
   }
 }
 
+// A symmetric 2D matrix of boolean, indexed by AABB box IDs.
 class IDPairSet {
  public:
   explicit IDPairSet(int num_ids) : n_(num_ids), s_(num_ids * num_ids) {}
@@ -59,10 +62,12 @@ void SweepAndPrune(const vector<AABB<D> > &aabb,
     // For each dimension create a sorted list of the starts and ends of box
     // edges.
     struct Edge {
-      double coord;
-      bool start;
-      int id;
-      bool operator<(const Edge &e) const { return coord < e.coord; }
+      double coord;             // coordinate
+      bool start;               // true if a box start, false if a box end
+      int id;                   // index into aabb
+      bool operator<(const Edge &e) const {
+        return coord < e.coord || (coord == e.coord && start > e.start);
+      }
     };
     vector<Edge> e(aabb.size() * 2);
     for (int i = 0; i < aabb.size(); i++) {
@@ -111,17 +116,13 @@ void SweepAndPrune(const vector<AABB<D> > &aabb,
 #include <stdio.h>
 #include <stdlib.h>
 
-static double Rand() {
-  return double(random()) / RAND_MAX;
-}
-
 template<int D> void SweepAndPruneTester() {
   const int n = 1000;
   vector<collision::AABB<D> > aabb(n);
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < D; j++) {
-      aabb[i].min[j] = Rand();
-      aabb[i].max[j] = aabb[i].min[j] + 0.1*Rand();
+      aabb[i].min[j] = RandomDouble();
+      aabb[i].max[j] = aabb[i].min[j] + 0.1*RandomDouble();
     }
   }
 

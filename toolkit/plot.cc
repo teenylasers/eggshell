@@ -20,6 +20,7 @@
 #include <cmath>
 #include "error.h"
 #include "testing.h"
+#include "random.h"
 
 using std::vector;
 using std::string;
@@ -925,10 +926,6 @@ bool Plot2D::ClipLine(double w, double h,
 //***************************************************************************
 // Testing.
 
-static double Rand() {
-  return double(rand()) / double(RAND_MAX);
-}
-
 TEST_FUNCTION(Test125eN) {
   for (int i = -10; i <= 10; i++) {
     double base = pow(10, i);
@@ -968,16 +965,16 @@ TEST_FUNCTION(Test125eN) {
 
 TEST_FUNCTION(TestMajorityFloorLog10) {
   for (int iter = 0; iter < 10000; iter++) {
-    double scale = pow(10, Rand() * 10 - 5);
-    double v1 = scale * (Rand() * 2 - 1);
-    double v2 = scale * (Rand() * 2 - 1);
+    double scale = pow(10, RandomDouble() * 10 - 5);
+    double v1 = scale * (RandomDouble() * 2 - 1);
+    double v2 = scale * (RandomDouble() * 2 - 1);
     double lo = std::min(v1, v2);
     double hi = std::max(v1, v2);
     double majority = MajorityFloorLog10(lo, hi);
 
     // Compute the majority value by brute force.
     std::map<double, int> count;
-    const int N = 5000;
+    const int N = 15000;
     for (int i = 0; i <= N; i++) {
       double value = lo + ((hi - lo) * i) / N;
       if (value != 0) {

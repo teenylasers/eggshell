@@ -17,8 +17,9 @@
 #include <math.h>
 #include "md5.h"
 
-// The addresses of these object are unique registry keys.
-char lua_registry_metatable_key;     // LuaUserClass shared metatable
+// The addresses of this object is a unique registry key. The value is the
+// LuaUserClass shared metatable.
+char lua_registry_metatable_key;
 
 // Handle panics from within the lua interpreter.
 static int LuaPanicFunction(lua_State *L) {
@@ -35,7 +36,8 @@ static const char *LuaStrerror(int err) {
     case LUA_ERRERR: return "Script error while running the message handler";
     case LUA_ERRFILE: return "Script file can not be read";
     case LUA_YIELD: return "The thread (coroutine) yields";
-    default: return "Unknown error while running Lua";
+    default: return "Unknown error while running Lua (possibly a CFunction "
+                    "threw an exception)";
   }
 }
 
@@ -326,12 +328,29 @@ void Lua::UseStandardLibraries(bool safe) {
     luaopen_string(L_); lua_setglobal(L_, "string");
     luaopen_utf8(L_);   lua_setglobal(L_, "utf8");
     luaopen_math(L_);   lua_setglobal(L_, "math");
+
+    // Use just the time related functions in the OS library, because the rest
+    // of them are not safe.
+    lua_newtable(L_);                   // {}
+    luaopen_os(L_);                     // {} OStable
+    #define TRANSFER(key) \
+      lua_pushstring(L_, key);          /* {} OStable key */ \
+      lua_pushstring(L_, key);          /* {} OStable key key */ \
+      lua_rawget(L_, -3);               /* {} OStable key value */ \
+      lua_rawset(L_, -4);               /* {} OStable */
+    TRANSFER("clock")
+    TRANSFER("date")
+    TRANSFER("difftime")
+    TRANSFER("time")
+    #undef TRANSFER
+    lua_pop(L_, 1);                     // {}
+    lua_setglobal(L_, "os");
   } else {
     luaL_openlibs(L_);
   }
 
+  // Replace some of the standard functions with better versions.
   lua_register(L_, "print", LuaPrint);
-
   LuaRawGetGlobal(L_, "math");
   lua_pushcfunction(L_, LuaLog10);
   LuaRawSetField(L_, -2, "log10");

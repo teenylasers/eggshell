@@ -69,6 +69,7 @@ SOURCES += \
         main.cc \
         main_window.cc \
     about.cc \
+    nelder_mead.cc \
     sweep.cc \
     error_window.cc \
     ../../toolkit/error.cc \
@@ -106,6 +107,7 @@ OBJECTS += user_script_util.o
 HEADERS += \
         main_window.h \
     about.h \
+    nelder_mead.h \
     sweep.h \
     error_window.h \
     ../../toolkit/lua_model_viewer_qt.h
@@ -113,5 +115,6 @@ HEADERS += \
 FORMS += \
         main_window.ui \
     about.ui \
+    nelder_mead.ui \
     sweep.ui \
     error_window.ui

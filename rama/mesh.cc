@@ -26,6 +26,7 @@ extern "C" {
 }
 
 using Eigen::Vector3f;
+using Eigen::Vector3d;
 using Eigen::Vector4f;
 using Eigen::Matrix4d;
 
@@ -548,6 +549,9 @@ Mesh::Mesh(const Shape &s_arg, double longest_edge_permitted, Lua *lua) {
     DeterminePointMaterial(lua, &mat_params_);
     DetermineBoundaryParameters(lua, &boundary_params_);
   }
+
+  // 3D setup.
+  SetupTriNormal();
 }
 
 void Mesh::DrawMesh(MeshDrawType draw_type, ColorMap::Function colormap,
@@ -909,13 +913,15 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
         return;
       }
       for (int j = 0; j < vec[i].size(); j++) {
-        if (IsNaNValue(vec[i][j].real()) || IsNaNValue(vec[i][j].imag())) {
-          Error("A NaN (not-a-number) was returned by a callback, "
+        if (IsNaNOrInfValue(vec[i][j].real()) ||
+            IsNaNOrInfValue(vec[i][j].imag())) {
+          Error("A NaN (not-a-number) or infinity was returned by a callback, "
                 "in position %d of return value %d", j+1, i+1);
           return;
-        } else if (isnan(vec[i][j].real()) || isnan(vec[i][j].imag())) {
-          Warning("A NaN (not-a-number) derivative was returned by a callback, "
-                  "in position %d of return value %d\n"
+        } else if (IsNaNOrInfDerivative(vec[i][j].real()) ||
+                   IsNaNOrInfDerivative(vec[i][j].imag())) {
+          Warning("A NaN (not-a-number) or infinity derivative was returned by "
+                  "a callback, in position %d of return value %d\n"
                   "This will prevent the optimizer from working.", j+1, i+1);
         }
       }
@@ -926,6 +932,41 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
     lua_pop(lua->L(), 2);                             // empty stack
   }
   CHECK(lua_gettop(lua->L()) == original_top);
+}
+
+void Mesh::SetupTriNormal() {
+  tri_normal1_.resize(triangles_.size());
+  tri_normal2_.resize(triangles_.size());
+  for (int i = 0; i < triangles_.size(); i++) {
+    Vector3d p[3];
+    for (int j = 0; j < 3; j++) {
+      int k = triangles_[i].index[j];
+      p[j] = Vector3d(ToDouble(points_[k].p[0]), ToDouble(points_[k].p[1]), 0);
+    }
+    Vector3d c0 = (p[0] - p[2]).cross(p[0]-p[1]);
+    Vector3d c1 = (p[1] - p[2]).cross(p[1]-p[0]);
+    Vector3d c2 = (p[2] - p[1]).cross(p[2]-p[0]);
+    tri_normal1_[i] = Vector3d((p[1][1] - p[2][1]) / c0[2],
+                               (p[0][1] - p[2][1]) / c1[2],
+                               (p[0][1] - p[1][1]) / c2[2]);
+    tri_normal2_[i] = Vector3d((p[2][0] - p[1][0]) / c0[2],
+                               (p[2][0] - p[0][0]) / c1[2],
+                               (p[1][0] - p[0][0]) / c2[2]);
+
+    // Check that the normal is perpendicular to the triangle edges, for random
+    // Z values. @@@ Promote this to a TEST_FUNCTION().
+    //   {
+    //      Vector3d v = Vector3d::Random();
+    //      Vector3d normal = Vector3d(tri_normal1_[i].dot(v), tri_normal2_[i].dot(v), 1);
+    //      normal.normalize();
+    //      Vector3d p0(p[0][0], p[0][1], v[0]);
+    //      Vector3d p1(p[1][0], p[1][1], v[1]);
+    //      Vector3d p2(p[2][0], p[2][1], v[2]);
+    //      CHECK(normal.dot(p0 - p1) < 1e-6);
+    //      CHECK(normal.dot(p1 - p2) < 1e-6);
+    //      CHECK(normal.dot(p0 - p2) < 1e-6);
+    //   }
+  }
 }
 
 //***************************************************************************

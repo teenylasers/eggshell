@@ -55,10 +55,10 @@ int main(int argc, char *argv[]) {
   // but setting this attribute is easier.
   QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
   QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
-  QApplication app(argc, argv);
   #if defined(__WINNT__)
-    app.setStyle("fusion");
+    QApplication::setStyle("fusion");
   #endif
+  QApplication app(argc, argv);
 
   // Setup the qt error handler. This must be done after the QApplication is
   // constructed.
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
   // load it. If the -test flag is given on the command line then run the
   // test() function in that file then exit.
   MainWindow w;
-  w.SetCommandLineArguments(argc, argv);
+  w.SetCommandLineArguments(argc, argv);  // Used for -key=flag arguments
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-test") == 0) {
       w.ToggleRunTestAfterSolve();
@@ -76,10 +76,15 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
+  bool file_loaded = false;
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
-      w.LoadFile(argv[i]);
-      break;
+      if (file_loaded) {
+        Error("Only one file to load can be specified on the command line");
+      } else {
+        w.LoadFile(argv[i]);
+      }
+      file_loaded = true;
     }
   }
   w.show();

@@ -46,6 +46,7 @@ class Cavity : public LuaModelViewer {
   void ToggleShowBoundaryDerivatives();
   void ToggleShowBoundaryLines();
   void ToggleShowBoundaryPorts();
+  void ToggleShowBoundaryInterior();
   void ToggleGrid();
   void ToggleWidebandPulse();
   void ToggleShowSParamsGraph();
@@ -55,6 +56,7 @@ class Cavity : public LuaModelViewer {
   int GetNumFrequencies() const;
   void TimeDialChanged(int value);
   void TimeDialToZero();
+  void Toggle3D();
 
   void ViewMesh(int mesh_choicebox_selection);
   void ViewField(bool view_field);
@@ -118,7 +120,7 @@ class Cavity : public LuaModelViewer {
   Solvers solver_;                // One solver per frequency, for cd_
   Solver::DrawMode solver_draw_mode_static_;      // DrawMode when not animated
   Solver::DrawMode solver_draw_mode_animating_;   // DrawMode when animating
-  bool show_boundary_lines_, show_boundary_ports_;
+  bool show_boundary_lines_, show_boundary_ports_, show_boundary_interior_;
   bool show_boundary_vertices_, show_boundary_derivatives_;
   bool show_grid_;
   Mesh::MeshDrawType mesh_draw_type_;
@@ -133,6 +135,7 @@ class Cavity : public LuaModelViewer {
   bool show_sparameters_;
   bool show_sparams_graph_;
   vector<vector<JetComplex>> sparam_results_;   // Cached results
+  bool in_3d_ = false;          // Currently displaying 3D solution?
 
   // Create solver_ from cd_ and config_ (unless it already exists). This
   // clears solver_ on failure. Return true on success, false if solving
