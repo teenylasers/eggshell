@@ -14,7 +14,7 @@
 //   Q_IMPORT_PLUGIN(QGifPlugin)
 //   Q_IMPORT_PLUGIN(QICNSPlugin)
 //   Q_IMPORT_PLUGIN(QICOPlugin)
-Q_IMPORT_PLUGIN(QJpegPlugin)
+//   Q_IMPORT_PLUGIN(QJpegPlugin)
 //   Q_IMPORT_PLUGIN(QMacJp2Plugin)
 //   Q_IMPORT_PLUGIN(QTgaPlugin)
 //   Q_IMPORT_PLUGIN(QTiffPlugin)
