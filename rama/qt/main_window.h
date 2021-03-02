@@ -99,6 +99,12 @@ private slots:
   void on_actionExportAntennaPatternAsMatlabData_triggered();
   void on_actionIncrease_animation_time_triggered();
   void on_actionDecrease_animation_time_triggered();
+  void on_actionSelectRandomSearch_triggered();
+  void on_actionSelectNelderMead_triggered();
+  void on_action3D_triggered();
+  void on_actionInterior_triggered();
+  void on_reload_resets_view_stateChanged(int arg1);
+  void on_actionSelectRepeatedLevenbergMarquardt_triggered();
 
 private:
   Ui::MainWindow *ui = 0;
@@ -109,6 +115,7 @@ private:
   void UpdateDisplayStyle(int index);
   void SetNumFrequencies(int n);
   void SetWidebandControlsEnabledState();
+  void UncheckSimulationMethods();
 };
 
 #endif

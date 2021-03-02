@@ -18,11 +18,13 @@
 #include "../toolkit/femsolver.h"
 #include "../toolkit/shaders.h"
 #include "../toolkit/thread.h"
+#include <QThread>
 
 const double kSpeedOfLight = 299792458;         // m/s
 const int kFarFieldPoints = 500;                // Pattern points to compute
 
 using Eigen::Vector3f;
+using Eigen::Vector3d;
 using Eigen::Vector4f;
 using Eigen::VectorXcd;         // Eigen vector of complex double
 using Eigen::Vector2cd;         // Eigen vector of two complex doubles
@@ -374,6 +376,108 @@ ScriptConfig::Type ScriptConfig::StringToType(const char *name) {
 }
 
 //***************************************************************************
+// 3D graphics.
+
+// Render with a bunch of colored directional lights. Use a per-pixel light
+// calculation.
+
+static gl::Shader &MultilightShader() {
+  static gl::Shader shader(
+    #define LIGHT_DIRS \
+      " const vec3 light1_dir = vec3(0.7071, 0, 0.7071);" \
+      " const vec3 light2_dir = vec3(0.4851 , 0.4851, 0.7276);" \
+      " const vec3 light3_dir = vec3(0, 0.7071, 0.7071);" \
+      " const vec3 light4_dir = vec3(0, 0, 1);"
+    // Vertex shader.
+    " #version 330 core\n"
+    " uniform mat4 transform, modelview;"
+    " uniform mat3 normalmatrix;"
+    LIGHT_DIRS
+    " in vec3 vertex;"
+    " in vec3 normal;"
+    " out vec3 normal_es;"      // Interpolated normal in eye space (ES)
+    " out vec3 halfway1;"       // Between light and vertex direction (ES)
+    " out vec3 halfway2;"
+    " out vec3 halfway3;"
+    " out vec3 halfway4;"
+    " void main() {"
+    "   normal_es = normalmatrix * normal;"
+    "   gl_Position = transform * vec4(vertex, 1.0);"
+    "   vec4 p4 = modelview * vec4(vertex, 1.0);"       // Model point (ES)
+    "   vec3 p = vec3(p4) / p4.w;"                      // Model point (ES)
+    "   vec3 v = normalize(-p);"                        // View direction (ES)
+    "   halfway1 = normalize(light1_dir + v);"
+    "   halfway2 = normalize(light2_dir + v);"
+    "   halfway3 = normalize(light3_dir + v);"
+    "   halfway4 = normalize(light4_dir + v);"
+    " }",
+    // Fragment shader.
+    " #version 330 core\n"
+    " uniform vec3 color;"
+    " const vec3 ambient = vec3(0.4, 0.2, 0.2);"
+    LIGHT_DIRS
+    " const vec3 light1_col = vec3(0, 0.18, 0.5);"
+    " const vec3 light2_col = vec3(0.18, 0.5, 0.18);"
+    " const vec3 light3_col = vec3(0.5, 0.18, 0);"
+    " const vec3 light4_col = vec3(0, 0, 0.18);"
+    " const vec3 specular_color = vec3(1.0, 1.0, 1.0);"
+    " in vec3 normal_es;"
+    " in vec3 halfway1, halfway2, halfway3, halfway4;"
+    " out vec4 fragment_color;"
+    " const float shininess = 1000.0;"
+    " void main() {"
+    "   vec3 n = normalize(normal_es);"           // Normal to surface (ES)
+    "   float diffuse1 = max(dot(light1_dir, n), 0.0);"
+    "   float diffuse2 = max(dot(light2_dir, n), 0.0);"
+    "   float diffuse3 = max(dot(light3_dir, n), 0.0);"
+    "   float diffuse4 = max(dot(light4_dir, n), 0.0);"
+    "   float specAngle1 = max(dot(normalize(halfway1), n), 0.0);"
+    "   float specAngle2 = max(dot(normalize(halfway2), n), 0.0);"
+    "   float specAngle3 = max(dot(normalize(halfway3), n), 0.0);"
+    "   float specAngle4 = max(dot(normalize(halfway4), n), 0.0);"
+    "   float specular1 = pow(specAngle1, shininess);"
+    "   float specular2 = pow(specAngle2, shininess);"
+    "   float specular3 = pow(specAngle3, shininess);"
+    "   float specular4 = pow(specAngle4, shininess);"
+    "   vec3 col = color * (ambient +"
+    "                       diffuse1 * light1_col + "
+    "                       diffuse2 * light2_col + "
+    "                       diffuse3 * light3_col + "
+    "                       diffuse4 * light4_col + "
+    "                       specular1 * specular_color +"
+    "                       specular2 * specular_color +"
+    "                       specular3 * specular_color +"
+    "                       specular4 * specular_color);"
+    "   fragment_color = vec4(col, 0);"
+    " }");
+    #undef LIGHT_DIRS
+  return shader;
+}
+
+// Shaders for drawing black outlines on top of filled geometry.
+
+static gl::Shader &LineDrawingShader() {
+  static gl::Shader shader(
+    // Vertex shader.
+    " #version 330 core\n"
+    " uniform mat4 transform;"
+    " in vec3 vertex;"
+    " void main() {"
+    "   gl_Position = transform * vec4(vertex, 1.0);"
+    " }",
+    // Fragment shader.
+    " #version 330 core\n"
+    " out vec4 fragment_color;"
+    " void main() {"
+    "   fragment_color = vec4(0.0, 0.0, 0.0, 0.0); "
+        // Adjust the fragment Z values so we don't get Z fighting with the
+        // already-rendered polygons.
+    "   gl_FragDepth = gl_FragCoord.z - 0.002; "
+    " }");
+  return shader;
+}
+
+//***************************************************************************
 // Solver.
 
 void Solver::Setup(int frequencies_index) {
@@ -517,7 +621,7 @@ bool Solver::UpdateDerivatives(const Shape &s) {
 
 void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
                           int brightness, double phase_offset,
-                          Solvers *solvers) {
+                          Solvers *solvers, bool in_3D, bool show_mesh) {
   if (!Solve()) {
     return;
   }
@@ -583,15 +687,17 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
   //     strength in the cavity.
   double est_max_gradient = 0;  // Estimated max gradient, in 1/meters
   double min_dimension = std::min(cd_width_, cd_height_);  // In config units
-  if (config_.TypeIsElectrodynamic()) {
-    if (config_.type == ScriptConfig::ELECTROSTATICS) {
-      est_max_gradient = 1.0 / (min_dimension * config_.unit);
-      // Completely arbitrary fudge factor to compensate for field strength
-      // enhancements at any corners we might have:
-      est_max_gradient *= 5;
-    } else {
-      est_max_gradient = (2 * sqrt(5) * M_PI * frequency_) / (3*kSpeedOfLight);
-    }
+  if (config_.type == ScriptConfig::ELECTROSTATICS) {
+    est_max_gradient = 1.0 / (min_dimension * config_.unit);
+    // Completely arbitrary fudge factor to compensate for field strength
+    // enhancements at any corners we might have:
+    est_max_gradient *= 5;
+  } else if (config_.TypeIsWaveguideMode()) {
+    // Modes are scaled elsewhere so the maximum gradient vector has
+    // amplitude=1.
+    est_max_gradient = 1;
+  } else {
+    est_max_gradient = (2 * sqrt(5) * M_PI * frequency_) / (3*kSpeedOfLight);
   }
   // Scale the gradient so that the longest gradient vectors are about 1/20th
   // of the minimum dimension.
@@ -650,12 +756,21 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
     }
 
     // Map the brightness to a scale used for min/max values.
-    double scale = pow(10, -(brightness - 500.0) / 500.0);
+    double scale = in_3D ? 1.0 / ZScaleFromBrightness(brightness)
+                         : pow(10, -(brightness - 500.0) / 500.0);
 
-    // Draw all mesh triangles.
-    gl::PushShader push_shader(gl::SmoothShader());
-    vector<Vector3f> points, colors;
-    #define DRAWLOOP(compute_value, minval, maxval) \
+    // Draw all mesh triangles. Vertex normals and boundary lines only needed
+    // for 3D.
+    gl::PushShader push_shader(in_3D ? MultilightShader() : gl::SmoothShader());
+    vector<Vector3f> points, colors, vertex_normals, boundary_lines;
+    if (in_3D) {
+      vertex_normals.resize(points_.size());
+      for (int i = 0; i < vertex_normals.size(); i++) {
+        vertex_normals[i].setZero();
+      }
+    }
+
+    #define DRAWLOOP_2D(compute_value, minval, maxval) \
       for (int i = 0; i < triangles_.size(); i++) { \
         for (int j = 0; j < 3; j++) { \
           int k = triangles_[i].index[j]; \
@@ -666,6 +781,34 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
           points.push_back(Vector3f(ToDouble(points_[k].p[0]), \
                                     ToDouble(points_[k].p[1]), 0)); \
         } \
+      }
+    #define DRAWLOOP_3D(compute_value, minval, maxval) \
+      for (int i = 0; i < triangles_.size(); i++) { \
+        Vector3d value; \
+        for (int j = 0; j < 3; j++) { \
+          int k = triangles_[i].index[j]; \
+          value[j] = (compute_value) / scale; \
+        } \
+        Vector3f normal(tri_normal1_[i].dot(value), tri_normal2_[i].dot(value), 1); \
+        normal.normalize(); \
+        for (int j = 0; j < 3; j++) { \
+          int k = triangles_[i].index[j]; \
+          points.push_back(Vector3f(ToDouble(points_[k].p[0]), \
+                                    ToDouble(points_[k].p[1]), value[j])); \
+          vertex_normals[k] += normal; \
+        } \
+        for (int j = 0; j < 3; j++) { \
+          if (triangles_[i].neighbor[j] == -1) { \
+            boundary_lines.push_back(points[points.size() - 3 + j]); \
+            boundary_lines.push_back(points[points.size() - 3 + (j+1)%3]); \
+          } \
+        } \
+      }
+    #define DRAWLOOP(compute_value, minval, maxval) \
+      if (in_3D) { \
+        DRAWLOOP_3D(compute_value, minval, maxval) \
+      } else { \
+        DRAWLOOP_2D(compute_value, minval, maxval) \
       }
     if (draw_mode == DRAW_REAL) {
       CREATE_SOLUTION
@@ -692,8 +835,51 @@ void Solver::DrawSolution(DrawMode draw_mode, ColorMap::Function colormap,
     } else {
       Panic("Unsupported DrawMode");
     }
-    gl::Draw(points, colors, GL_TRIANGLES);
+
+    if (!in_3D) {
+      gl::Draw(points, colors, GL_TRIANGLES);
+    } else {
+      // 3D rendering.
+      for (int i = 0; i < vertex_normals.size(); i++) {
+        vertex_normals[i].normalize();
+      }
+      vector<Vector3f> tri_normals;
+      for (int i = 0; i < triangles_.size(); i++) {
+        for (int j = 0; j < 3; j++) {
+          int k = triangles_[i].index[j];
+          tri_normals.push_back(vertex_normals[k]);
+        }
+      }
+      gl::VertexBuffer<Eigen::Vector3f, Eigen::Vector3f>
+          buffer(points, tri_normals);
+      buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+      buffer.Specify2("normal", 0, 3, GL_FLOAT);
+      gl::SetUniform("color", 1, 1, 1);
+      buffer.Draw(GL_TRIANGLES);
+
+      // Draw boundary lines.
+      gl::PushShader push_shader(LineDrawingShader());
+      {
+        gl::VertexBuffer<Eigen::Vector3f, Eigen::Vector3f> buffer(boundary_lines);
+        buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+        buffer.Draw(GL_LINES);
+      }
+
+      // Draw mesh on top of solution if requested.
+      if (show_mesh) {
+        vector<Vector3f> points2(points.size()*2);
+        for (int i = 0; i < points.size(); i++) {
+          points2[i*2] = points[i];
+          points2[i*2+1] = points[(i - i%3) + ((i+1) % 3)];
+        }
+        gl::VertexBuffer<Eigen::Vector3f, Eigen::Vector3f> buffer(points2);
+        buffer.Specify1("vertex", 0, 3, GL_FLOAT);
+        buffer.Draw(GL_LINES);
+      }
+    }
     #undef DRAWLOOP
+    #undef DRAWLOOP_2D
+    #undef DRAWLOOP_3D
   }
 }
 
@@ -746,7 +932,7 @@ bool Solver::ComputePortOutgoingField2(vector<JetComplex> *result) {
   // ComputePortOutgoingPower() will correspond to the power exiting the port.
   // We compute this field amplitude by integrating the field^2 across the port
   // and scaling. When the field is a well behaved TE10 this gives the same
-  // result as ComputePortOutgoingField2(). When the field is more complex,
+  // result as ComputePortOutgoingField1(). When the field is more complex,
   // this method tends to produce a less nonsensical number that is more in
   // line with the actual field strength at the port. Note that it will not be
   // the actual power exiting the port as we are not really integrating the
@@ -1142,6 +1328,39 @@ void Solver::SaveMeshAndSolutionToMatlab(const char *filename) {
                     pr.data(), pi.data());
   }
 
+  // Write the right hand side.
+  if (ed_solver_) {
+    const auto &rhs = ed_solver_->rhs;
+    vector<double> real_data(rhs.size());
+    vector<double> imag_data(rhs.size());
+    for (int i = 0; i < rhs.size(); i++) {
+      real_data[i] = ToDouble(rhs[i].real());
+      imag_data[i] = ToDouble(rhs[i].imag());
+    }
+    int dims[2] = {(int) rhs.size(), 1};
+    mat.WriteMatrix("rhs", 2, dims, MatFile::mxDOUBLE_CLASS,
+                    real_data.data(), imag_data.data());
+  }
+
+  // Write the (sparse, complex) system matrix.
+  if (ed_solver_) {
+    int n = ed_solver_->rhs.size();
+    CHECK(ed_solver_->Ctriplets.size() == 0);
+    Eigen::SparseMatrix<JetComplex> A(n, n);
+    A.setFromTriplets(ed_solver_->triplets.begin(), ed_solver_->triplets.end());
+    CHECK(A.isCompressed());
+
+    vector<double> real_data(A.nonZeros());
+    vector<double> imag_data(A.nonZeros());
+    for (int i = 0; i < A.nonZeros(); i++) {
+      real_data[i] = ToDouble(A.valuePtr()[i].real());
+      imag_data[i] = ToDouble(A.valuePtr()[i].imag());
+    }
+    mat.WriteSparseMatrix("A", n, n, MatFile::mxDOUBLE_CLASS, A.nonZeros(),
+                         A.innerIndexPtr(), A.outerIndexPtr(),
+                         real_data.data(), imag_data.data());
+  }
+
   if (!mat.Valid()) {
     // An error will already have been emitted.
   }
@@ -1224,6 +1443,21 @@ bool Solver::ComputeModeCutoffFrequencies(vector<JetComplex> *cutoff) {
   return true;
 }
 
+double Solver::ZScaleFromBrightness(int brightness) {
+  // Scale the Z axis so that unit height waves look the same regardless of
+  // scale.
+  double scale = pow(10, -(brightness - 500.0) / 500.0);
+  bool success = false;
+  double k2 = ComputeKSquared(&success);
+  if (success && k2 > 0) {
+    double lambda0 = 2.0 * M_PI / sqrt(k2);             // in meters
+    lambda0 /= config_.unit;                            // in config units
+    return lambda0 * 0.3 / scale;
+  } else {
+    return 1 / scale;           // @@@ Need to deal better with this case
+  }
+}
+
 bool Solver::ComputeSpatialGradient() {
   if (Pgradient_.rows() > 0) {
     // Assume that we've already computed the gradient.
@@ -1303,7 +1537,10 @@ bool Solver::ComputeSpatialGradientMaxAmplitude() {
   return true;
 }
 
-double Solver::ComputeKSquared() {
+double Solver::ComputeKSquared(bool *success) {
+  if (success) {
+    *success = true;            // Default assumption
+  }
   double k2 = 0;
   double lambda = kSpeedOfLight / frequency_;
   if (config_.schrodinger) {
@@ -1317,7 +1554,11 @@ double Solver::ComputeKSquared() {
              config_.type == ScriptConfig::ELECTROSTATICS) {
     k2 = sqr(2.0 * M_PI / lambda);
   } else {
-    Panic("Unsupported type");
+    if (success) {
+      *success = false;
+    } else {
+      Panic("Unsupported type");
+    }
   }
   return k2;
 }
@@ -1353,14 +1594,13 @@ JetComplex Solver::SolutionJet(int i) const {
 //***************************************************************************
 // Solvers.
 
-const int kNumThreads = 8;
-
 bool Solvers::Solve() {
   // If there is no work for the Solver to do, we can run this paraller solve
   // several thousands times per second (at 50 solves per iteration). That is
   // the thread setup overhead, and it seems acceptable compared to the other
   // overheads. If it becomes a problem we might want to first check if there
   // is any actual solving work to do before launching all these threads.
+  const int kNumThreads = QThread::idealThreadCount();
   bool ok = true;
   ParallelFor(0, solvers_.size()-1, kNumThreads, [&](int i) mutable {
     if (!solvers_[i]->Solve()) {
@@ -1371,6 +1611,7 @@ bool Solvers::Solve() {
 }
 
 bool Solvers::UpdateDerivatives(const Shape &s) {
+  const int kNumThreads = QThread::idealThreadCount();
   bool ok = true;
   ParallelFor(0, solvers_.size()-1, kNumThreads, [&](int i) mutable {
     if (!solvers_[i]->UpdateDerivatives(s)) {

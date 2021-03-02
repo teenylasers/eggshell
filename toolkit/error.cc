@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "myvector"
+#include <vector>
 #include "mystring.h"
 
 using std::vector;
@@ -102,7 +102,7 @@ void DefaultErrorHandler::HandleError(Type type, const char *msg, va_list ap) {
 
 static DefaultErrorHandler default_error_handler;
 static ErrorHandler *error_handler = &default_error_handler;
-static Mutex error_handler_mutex;
+static std::mutex error_handler_mutex;
 
 ErrorHandler *SetErrorHandler(ErrorHandler *e) {
   MutexLock lock(&error_handler_mutex);
@@ -120,7 +120,7 @@ ErrorHandler *GetErrorHandler() {
 // Complain-once mechanism.
 
 static vector<bool*> complaint_flags;
-static Mutex complaint_flags_mutex;
+static std::mutex complaint_flags_mutex;
 
 bool ComplaintFlagToReset(bool *flag) {
   MutexLock lock(&complaint_flags_mutex);

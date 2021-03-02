@@ -72,10 +72,14 @@ class LuaModelViewer : public GLViewer {
   explicit LuaModelViewer(QWidget *parent);
   ~LuaModelViewer();
 
-  // Do background sweeps and optimization when idle.
  public slots:
+  void AboutToBlock();
+  // Do background sweeps and optimization when idle.
   void IdleProcessing();
-public:
+  // Schedule IdleProcessing() if it is not currently scheduled.
+  void ScheduleIdleProcessing();
+
+ public:
   // Is the model good enough to simulate?
   bool IsModelValid() { return valid_; }
 
@@ -91,6 +95,9 @@ public:
   void SetIfRunScriptResetsParameters(bool runscript_resets_param_map) {
     runscript_resets_param_map_ = runscript_resets_param_map;
   }
+  void SetIfRunScriptResetsView(bool runscript_resets_view) {
+    runscript_resets_view_ = runscript_resets_view;
+  }
   void Sweep(const std::string &parameter_name,
              double start_value, double end_value, int num_steps,
              bool sweep_over_test_output, const std::string &image_filename);
@@ -98,6 +105,8 @@ public:
   void StopSweepOrOptimize();
   void ToggleEmitTraceReport();
   void SetOptimizer(OptimizerType type) { ih_.optimizer_type = type; }
+  void SetNelderMeadParameters(NelderMeadOptimizer::Settings p)
+    { ih_.nmop = p; }
   void CopyParametersToClipboard();
   void ToggleRunTestAfterSolve();
   void ScriptTestMode();
@@ -256,6 +265,7 @@ public:
   char **copy_of_argv_ = 0;             // Copy of argument given to main()
   bool switch_to_model_after_each_solve_;
   bool disable_idle_processing_ = false;
+  bool idle_processing_pending_ = false;
 
   // Connections to external controls.
   QListWidget *script_messages_;
@@ -273,6 +283,7 @@ public:
   typedef std::map<std::string, Parameter> ParamMap;
   ParamMap param_map_;
   bool runscript_resets_param_map_;  // If param_map_ reset by RunScript()
+  bool runscript_resets_view_;       // If view reset by RunScript()
   std::vector<std::string> current_param_controls_;  // Current control names
   std::vector<std::string> markers_; // Pairs of controls names shown as markers
   int num_ticked_count_;             // Ticked params seen by CreateParameter()
@@ -299,13 +310,14 @@ public:
     bool sweep_over_test_output;              // Plot test() output?
     std::vector<std::vector<JetComplex> > sweep_output;
     OptimizerType optimizer_type;             // Algorithm to use
-    CeresInteractiveOptimizer *optimizer;     // Nonzero if currently optimizing
+    AbstractOptimizer *optimizer;             // Nonzero if currently optimizing
+    NelderMeadOptimizer::Settings nmop;
     std::vector<std::string> opt_parameter_names;  // Parameter names optimizing
     bool optimizer_done_;                     // true if found optimal solution
     std::string image_filename;               // nonempty to save model images
 
     InvisibleHand() {
-      optimizer_type = LEVENBERG_MARQUARDT;
+      optimizer_type = OptimizerType::LEVENBERG_MARQUARDT;
       optimizer = 0;
       sweep_over_test_output = false;
       Start();
@@ -319,10 +331,11 @@ public:
       sweep_output.clear();
       sweep_parameter_name.clear();
     }
+
     void Stop() {
       state = OFF;
       sweep_index = 0;
-      delete optimizer;
+      delete optimizer;         // Will shut down any optimizer threads running
       optimizer = 0;
       opt_parameter_names.clear();
       optimizer_done_ = false;
@@ -350,6 +363,7 @@ public:
   // IdleProcessing().
   bool OnInvisibleHandSweep();
   bool OnInvisibleHandOptimize();
+  void MessageBestOptimizerParameters();
 };
 
 #endif

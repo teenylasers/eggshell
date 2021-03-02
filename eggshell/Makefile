@@ -90,18 +90,21 @@ else
   endif
 endif
 
-GUI_LIBS = -L$(QT_DIR)/lib -L$(TOOLS_DIR)/Qt-5.9.2/plugins/platforms \
-  -L$(TOOLS_DIR)/Qt-5.9.2/plugins/imageformats \
+CFLAGS += -mmacosx-version-min=10.15 -DGL_SILENCE_DEPRECATION
+
+GUI_LIBS += -L$(QT_DIR)/lib -L$(QT_DIR)/plugins/platforms -L$(QT_DIR)/plugins/styles \
+  -L$(QT_DIR)/plugins/imageformats \
   -lQt5Widgets$(D) -lQt5Gui$(D) -lQt5Core$(D) -lQt5Network$(D) \
-  -lqtlibpng$(D) -lqtharfbuzz$(D) -lqtpcre2$(D) -lqtfreetype$(D) \
-  -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D) -lqjpeg
+  -lqtharfbuzz$(D) -lqtpcre2$(D) \
+  -lQt5FontDatabaseSupport$(D) -lQt5ThemeSupport$(D) -lqjpeg$(D) -ljpeg
 ifeq ($(PLATFORM), osx)
-  GUI_LIBS += -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
+  GUI_LIBS += -lqtlibpng$(D) -lqtfreetype$(D) -lqcocoa$(D) -lcups -lz -lQt5PrintSupport$(D) \
     -lQt5ClipboardSupport$(D) -lQt5AccessibilitySupport$(D) \
-    -lQt5CglSupport$(D) -lQt5GraphicsSupport$(D) \
+    -lQt5GraphicsSupport$(D) -lqmacstyle$(D) \
     -framework OpenGL -framework AGL -framework IOKit \
     -framework Carbon -framework AppKit -framework SystemConfiguration \
-    -framework Security
+    -framework Security \
+    -framework IOSurface -framework Metal -framework QuartzCore
   CCFLAGS += -D__TOOLKIT_MAT_FILE_USE_ZLIB__
 endif
 ifeq ($(PLATFORM), windows)
@@ -119,7 +122,7 @@ endif
 CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt -I../../lcp
 
 # More compiler configuration.
-CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare -I../../toolkit
+CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare -I../../toolkit $(EIGEN_FLAGS)
 
 $(OBJ): CCFLAGS += -I$(EIGEN_DIR)
 

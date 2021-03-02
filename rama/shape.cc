@@ -19,6 +19,8 @@
 #include "../toolkit/shaders.h"
 #include "../toolkit/gl_font.h"
 #include "../toolkit/testing.h"
+#include "../toolkit/dxf.h"
+#include "../toolkit/collision.h"
 
 using ClipperLib::IntPoint;
 using ClipperLib::Clipper;
@@ -33,15 +35,25 @@ using ClipperLib::ctUnion;
 using ClipperLib::ctDifference;
 using ClipperLib::ctXor;
 using Eigen::Vector3f;
+using Eigen::Vector4f;
 
-// All clipper coordinates are 64 bit integers. Our double precision
-// coordinates are scaled to use 32 of those bits to the left and right of the
-// decimal point. See comments in Shape::ClipperBounds.
+// All clipper coordinates are 64 bit integers. Our double precision coordinates
+// are scaled to use 32 of those bits to the left and right of the decimal
+// point. This quantizes coordinates to 2.3e-10 and gives us a maximum of 2.1e9.
+// This is generally not a problem: for config.unit set to 'meters', the
+// quantization size is on the order of the atomic spacing in a crystal lattice.
+//
+// We used to scale and offset things so that we used exactly 32 of the bits in
+// the integer coordinates passed to clipper. This had the advantage of working
+// despite the user's own weird scaling (e.g. if there's a circle the diameter
+// of the Earth, in microns, that's ~1.3e+13). However it means that the same
+// shape may get different scalings when combined with different pieces, which
+// can lead to slivers being generated in Clipper as different integer
+// coordinates are used to represent the same points.
 const double kCoordScale = 4294967296;  // =2^32
 
 // Geometry tolerances
 const double kTol = 1e-20;              // Generic
-const double kTolColinear = 1.74e-8;    // 1 micro-degree (in radians)
 const double kTolClean = 1e-9;          // Multiplies largest side length
 const JetNum kMaxStepsAllowed = 1e4;    // For grow() round style, etc
 
@@ -193,6 +205,22 @@ static bool DoesLineIntersectBox(const JetPoint &p1, const JetPoint &p2,
             (s1 < 0 && s2 < 0 && s3 < 0 && s4 < 0) );
 }
 
+// Return true if the line start1->end1 intersects the line start2->end2.
+// Merely toucting at the end points does not count.
+static bool DoesLineIntersectLine(const JetPoint &start1, const JetPoint &end1,
+                                  const JetPoint &start2, const JetPoint &end2)
+{
+  // Check separating half spaces.
+  JetNum s1 = Cross2(end1 - start1, start2 - start1);
+  JetNum s2 = Cross2(end1 - start1, end2 - start1);
+  if ((s1 <= 0 && s2 <= 0) || (s1 >= 0 && s2 >= 0)) {
+    return false;
+  }
+  JetNum s3 = Cross2(end2 - start2, start1 - start2);
+  JetNum s4 = Cross2(end2 - start2, end1 - start2);
+  return !((s3 <= 0 && s4 <= 0) || (s3 >= 0 && s4 >= 0));
+}
+
 // Return the area of a polygon. The sign of the area depends on the
 // orientation (positive for anticlockwise). The 'size' is the number of points
 // in 'p' to consider as the polygon, or -1 to use them all.
@@ -221,7 +249,7 @@ static JetNum TriangleArea(const JetPoint &a, const JetPoint &b,
 bool TriangleIntersectsBox(const JetPoint *p[3],
                            double xmin, double xmax,
                            double ymin, double ymax) {
-  // From from computational geometry we know that two nonintersecting convex
+  // From computational geometry we know that two nonintersecting convex
   // polyhedra can be separated by a plane that is either parallel to a face of
   // one of the polyhedra or that contains an edge from each of the polyhedra.
   // Thus the intersection test uses separating lines from 4 sides of the box
@@ -470,6 +498,35 @@ void MyZFillCallback(IntPoint &e1bot, IntPoint &e1top,
   pt.Z = new_et;
 }
 
+// Given two unit length vectors (v1,v2) that describe rays starting from the
+// origin, return a positive 'beta' such that an arc of the given radius is
+// tangent to the rays at beta*v1 and beta*v2
+static JetNum ArcTwoTangents(JetNum radius, const JetPoint &v1,
+                             const JetPoint &v2) {
+  return abs(radius * 2.0 * Cross2(v2, v1) / (v1 - v2).squaredNorm());
+}
+
+// Given a unit length vector 'v' that describes a ray starting from the
+// origin, return a positive 'beta' such that an arc of the given radius goes
+// through point 'p' and is tangent to the ray at beta*v. If there are two
+// possible solutions return the one with the largest beta. Return -1 if no
+// solution can be found. Set 'lr' to +/- 1 depending on whether p is to the
+// left or right of v.
+static JetNum ArcOneTangent(JetNum radius, const JetPoint &p,
+                            const JetPoint &v, double *lr) {
+  // See if p is to the left or right of v.
+  *lr = ToDouble(Cross2(v, p));  // lr positive if p to the left of v
+  *lr = (*lr >= 0) ? 1 : -1;
+
+  JetNum q = p.dot(Rotate90(v));
+  JetNum sqrt_arg = q * ((*lr)*2.0*radius - q);
+  if (sqrt_arg < 0) {
+    return -1;          // p is too far away for the arc to reach v
+  }
+
+  return p.dot(v) + sqrt(sqrt_arg);
+}
+
 //***************************************************************************
 // Lua global functions.
 
@@ -486,6 +543,16 @@ static int LuaCircle(lua_State *L) {
   Shape *s = LuaUserClassCreateObj<Shape>(L);
   s->SetCircle(luaL_checknumber(L, 1), luaL_checknumber(L, 2),
                luaL_checknumber(L, 3), luaL_checkinteger(L, 4));
+  return 1;
+}
+
+// Internal function used by user_script_util.lua, to examine a vertex edge
+// kind and return information about it.
+static int Lua__EdgeKind__(lua_State *L) {
+  GlobalExpecting(L, 1, "__EdgeKind__");
+  EdgeKind e;
+  e.SetFromInteger(ToDouble(luaL_checknumber(L, 1)));
+  lua_pushnumber(L, e.PortNumber());
   return 1;
 }
 
@@ -652,6 +719,8 @@ void Shape::SetLuaGlobals(lua_State *L) {
   lua_setglobal(L, "Rectangle");
   lua_pushcfunction(L, LuaCircle);
   lua_setglobal(L, "Circle");
+  lua_pushcfunction(L, Lua__EdgeKind__);
+  lua_setglobal(L, "__EdgeKind__");
 }
 
 void Shape::Clear() {
@@ -674,7 +743,7 @@ void Shape::Dump() const {
   }
 }
 
-void Shape::DrawInterior() const {
+void Shape::DrawInterior(double alpha) const {
   if (IsEmpty() || GeometryError()) {
     return;
   }
@@ -694,13 +763,14 @@ void Shape::DrawInterior() const {
   // Draw the resulting triangles using the colors that come from the original
   // polygons.
   const vector<Material> &materials = mesh.materials();
-  vector<Vector3f> points, colors;
+  vector<Vector3f> points;
+  vector<Vector4f> colors;
   gl::PushShader push_shader(gl::SmoothShader());
   for (int i = 0; i < mesh.triangles().size(); i++) {
     uint32 color = materials[mesh.triangles()[i].material].color;
-    colors.push_back(Vector3f(((color & 0xff0000) >> 16) / 255.0f,
+    colors.push_back(Vector4f(((color & 0xff0000) >> 16) / 255.0f,
                               ((color & 0xff00) >> 8   ) / 255.0f,
-                              ((color & 0xff)          ) / 255.0f));
+                              ((color & 0xff)          ) / 255.0f, alpha));
     colors.push_back(colors.back());
     colors.push_back(colors.back());
     for (int j = 0; j < 3; j++) {
@@ -818,11 +888,14 @@ void Shape::DrawBoundary(const Eigen::Matrix4d &camera_transform,
   }
 }
 
-void Shape::AddPoint(JetNum x, JetNum y) {
+void Shape::AddPoint(JetNum x, JetNum y, const EdgeInfo *e) {
   if (polys_.empty()) {
     polys_.resize(1);
   }
   polys_.back().p.push_back(RPoint(x, y));
+  if (e) {
+    polys_.back().p.back().e = *e;
+  }
 }
 
 void Shape::MakePolyline() {
@@ -878,6 +951,40 @@ JetNum Shape::TotalArea() const {
   return area;
 }
 
+bool Shape::SelfIntersection() const {
+  for (int i = 0; i < polys_.size(); i++) {
+    // Do the intersection check separately for each piece.
+    const int n = polys_[i].p.size();
+    vector<collision::AABB<2>> aabb(n);
+    for (int j0 = 0; j0 < n; j0++) {
+      int j1 = (j0 + 1) % n;
+      auto &p0 = polys_[i].p[j0].p;
+      auto &p1 = polys_[i].p[j1].p;
+      for (int k = 0; k < 2; k++) {
+        aabb[j0].min[k] = std::min(ToDouble(p0[k]), ToDouble(p1[k]));
+        aabb[j0].max[k] = std::max(ToDouble(p0[k]), ToDouble(p1[k]));
+      }
+    }
+    std::set<std::pair<int, int>> overlaps;
+    collision::SweepAndPrune(aabb, &overlaps);
+    for (auto o : overlaps) {
+      CHECK(aabb[o.first].Overlaps(aabb[o.second]));
+      // Check to see if the lines in these two overlapping boxes actually
+      // intersect. Ignore lines that are adjacent in the polygon.
+      if ((o.first + 1) % n != o.second && (o.second + 1) % n != o.first) {
+        auto &p1 = polys_[i].p[o.first].p;
+        auto &p2 = polys_[i].p[(o.first + 1) % n].p;
+        auto &p3 = polys_[i].p[o.second].p;
+        auto &p4 = polys_[i].p[(o.second + 1) % n].p;
+        if (DoesLineIntersectLine(p1, p2, p3, p4)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 JetNum Shape::SharpestAngle() const {
   // Holes have opposite winding order from outer boundaries, this fact
   // naturally takes care of the different interpretation of "sharpest angle"
@@ -906,14 +1013,14 @@ JetNum Shape::SharpestAngle() const {
   return fabs(M_PI - sharpest);
 }
 
-void Shape::ExtremeSideLengths(JetNum *ret_length_max,
-                               JetNum *ret_length_min) const {
-  JetNum length_max = 0;
-  JetNum length_min = __DBL_MAX__;
+void Shape::ExtremeSideLengths(double *ret_length_max,
+                               double *ret_length_min) const {
+  double length_max = 0;
+  double length_min = __DBL_MAX__;
   for (int i = 0; i < polys_.size(); i++) {
     for (int j1 = 0; j1 < polys_[i].p.size(); j1++) {
       int j2 = (j1 + 1) % polys_[i].p.size();
-      JetNum length = (polys_[i].p[j2].p - polys_[i].p[j1].p).norm();
+      double length = ToDouble((polys_[i].p[j2].p - polys_[i].p[j1].p).norm());
       length_max = std::max(length_max, length);
       length_min = std::min(length_min, length);
     }
@@ -977,15 +1084,6 @@ void Shape::Paint(const Shape &s, const Material &mat) {
     matmap[polys_[i].material].push_back(i);
   }
 
-  // Compute the coordinate conversion that we're going to use for all
-  // clipping. It's important to be consistent so that this shape and the area
-  // to paint will end up sharing coincident vertices that will be
-  // un-duplicated in Triangulate().
-  JetNum offset_x, offset_y, scale;
-  if (!ClipperBounds(this, &s, &offset_x, &offset_y, &scale)) {
-    return;
-  }
-
   // We deal with each material shape separately.
   Shape result;
   for (auto matshape : matmap) {
@@ -994,7 +1092,7 @@ void Shape::Paint(const Shape &s, const Material &mat) {
       a.polys_.push_back(polys_[matshape.second[i]]);
     }
     Shape b;                    // Material shape minus painted shape s
-    b.RunClipper(&a, &s, ctDifference, offset_x, offset_y, scale);
+    b.RunClipper(&a, &s, ctDifference);
     for (int j = 0; j < b.polys_.size(); j++) {
       b.polys_[j].material = matshape.first;
     }
@@ -1004,7 +1102,7 @@ void Shape::Paint(const Shape &s, const Material &mat) {
 
   // The area to paint is 's' intersected with the entire current polygon.
   Shape area_to_paint;
-  area_to_paint.RunClipper(this, &s, ctIntersection, offset_x, offset_y, scale);
+  area_to_paint.RunClipper(this, &s, ctIntersection);
   if (area_to_paint.IsEmpty()) {
     return;  // Throw away all the work above if nothing to paint.
   }
@@ -1235,21 +1333,30 @@ void Shape::Grow(JetNum delta, CornerStyle style, JetNum limit,
   // @@@ do we need to CleanPolygon?
 }
 
-void Shape::Clean(JetNum threshold) {
+void Shape::Clean(JetNum threshold, JetNum angle_threshold, int mode) {
+  CHECK(mode == 1 || mode == 2);
+
   // The default threshold is the maximum side length * kTolClean.
   if (threshold == 0) {
-    JetNum length_max, length_min;
+    double length_max, length_min;
     ExtremeSideLengths(&length_max, &length_min);
     threshold = kTolClean * length_max;
   }
 
   // We don't delete points that are shared by multiple pieces, as these are
   // topologically important and might be referenced by different material's
-  // polygons.
-  std::map<RPoint, int> use_count;
+  // polygons. But make sure we *do* consider repeated points in the same
+  // piece. The use_count maps a point to piece number and use count.
+  std::map<RPoint, std::pair<int, int>> use_count;
   for (int i = 0; i < polys_.size(); i++) {
     for (int j = 0; j < polys_[i].p.size(); j++) {
-      use_count[polys_[i].p[j]]++;
+      std::pair<int, int> &uc = use_count[polys_[i].p[j]];
+      if (uc.second == 0) {
+        uc.first = i;           // First use detected on this piece
+        uc.second = 1;
+      } else if (uc.first != i) {
+        uc.second++;            // N'th use detected on a different piece
+      }
     }
   }
 
@@ -1257,7 +1364,7 @@ void Shape::Clean(JetNum threshold) {
     if (polys_[i].p.size() < 3) {
       continue;
     }
-    for (int pass = 0; pass < 2; pass++) {
+    for (int pass = 0; pass < mode; pass++) {
       // On the first pass delete only co-linear points that are closer to
       // their neighbors than the threshold. This is done first so that we have
       // the best chance of cleaning up the shape without modifying the
@@ -1267,13 +1374,13 @@ void Shape::Clean(JetNum threshold) {
       for (int j1 = 0; j1 < n; j1++) {
         int j2 = (j1 + 1) % n;        // We consider deleting j2
         int j3 = (j1 + 2) % n;
-        if (use_count[polys_[i].p[j2]] <= 1) {
+        if (use_count[polys_[i].p[j2]].second <= 1) {
           JetPoint delta1 = polys_[i].p[j2].p - polys_[i].p[j1].p;
           JetPoint delta2 = polys_[i].p[j3].p - polys_[i].p[j2].p;
           JetNum length1 = delta1.norm();
           JetNum length2 = delta2.norm();
           JetNum sin_theta = Cross2(delta1, delta2) / (length1 * length2);
-          if (pass == 1 || fabs(sin_theta) < kTolColinear) {
+          if (pass == 1 || fabs(sin_theta) < angle_threshold) {
             // If fabs(sin_theta) is small, j1-j2-j3 are colinear.
             // Delete j2 if it's too close to j1 or j2:
             if (length1 < threshold || length2 < threshold) {
@@ -1437,7 +1544,9 @@ bool Shape::APointInside(int i, double *x, double *y) {
   return true;
 }
 
-void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
+bool Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit,
+                         JetPoint *pstart, JetPoint *pend, JetPoint *center,
+                         bool mutate) {
   // Find the piece/vertex that is closest to x,y.
   int piece, index;
   FindClosestVertex(x, y, &piece, &index);
@@ -1450,31 +1559,59 @@ void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
   JetPoint p1 = poly[i1].p;
   JetPoint p2 = poly[i2].p;
 
-  // Compute center of fillet and other geometry.
+  // Compute unit vectors to the prior and next vertex.
   JetPoint v1 = p1 - pt;
   JetPoint v2 = p2 - pt;
   JetNum len1 = v1.norm();
   JetNum len2 = v2.norm();
   v1 /= len1;                   // Unit vector to prior vertex
   v2 /= len2;                   // Unit vector to next vertex
-  JetPoint v = (v1 + v2) / 2;   // Vector to center
-  if (v.norm() < 1e-9) {        //              @@@ THRESHOLD CORRECT?
-    return;                     // Lines are (almost) colinear, nothing to do
+
+  // Compute two arc tangent points: beta0*v1 and beta0*v2. This will only work
+  // if the tangent points don't go off the end of the line segments.
+  JetNum beta0 = ArcTwoTangents(radius, v1, v2);
+  if (beta0 < 1e-6) {
+    return true;                // Lines are (almost) colinear, nothing to do
   }
-  v /= v.norm();                // Center is along pt + alpha*v
-  JetNum alpha = abs(radius / (v1(1)*v(0) - v1(0)*v(1)));
-  JetNum beta = alpha * (v1.dot(v));    // Start/end = beta*v1 or beta*v2
-  if (beta >= len1 || beta >= len2) {
-    // Fillet radius is too large, so limit it.
-    JetNum minlen = std::min(len1, len2);
-    JetNum ratio = minlen / beta;
-    beta = minlen;
-    alpha *= ratio;
-    radius *= ratio;
+
+  // See if the beta0 arc will work. If not, try others.
+  JetPoint c(0,0);              // Set to arc center point
+  bool found_arc = false;
+  if (beta0 <= len1 && beta0 <= len2) {
+    // Arc tangent to v1 and v2.
+    c = pt + beta0/(1.0 + v1.dot(v2))*(v1 + v2);
+    p1 = pt + beta0*v1;         // Start point
+    p2 = pt + beta0*v2;         // End point
+    found_arc = true;
+  } else {
+    // Try arcs that are tangent with one line segment only, and fixed to the
+    // endpoint of the other segment. We do not want to create arcs that go
+    // outside the space swept from v1 to v2 (an interior arc).
+    // Arc 1: An arc fixed to p2 but tangent to v1 (at point beta1*v1).
+    // Arc 2: An arc fixed to p1 but tangent to v2 (at point beta2*v2).
+    // If arc1 is valid and an interior arc, beta1 > len2 and beta1 < len1.
+    // If arc2 is valid and an interior arc, beta2 > len1 and beta2 < len2.
+    // Therefore there is only one valid situation: we use the valid arc with
+    // beta >= the opposite len.
+    double lr1 = 0, lr2 = 0;
+    JetNum beta1 = ArcOneTangent(radius, p2 - pt, v1, &lr1);
+    JetNum beta2 = ArcOneTangent(radius, p1 - pt, v2, &lr2);
+    bool arc1_valid = beta1 > 0 && beta1 <= len1;
+    bool arc2_valid = beta2 > 0 && beta2 <= len2;
+    if (arc1_valid && (!arc2_valid || beta1 >= len2)) {
+      p1 = pt + beta1*v1;         // Start point
+      c = p1 + lr1 * radius * Rotate90(v1);
+      found_arc = true;
+    } else if (arc2_valid && (!arc1_valid || beta2 >= len1)) {
+      p2 = pt + beta2*v2;         // End point
+      c = p2 + lr2 * radius * Rotate90(v2);
+      found_arc = true;
+    }
   }
-  JetPoint c = pt + alpha*v;            // Center point
-  p1 = pt + beta*v1;                    // Start point
-  p2 = pt + beta*v2;                    // End point
+  if (!found_arc) {
+    // Can not satisfy fillet radius on either segment, so do nothing.
+    return false;
+  }
 
   // Compute angular extent of the fillet.
   JetNum a1 = atan2(p1(1) - c(1), p1(0) - c(0));
@@ -1487,28 +1624,39 @@ void Shape::FilletVertex(JetNum x, JetNum y, JetNum radius, JetNum limit) {
   }
 
   // Compute the number of steps in the fillet.
-  JetNum steps = M_PI / acos(1.0 - limit / radius);     // In a circle
+  JetNum steps = M_PI / acos(1.0 - limit / radius);     // In a full circle
   steps = std::min(steps, kMaxStepsAllowed);
   int num_steps = ToInt64(ceil(abs(a2 - a1) * steps / (2.0 * M_PI))) + 1;
   if (num_steps <= 1) {
-    return;
+    return false;
   }
 
   // Replace pt with the fillet arc points.
-  poly.insert(poly.begin() + index, num_steps - 1, RPoint());
-  for (int i = 0; i < num_steps; i++) {
-    JetNum a = a1 + (a2 - a1) * JetNum(i) / JetNum(num_steps-1);
-    poly[index + i].p =
-      JetPoint(c(0) + radius * cos(a), c(1) + radius * sin(a));
+  if (mutate) {
+    poly.insert(poly.begin() + index, num_steps - 1, RPoint());
+    for (int i = 0; i < num_steps; i++) {
+      JetNum a = a1 + (a2 - a1) * JetNum(i) / JetNum(num_steps-1);
+      poly[index + i].p =
+        JetPoint(c(0) + radius * cos(a), c(1) + radius * sin(a));
+    }
+    // Ensure that we didn't make duplicate points at the start or end of the
+    // arc. This might happen if the radius was limited by the adjacent edge
+    // lengths.
+    Clean();
   }
 
-  // Ensure that we didn't make duplicate points at the start or end of the
-  // arc. This might happen if the radius was limited by the adjacent edge
-  // lengths.
-  Clean();
+  // Return values.
+  if (pstart && pend && center) {
+    *pstart = p1;
+    *pend = p2;
+    *center = c;
+  }
+
+  return true;
 }
 
-void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist) {
+void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist,
+                          JetPoint *p1_ret, JetPoint *p2_ret) {
   // Find the piece/vertex that is closest to x,y.
   int piece, index;
   FindClosestVertex(x, y, &piece, &index);
@@ -1530,29 +1678,30 @@ void Shape::ChamferVertex(JetNum x, JetNum y, JetNum predist, JetNum postdist) {
   poly[index].p = p1;
   poly[index + 1].p = p2;
   Clean();
+
+  // Optionally return the coordinates of the new vertices.
+  if (p1_ret)
+    *p1_ret = p1;
+  if (p2_ret)
+    *p2_ret = p2;
 }
 
-void Shape::SaveBoundaryAsDXF(const char *filename) {
+void Shape::SaveBoundaryAsDXF(const char *filename,
+                              double arc_dist, double arc_angle) {
   FILE *fout = fopen(filename, "wb");
   if (!fout) {
     Error("Can not write to '%s' (%s)", filename, strerror(errno));
     return;
   }
-  fprintf(fout, "0\nSECTION\n2\nENTITIES\n");
+  vector<vector<dxf::Point>> p(polys_.size());
   for (int i = 0; i < polys_.size(); i++) {
-    for (int j1 = 0; j1 < polys_[i].p.size(); j1++) {
-      int j2 = (j1 + 1) % polys_[i].p.size();
-      double x1 = ToDouble(polys_[i].p[j1].p[0]);
-      double y1 = ToDouble(polys_[i].p[j1].p[1]);
-      double x2 = ToDouble(polys_[i].p[j2].p[0]);
-      double y2 = ToDouble(polys_[i].p[j2].p[1]);
-      fprintf(fout, "0\nLINE\n5\n0\n100\nAcDbEntity\n8\nCavity\n"
-                    "100\nAcDbLine\n");
-      fprintf(fout, "10\n%.10e\n20\n%.10e\n30\n0\n", x1, y1);
-      fprintf(fout, "11\n%.10e\n21\n%.10e\n31\n0\n", x2, y2);
+    for (int j = 0; j < polys_[i].p.size(); j++) {
+      p[i].push_back(dxf::Point(ToDouble(polys_[i].p[j].p[0]),
+                                ToDouble(polys_[i].p[j].p[1])));
     }
   }
-  fprintf(fout, "0\nENDSEC\n0\nEOF\n");
+  const double kArcTolerance = 1e-6;
+  dxf::WriteDXF(p, arc_dist, arc_angle, kArcTolerance, fout);
   fclose(fout);
 }
 
@@ -1627,13 +1776,20 @@ bool Shape::LoadSTL(const char *filename) {
     fclose(fin);
   }
 
+  // Find the minimum Z coordinate in 'v'.
+  float minz = __FLT_MAX__;
+  for (int i = 0; i < v.size(); i++) {
+    minz = std::min(minz, v[i][2]);
+  }
+
   // Identify the edges that are referenced by just one of the triangles in the
-  // z=0 plane. This is the boundary of the polygons we will create.
+  // z=minz plane. This is the boundary of the polygons we will create.
   std::map<std::pair<STLPoint, STLPoint>, int> edge_map;
   for (int i = 0; i < v.size() / 3; i++) {
-    if (fabs(v[i*3+0][2]) < kTolerance && fabs(v[i*3+1][2]) < kTolerance &&
-        fabs(v[i*3+2][2]) < kTolerance) {
-      // Triangle is in the z=0 plane, add its edges to edge_map.
+    if (fabs(v[i*3+0][2] - minz) < kTolerance &&
+        fabs(v[i*3+1][2] - minz) < kTolerance &&
+        fabs(v[i*3+2][2] - minz) < kTolerance) {
+      // Triangle is in the z=minz plane, add its edges to edge_map.
       for (int j = 0; j < 3; j++) {
         int j2 = (j + 1) % 3;
         std::pair<STLPoint, STLPoint> key2(v[i*3+j2], v[i*3+j]);
@@ -1689,8 +1845,7 @@ int Shape::UpdateBounds(JetNum *min_x, JetNum *min_y,
   return coord_count > 0;
 }
 
-void Shape::ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-                    Paths *paths) const {
+void Shape::ToPaths(Paths *paths) const {
   paths->clear();
   paths->resize(polys_.size());
   for (int i = 0; i < polys_.size(); i++) {
@@ -1702,16 +1857,14 @@ void Shape::ToPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
       ClipperEdgeInfo e(polys_[i].p[j].e,
                         polys_[i].p[j].p[0].Derivative(),     // derivative_x
                         polys_[i].p[j].p[1].Derivative());    // derivative_y
-      path.push_back(
-          IntPoint(ToInt64(round(scale * (polys_[i].p[j].p[0] - offset_x))),
-                   ToInt64(round(scale * (polys_[i].p[j].p[1] - offset_y))),
-                   e));
+      path.push_back(IntPoint(
+          ToInt64(round(kCoordScale * (polys_[i].p[j].p[0]))),
+          ToInt64(round(kCoordScale * (polys_[i].p[j].p[1]))), e));
     }
   }
 }
 
-void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
-                      const Paths &paths) {
+void Shape::FromPaths(const Paths &paths) {
   Clear();
   polys_.resize(paths.size());
   for (int i = 0; i < paths.size(); i++) {
@@ -1721,8 +1874,8 @@ void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
       // IntPoint the same way it's stored in RPoint. Repack it here. Note that
       // we store *unscaled* derivatives in IntPoint.
       RPoint &p = polys_[i].p[j];
-      p.p[0] = JetNum(paths[i][j].X) / scale + offset_x;
-      p.p[1] = JetNum(paths[i][j].Y) / scale + offset_y;
+      p.p[0] = JetNum(paths[i][j].X) / kCoordScale;
+      p.p[1] = JetNum(paths[i][j].Y) / kCoordScale;
       p.p[0].Derivative() = paths[i][j].Z.derivative_x;
       p.p[1].Derivative() = paths[i][j].Z.derivative_y;
       p.e = paths[i][j].Z;
@@ -1731,68 +1884,13 @@ void Shape::FromPaths(JetNum scale, JetNum offset_x, JetNum offset_y,
 }
 
 void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type) {
-  // @@@ Now that ClipperBounds returns constants we can probably ditch this
-  //     function and just move the other RunClipper's body here.
-  JetNum offset_x, offset_y, scale;
-  if (!ClipperBounds(c1, c2, &offset_x, &offset_y, &scale)) {
-    Clear();
-    return;
-  }
-  RunClipper(c1, c2, clip_type, offset_x, offset_y, scale);
-}
-
-bool Shape::ClipperBounds(const Shape *c1, const Shape *c2, JetNum *offset_x,
-                          JetNum *offset_y, JetNum *scale) const {
-  // Compute the coordinate scaling to used when running Clipper on shapes 'c1'
-  // and 'c2'. We used to scale and offset things so that we used exactly 32 of
-  // the bits in the integer coordinates passed to clipper. This has the
-  // advantage of working despite the user's own weird scaling (e.g. if there's
-  // a circle the diameter of the Earth, in microns, that's ~1.3e+13). However
-  // it means that the same shape may get different scalings when combined with
-  // different pieces, which can lead to slivers being generated in Clipper as
-  // different integer coordinates are used to represent the same points. So
-  // now we use a constant scaling that gives us 32 bits to the left and right
-  // of the decimal point. This quantizes coordinates to 2.3e-10 and gives us a
-  // maximum of 2.1e9. This is generally not a problem: for config.unit set to
-  // 'meters', the quantization size is on the order of the atomic spacing in a
-  // crystal lattice.
-  *offset_x = 0;
-  *offset_y = 0;
-  *scale = kCoordScale;
-  return true;
-
-  /*
-   * The old way of doing things:
-   *
-   *  // Compute bounds of c1, c2 or both.
-   *  CHECK(c1 || c2);
-   *  JetNum min_x = __DBL_MAX__, min_y = __DBL_MAX__;
-   *  JetNum max_x = -__DBL_MAX__, max_y = -__DBL_MAX__;
-   *  if ((c1 ? c1->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) +
-   *      (c2 ? c2->UpdateBounds(&min_x, &min_y, &max_x, &max_y) : 0) == 0) {
-   *    // No coordinates in either c1 or c2. The min/max wont be valid and the
-   *    // result will have to be empty anyway.
-   *    return false;
-   *  }
-   *
-   *  // Compute the scale factor from doubles to clipper integer coordinates.
-   *  *offset_x = (max_x + min_x) / 2.0;
-   *  *offset_y = (max_y + min_y) / 2.0;
-   *  JetNum max_bound = std::max(max_x - min_x, max_y - min_y);
-   *  *scale = kCoordScale / max_bound;
-   *  return true;
-   */
-}
-
-void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
-                       JetNum offset_x, JetNum offset_y, JetNum scale) {
   // Compute the clipper polygons in integer coordinates.
   Paths p1, p2;
   if (c1) {
-    c1->ToPaths(scale, offset_x, offset_y, &p1);
+    c1->ToPaths(&p1);
   }
   if (c2) {
-    c2->ToPaths(scale, offset_x, offset_y, &p2);
+    c2->ToPaths(&p2);
   }
 
   // When clipper runs on two shapes with coincident vertices, there doesn't
@@ -1831,20 +1929,29 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
 
   // Run the clipper. Use the pftPositive fill type so that a polygon can have
   // external invisible holes (the Paint() function can generate these).
-  Clipper clipper;
-  clipper.ZFillFunction(MyZFillCallback);
-  if (c1) {
-    clipper.AddPaths(p1, ptSubject, true);
-  }
-  if (c2) {
-    clipper.AddPaths(p2, ptClip, true);
-  }
   Paths result;
-  clipper.Execute(clip_type, result, pftPositive, pftPositive);
+  try {
+    Clipper clipper;
+    clipper.ZFillFunction(MyZFillCallback);
+    if (c1) {
+      clipper.AddPaths(p1, ptSubject, true);
+    }
+    if (c2) {
+      clipper.AddPaths(p2, ptClip, true);
+    }
+    clipper.Execute(clip_type, result, pftPositive, pftPositive);
+  } catch(const ClipperLib::clipperException &e) {
+    Error("Clipper says: %s", e.what());
+  }
 
   // Convert the result back into JetPoint coordinates.
-  FromPaths(scale, offset_x, offset_y, result);
+  FromPaths(result);
 
+  // Combine the port callbacks from both shapes.
+  CombinePortCallbacks(c1, c2);
+}
+
+bool Shape::CombinePortCallbacks(const Shape *c1, const Shape *c2) {
   // Combine the port callbacks from both shapes. Generate an error if there
   // are conflicts.
   port_callbacks_.clear();
@@ -1855,10 +1962,12 @@ void Shape::RunClipper(const Shape *c1, const Shape *c2, ClipType clip_type,
     for (auto it : c2->port_callbacks_) {
       if (port_callbacks_.count(it.first) > 0) {
         Error("Merged shapes contain port callbacks for the same port.");
+        return false;
       }
       port_callbacks_[it.first] = it.second;
     }
   }
+  return true;
 }
 
 const Shape &Shape::LuaCheckShape(lua_State *L, int argument_index) const {
@@ -1936,6 +2045,8 @@ int Shape::Index(lua_State *L) {
                     PRINTF_SIZET" pieces (one piece required)", polys_.size());
       }
       lua_pushboolean(L, Orientation(0));
+    } else if (strcmp(s, "self_intersection") == 0) {
+      lua_pushboolean(L, SelfIntersection());
     } else if (strcmp(s, "bounds") == 0) {
       if (IsEmpty()) {
         LuaError(L, "Can not compute bounds of empty shape");
@@ -1979,6 +2090,8 @@ int Shape::Index(lua_State *L) {
                PRINTF_SIZET" (is %g)", polys_[0].p.size(),
                ToDouble(lua_tonumber(L, -1)));
     }
+    // Keep the fields below consistent with AddPoint(), which knows how to
+    // consume them.
     lua_createtable(L, 0, 2);
     lua_pushnumber(L, polys_[0].p[i - 1].p[0]);
     LuaRawSetField(L, -2, "x");
@@ -2053,6 +2166,20 @@ bool Shape::Operator(lua_State *L, int op, int pos) {
       LuaError(L, "Internal");
     }
     return true;
+  } else if (op == LUA_OPCONCAT) {
+    Shape *op1 = LuaCastTo<Shape>(L, 1);
+    Shape *op2 = LuaCastTo<Shape>(L, 2);
+    if (!op1 || !op2 || pos != 1) {
+      // Binary operands must both be Shapes. If pos != 1 then the first
+      // operand wasn't.
+      LuaError(L, "Both arguments to the '..' operator must be Shape objects");
+    }
+    Shape *result = LuaUserClassCreateObj<Shape>(L);
+    result->polys_ = op1->polys_;
+    result->polys_.insert(result->polys_.end(),
+                          op2->polys_.begin(), op2->polys_.end());
+    result->CombinePortCallbacks(op1, op2);
+    return true;
   } else {
     return false;
   }
@@ -2067,8 +2194,28 @@ int Shape::LuaClone(lua_State *L) {
 
 int Shape::LuaAddPoint(lua_State *L) {
   LuaErrorIfNaNOrInfs(L);
-  Expecting(L, 3, "AddPoint");
-  AddPoint(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
+  if (lua_gettop(L) == 3) {
+    AddPoint(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
+  } else if (lua_gettop(L) == 2 && lua_type(L, 2) == LUA_TTABLE) {
+    // Keep the fields below consistent with the shape index operator, which
+    // knows how to emit them.
+    EdgeInfo e;
+    lua_pushstring(L, "x");                                   lua_rawget(L, -2);
+    JetNum x = lua_tonumber(L, -1);                           lua_pop(L, 1);
+    lua_pushstring(L, "y");                                   lua_rawget(L, -2);
+    JetNum y = lua_tonumber(L, -1);                           lua_pop(L, 1);
+    lua_pushstring(L, "kind0");                               lua_rawget(L, -2);
+    e.kind[0].SetFromInteger(ToDouble(lua_tonumber(L, -1)));  lua_pop(L, 1);
+    lua_pushstring(L, "kind1");                               lua_rawget(L, -2);
+    e.kind[1].SetFromInteger(ToDouble(lua_tonumber(L, -1)));  lua_pop(L, 1);
+    lua_pushstring(L, "dist0");                               lua_rawget(L, -2);
+    e.dist[0] = ToDouble(lua_tonumber(L, -1));                lua_pop(L, 1);
+    lua_pushstring(L, "dist1");                               lua_rawget(L, -2);
+    e.dist[1] = ToDouble(lua_tonumber(L, -1));                lua_pop(L, 1);
+    AddPoint(x, y, &e);
+  } else {
+    LuaError(L, "Shape:AddPoint() expecting arguments (x,y) or (table)");
+  }
   lua_settop(L, 1);
   return 1;
 }
@@ -2082,8 +2229,16 @@ int Shape::LuaMakePolyline(lua_State *L) {
 
 int Shape::LuaClean(lua_State *L) {
   LuaErrorIfNaNOrInfs(L);
-  Expecting(L, 2, "Clean");
-  Clean(luaL_checknumber(L, 2));
+  if (lua_gettop(L) == 4) {
+    int mode = ToInt64(luaL_checknumber(L, 4));
+    if (mode != 1 && mode != 2) {
+      LuaError(L, "Shape:Clean() mode must be 1 or 2");
+    }
+    Clean(luaL_checknumber(L, 2), luaL_checknumber(L, 3), mode);
+  } else {
+    Expecting(L, 2, "Clean");
+    Clean(luaL_checknumber(L, 2));
+  }
   return 1;
 }
 
@@ -2324,14 +2479,33 @@ int Shape::LuaAPointInside(lua_State *L) {
 
 int Shape::LuaFilletVertex(lua_State *L) {
   LuaErrorIfNaNOrInfs(L);
+  bool mutate = true;
+  if (lua_gettop(L) == 6) {
+    mutate = lua_toboolean(L, 6);
+    lua_settop(L, 5);
+  }
   Expecting(L, 5, "FilletVertex");
   if (IsEmpty()) {
     LuaError(L, "FilletVertex() requires a nonempty shape");
   }
-  FilletVertex(luaL_checknumber(L, 2), luaL_checknumber(L, 3),
-               luaL_checknumber(L, 4), luaL_checknumber(L, 5));
-  lua_settop(L, 1);
-  return 1;
+  JetPoint pstart, pend, center;
+  if (FilletVertex(luaL_checknumber(L, 2), luaL_checknumber(L, 3),
+                   luaL_checknumber(L, 4), luaL_checknumber(L, 5),
+                   &pstart, &pend, &center, mutate)) {
+    LuaVector *result[3];
+    for (int i = 0; i < 3; i++) {
+      result[i] = LuaUserClassCreateObj<LuaVector>(L);
+      result[i]->resize(2);
+    }
+    for (int i = 0; i < 2; i++) {
+      (*result[0])[i] = pstart[i];
+      (*result[1])[i] = pend[i];
+      (*result[2])[i] = center[i];
+    }
+    return 3;
+  } else {
+    return 0;
+  }
 }
 
 int Shape::LuaChamferVertex(lua_State *L) {
@@ -2340,10 +2514,14 @@ int Shape::LuaChamferVertex(lua_State *L) {
   if (IsEmpty()) {
     LuaError(L, "ChamferVertex() requires a nonempty shape");
   }
+  JetPoint p1, p2;
   ChamferVertex(luaL_checknumber(L, 2), luaL_checknumber(L, 3),
-                luaL_checknumber(L, 4), luaL_checknumber(L, 5));
-  lua_settop(L, 1);
-  return 1;
+                luaL_checknumber(L, 4), luaL_checknumber(L, 5), &p1, &p2);
+  lua_pushnumber(L, p1[0]);
+  lua_pushnumber(L, p1[1]);
+  lua_pushnumber(L, p2[0]);
+  lua_pushnumber(L, p2[1]);
+  return 4;
 }
 
 int Shape::LuaPaint(lua_State *L) {
@@ -2756,5 +2934,32 @@ TEST_FUNCTION(SplitPolygonsAtNecks) {
     CHECK(s.Piece(0).size() == 4);
     CHECK(s.Area(0) == 1);
     CHECK(CentroidIs(s, 0, 0.5, 0.5));
+  }
+}
+
+TEST_FUNCTION(DoesLineIntersectLine) {
+  for (int iter = 0; iter < 10000; iter++) {
+    JetPoint p1, p2, p3, p4;
+    for (int i = 0; i < 2; i++) {
+      p1[i] = RandDouble();
+      p2[i] = RandDouble();
+      p3[i] = RandDouble();
+      p4[i] = RandDouble();
+    }
+    bool result1 = DoesLineIntersectLine(p1, p2, p3, p4);
+
+    // Now compute the actual intersection point a different way and compare.
+    JetNum x1 = p1[0];
+    JetNum y1 = p1[1];
+    JetNum x2 = p3[0];
+    JetNum y2 = p3[1];
+    JetNum dx1 = p2[0] - p1[0];
+    JetNum dy1 = p2[1] - p1[1];
+    JetNum dx2 = p4[0] - p3[0];
+    JetNum dy2 = p4[1] - p3[1];
+    JetNum a1 = (dy2*x1 - dy2*x2 - dx2*y1 + dx2*y2) / (dx2*dy1 - dx1*dy2);
+    JetNum a2 = (dy1*x1 - dy1*x2 - dx1*y1 + dx1*y2) / (dx2*dy1 - dx1*dy2);
+    bool result2 = a1 >= 0 && a1 <= 1 && a2 >= 0 && a2 <= 1;
+    CHECK(result1 == result2);
   }
 }

@@ -26,6 +26,7 @@
 #include "ui_main_window.h"
 #include "about.h"
 #include "sweep.h"
+#include "nelder_mead.h"
 #include "../version.h"
 #include "../../toolkit/error.h"
 
@@ -53,7 +54,7 @@ MainWindow::MainWindow(QWidget *parent) :
   tabifyDockWidget(ui->dock_model, ui->dock_script_messages);
   ui->dock_model->raise();
 
-  // Default shows and hidden controls.
+  // Default shown and hidden controls.
   ui->display_style_Exy->hide();
   ui->display_style_ES->hide();
   ui->display_style_TE->hide();
@@ -109,13 +110,22 @@ void MainWindow::ScriptTestMode() {
 }
 
 void MainWindow::LoadFile(const QString &full_path) {
+  // Remove any current file watchers.
   {
     auto list = watcher_.files();
     if (!list.empty()) {
       watcher_.removePaths(list);   // Generates a warning if list empty
     }
   }
-  script_filename_ = full_path;
+
+  // Change the directory to where the file is, so that if it does 'dofile' or
+  // similar it can refer to relative paths. This also makes the default save
+  // location that directory.
+  QFileInfo info(full_path);
+  QDir::setCurrent(info.path());
+  script_filename_ = info.fileName();
+
+  // Reload the file and watch for further changes to it.
   if (ReloadScript(true)) {
     // Watch this file for changes.
     if (!watcher_.addPath(script_filename_)) {
@@ -146,8 +156,13 @@ bool MainWindow::ReloadScript(bool rerun_even_if_same) {
     return false;
   }
 
-  // Run the script.
-  bool script_ran = ui->model->RunScript(buffer.data(), rerun_even_if_same);
+  // Run the script. The first line of the script is changed to set the script
+  // filename. Don't add a newline \n here so that script error line numbers
+  // will still be correct.
+  QString script = "util.script_filename = '" + script_filename_ + "'; " +
+                   buffer;
+  bool script_ran = ui->model->RunScript(script.toUtf8().data(),
+                                         rerun_even_if_same);
 
   // Highlight the "current model" label, revert it to normal color after 1s.
   if (script_ran) {
@@ -319,15 +334,48 @@ void MainWindow::on_actionEmitTrace_triggered() {
 }
 
 void MainWindow::on_actionSelectLevenbergMarquardt_triggered() {
-  ui->model->SetOptimizer(LEVENBERG_MARQUARDT);
+  ui->model->SetOptimizer(OptimizerType::LEVENBERG_MARQUARDT);
+  UncheckSimulationMethods();
   ui->actionSelectLevenbergMarquardt->setChecked(true);
-  ui->actionSelectSubspaceDogleg->setChecked(false);
 }
 
 void MainWindow::on_actionSelectSubspaceDogleg_triggered() {
-  ui->model->SetOptimizer(SUBSPACE_DOGLEG);
-  ui->actionSelectLevenbergMarquardt->setChecked(false);
+  ui->model->SetOptimizer(OptimizerType::SUBSPACE_DOGLEG);
+  UncheckSimulationMethods();
   ui->actionSelectSubspaceDogleg->setChecked(true);
+}
+
+void MainWindow::on_actionSelectNelderMead_triggered() {
+  NelderMead neldermead(this);
+  if (neldermead.exec() == QDialog::Accepted) {
+    UncheckSimulationMethods();
+    ui->actionSelectNelderMead->setChecked(true);
+    ui->model->SetOptimizer(OptimizerType::NELDER_MEAD);
+    ui->model->SetNelderMeadParameters(neldermead.GetParameters());
+  } else {
+    ui->actionSelectNelderMead->setChecked(false);
+  }
+}
+
+void MainWindow::on_actionSelectRandomSearch_triggered() {
+  ui->model->SetOptimizer(OptimizerType::RANDOM_SEARCH);
+  UncheckSimulationMethods();
+  ui->actionSelectRandomSearch->setChecked(true);
+}
+
+
+void MainWindow::on_actionSelectRepeatedLevenbergMarquardt_triggered() {
+  ui->model->SetOptimizer(OptimizerType::REPEATED_LEVENBERG_MARQUARDT);
+  UncheckSimulationMethods();
+  ui->actionSelectRepeatedLevenbergMarquardt->setChecked(true);
+}
+
+void MainWindow::UncheckSimulationMethods() {
+  ui->actionSelectLevenbergMarquardt->setChecked(false);
+  ui->actionSelectSubspaceDogleg->setChecked(false);
+  ui->actionSelectNelderMead->setChecked(false);
+  ui->actionSelectRandomSearch->setChecked(false);
+  ui->actionSelectRepeatedLevenbergMarquardt->setChecked(false);
 }
 
 void MainWindow::on_actionStartOptimization_triggered() {
@@ -573,4 +621,18 @@ void MainWindow::on_actionIncrease_animation_time_triggered() {
 void MainWindow::on_actionDecrease_animation_time_triggered() {
   ui->time_dial->setValue(ui->time_dial->value() - 1);
   ui->model->TimeDialChanged(ui->time_dial->value());
+}
+
+void MainWindow::on_action3D_triggered() {
+  ui->model->Toggle3D();
+  // Selecting a color map doesn't make sense in 3D mode, at least for now.
+  ui->color_map->setEnabled(!ui->color_map->isEnabled());
+}
+
+void MainWindow::on_actionInterior_triggered() {
+  ui->model->ToggleShowBoundaryInterior();
+}
+
+void MainWindow::on_reload_resets_view_stateChanged(int arg1) {
+  ui->model->SetIfRunScriptResetsView(arg1);
 }

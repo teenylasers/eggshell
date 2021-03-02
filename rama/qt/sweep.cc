@@ -22,6 +22,7 @@ Sweep::Sweep(QWidget *parent) :
   ui(new Ui::Sweep)
 {
   ui->setupUi(this);
+  resize(0, 0);
   viewer_ = 0;
   integer_ = 0;
   start_value_ = end_value_ = min_value_ = max_value_ = 0;

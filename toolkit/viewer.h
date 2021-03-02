@@ -143,7 +143,8 @@ class GLViewerBase {
   int buttons_;                         // Mask of currently pressed buttons
   int the_button_;                      // The button that is UI-active
   Eigen::Vector3d model_pt_;            // Model coords at start of drag
-  bool cmd_click_;                      // Cmd + left click mode on a mac?
+  bool rotate_click_;                   // Modified left click to rotate?
+  bool pan_click_;                      // Modified left click to pan?
 
   // Get the current window aspect ratio (width/height).
   double GetAspectRatio();

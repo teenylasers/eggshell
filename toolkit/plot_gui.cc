@@ -290,7 +290,7 @@ void qtPlot::mouseMoveEvent(QMouseEvent *event) {
 void qtPlot::HandleMouse(QMouseEvent *event) {
   int buttons = 0;
   if (event->buttons() & Qt::LeftButton) buttons |= 1;
-  if (event->buttons() & Qt::MidButton) buttons |= 2;
+  if (event->buttons() & Qt::MiddleButton) buttons |= 2;
   if (event->buttons() & Qt::RightButton) buttons |= 4;
   plot_->EventMouse(event->x(), height() - 1 - event->y(), buttons);
 }

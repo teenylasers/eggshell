@@ -16,6 +16,10 @@
 # OPTIMIZE is 1 for optimizations on, or 0 for debug features on.
 OPTIMIZE := 1
 
+# Set to 1 to use the LLVM address sanitizer to find memory bugs. This is
+# especially useful on MacOS since valgrind does not work well there.
+ADDRESS_SANITIZE := 0
+
 default: all
 -include ../common.mk           # For top level invocation
 -include ../../common.mk        # For invocation in the build directory
@@ -38,6 +42,8 @@ endif
 # Build directories
 DIRS = build/lua build/toolkit
 DIRS += build/qt
+# See https://github.com/Evenedric/stuff/issues/124 for why we do this:
+DIRS += build/Contents/MacOS
 
 # -R means no-builtin-variables and no-builtin-rules:
 MAKEFLAGS += -R
@@ -154,18 +160,20 @@ OBJ = toolkit/error.o toolkit/colormaps.o toolkit/mat_file.o \
       toolkit/optimizer.o toolkit/testing.o toolkit/md5.o toolkit/lua_util.o \
       toolkit/gl_utils.o toolkit/gl_font.o toolkit/plot.o toolkit/plot_gui.o \
       toolkit/viewer.o toolkit/camera.o toolkit/femsolver.o toolkit/mystring.o \
-      toolkit/lua_vector.o toolkit/trace.o \
-      toolkit/shaders.o \
+      toolkit/lua_vector.o toolkit/trace.o toolkit/eigensolvers.o \
+      toolkit/shaders.o toolkit/dxf.o toolkit/collision.o toolkit/random.o \
       common.o shape.o mesh.o solver.o \
-      clipper.o triangle.o user_script_util.o license_text.o
+      clipper.o triangle.o user_script_util.o license_text.o my_jet.o
 
 OBJ += toolkit/thread.o cavity_qt.o qt/main.o qt/main_window.o qt/about.o \
        qt/sweep.o qt/error_window.o toolkit/lua_model_viewer_qt.o \
+       qt/nelder_mead.o \
        qt/moc_main_window.o qt/moc_about.o  qt/moc_sweep.o \
+       qt/moc_nelder_mead.o \
        qt/moc_error_window.o qt/moc_lua_model_viewer_qt.o \
        qt/plugin_import.o
 UI_HEADERS = qt/ui_about.h qt/ui_error_window.h qt/ui_main_window.h \
-             qt/ui_sweep.h
+             qt/ui_sweep.h qt/ui_nelder_mead.h
 
 APP = rama.exe
 
@@ -217,7 +225,8 @@ ifeq ($(PLATFORM), osx)
     -framework OpenGL -framework AGL -framework IOKit \
     -framework Carbon -framework AppKit -framework SystemConfiguration \
     -framework Security \
-    -framework IOSurface -framework Metal -framework QuartzCore
+    -framework IOSurface -framework Metal -framework QuartzCore \
+		-framework GSS
   CCFLAGS += -D__TOOLKIT_MAT_FILE_USE_ZLIB__
 endif
 ifeq ($(PLATFORM), windows)
@@ -254,10 +263,15 @@ ifdef MATLAB_INC
 endif
 
 # More compiler configuration.
-CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare
+CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare $(EIGEN_FLAGS)
 CCFLAGS += $(ENGINE_EXTRA_CFLAGS) $(ZLIB_CFLAGS) \
   -D__TOOLKIT_USE_CERES__ \
   $(EIGEN_FLAGS) $(CERES_INC) -I../../toolkit
+
+ifeq ($(ADDRESS_SANITIZE), 1)
+  CFLAGS += -fsanitize=address
+  CCFLAGS += -fsanitize=address
+endif
 
 #############################################################################
 # Extra configuration for application files.
@@ -283,7 +297,7 @@ endif
 #############################################################################
 # Lua.
 
-LUA_DIR = ../lua-5.4.0/src
+LUA_DIR = ../lua-5.4.1/src
 LUA_SRC = lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c \
   lmem.c lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c \
   ltm.c lundump.c lvm.c lzio.c \

@@ -25,6 +25,7 @@
 using std::vector;
 using std::string;
 using Eigen::Vector3f;
+using Eigen::Vector3d;
 
 const int kNumAnimationSteps = 32;          // Must be 2^n and match time_dial_
 const double kMaxReasonableTriangles = 1e12;
@@ -40,6 +41,7 @@ Cavity::Cavity(QWidget *parent)
   solver_draw_mode_animating_ = Solver::DRAW_REAL;
   show_boundary_lines_ = true;
   show_boundary_ports_ = true;
+  show_boundary_interior_ = true;
   show_boundary_vertices_ = show_boundary_derivatives_ = false;
   show_grid_ = false;
   mesh_draw_type_ = Mesh::MESH_HIDE;
@@ -112,13 +114,8 @@ void Cavity::ScriptJustRan(bool only_compute_derivatives) {
     return;
   }
 
-  // Clean up the shape by removing edges that are too small to matter. The
-  // assumption is that if the shape was meshed with triangles about the size
-  // of the smallest edge and if that resulted in more than
-  // kMaxReasonableTriangles then the simulation would be unreasonably slow.
+  // Clean up the shape by removing edges that are too small to matter.
   {
-    JetNum length_max, length_min;
-    cd_.ExtremeSideLengths(&length_max, &length_min);
     JetNum h = sqrt(cd_.TotalArea() / kMaxReasonableTriangles);
     cd_.Clean(ToDouble(h));
   }
@@ -212,17 +209,31 @@ void Cavity::CreateArgumentsToOptimize(bool real_invocation) {
 void Cavity::DrawModel() {
   GL(Disable)(GL_BLEND);
   GL(Disable)(GL_CULL_FACE);
-  GL(Disable)(GL_DEPTH_TEST);
+  if (in_3d_) {
+    GL(Enable)(GL_DEPTH_TEST);
+  } else {
+    GL(Disable)(GL_DEPTH_TEST);
+  }
   GL(CullFace)(GL_BACK);
   GL(FrontFace)(GL_CCW);
   GL(PolygonMode)(GL_FRONT_AND_BACK, GL_FILL);
   GL(PointSize)(1);
 
   gl::FlatShader().Use();
+
+  // Compute the mesh and solution if requested. If solver_ has been deleted
+  // that was a trigger to compute a new mesh and solution if necessary.
+  if (IsModelValid() && WillCreateSolverInDraw()) {
+    CreateSolver();
+  }
+
+  // ApplyCameraTransformations() uses the current bounding box. In 3D mode the
+  // current bounding box will depend on the solution, so make sure we compute
+  // the solution first ^.
   ApplyCameraTransformations();
 
-  // Non anti-aliased drawing (the grid).
-  if (show_grid_) {
+  // Draw the grid. This doesn't currently work properly for 3D mode.
+  if (show_grid_ && !in_3d_) {
     DrawGrid();
   }
 
@@ -238,14 +249,11 @@ void Cavity::DrawModel() {
   // Draw the polygon interiors.
   // @@@ If we're drawing a field the field will overwrite the interior so this
   //     is wasted work, except when we draw the field as vectors.
-  cd_.DrawInterior();
-
-  // Compute and show the mesh and solution if requested. If solver_ has been
-  // deleted that was a trigger to compute a new mesh and solution if
-  // necessary.
-  if (IsModelValid() && WillCreateSolverInDraw()) {
-    CreateSolver();
+  if (!in_3d_ && show_boundary_interior_) {
+    cd_.DrawInterior();
   }
+
+  // Show the mesh and solution.
   if (show_field_ && solver_.Valid()) {
     solver_.First()->SelectWaveguideMode(waveguide_mode_displayed_);
     Solver *solver = solver_.At(displayed_soln_);
@@ -253,7 +261,8 @@ void Cavity::DrawModel() {
         animating_ ? solver_draw_mode_animating_ : solver_draw_mode_static_,
         GetColormap(), GetBrightness(),
         2.0 * M_PI * double(extended_time_dial_) / kNumAnimationSteps,
-        (show_wideband_pulse_ && solver_.Size() > 1) ? &solver_ : 0);
+        (show_wideband_pulse_ && solver_.Size() > 1) ? &solver_ : 0,
+        in_3d_, mesh_draw_type_ == Mesh::MESH_SHOW);
 
     // Draw the port powers, or cutoff frequencies, or other such information.
     double dummy_width, line_height;
@@ -295,7 +304,7 @@ void Cavity::DrawModel() {
     }
   }
   const double kBoundaryDerivativesScale = 10;
-  if (mesh_draw_type_ != Mesh::MESH_HIDE && solver_.Valid()) {
+  if (mesh_draw_type_ != Mesh::MESH_HIDE && solver_.Valid() && !in_3d_) {
     Solver *solver = solver_.At(displayed_soln_);
     solver->DrawMesh(mesh_draw_type_, GetColormap(), GetBrightness(),
                      gl::Transform());
@@ -315,12 +324,34 @@ void Cavity::DrawModel() {
   for (int i = 0; i < debug_shapes_.size(); i++) {
     gl::SetUniform("color", 0.5, 0.5, 0.5);
     debug_shapes_[i].DrawBoundary(gl::Transform(), true,
-                          show_boundary_vertices_, show_boundary_derivatives_);
+                                  show_boundary_ports_, show_boundary_vertices_,
+                                  show_boundary_derivatives_);
+  }
+
+  // In 3D mode draw the interior of the computational domain here, alpha
+  // blended.
+  if (in_3d_ && show_boundary_interior_) {
+    GL(Enable)(GL_BLEND);
+    GL(BlendFunc)(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    cd_.DrawInterior(0.5);
+    GL(Disable)(GL_BLEND);
   }
 
   // Recompute and plot the S parameters for multiple-frequency solutions, if
   // necessary.
   PlotSParams();
+
+  // For debugging, draw the bounding box.
+  if (false) {
+    double bounds[6];
+    GetBoundingBox(bounds);
+    gl::DrawCubeWireframe(Vector3d(0.5*(bounds[1] + bounds[0]),
+                                   0.5*(bounds[3] + bounds[2]),
+                                   0.5*(bounds[5] + bounds[4])),
+                          Vector3d(bounds[1] - bounds[0],
+                                   bounds[3] - bounds[2],
+                                   bounds[5] - bounds[4]));
+  }
 }
 
 bool Cavity::PlotSweepResults(int plot_type,
@@ -559,6 +590,8 @@ void Cavity::PrepareForOptimize() {
 }
 
 void Cavity::GetBoundingBox(double bounds[6]) {
+  bounds[4] = -1;
+  bounds[5] = 1;
   if (IsModelEmpty()) {
     bounds[0] = -1;
     bounds[1] = 1;
@@ -571,9 +604,16 @@ void Cavity::GetBoundingBox(double bounds[6]) {
     bounds[1] = ToDouble(max_x);
     bounds[2] = ToDouble(min_y);
     bounds[3] = ToDouble(max_y);
+
+    // Max Z value for 3D mode.
+    if (solver_.Valid()) {
+      double fudge_factor = 2;          // To account for standing waves
+      double scale = fudge_factor * solver_.At(displayed_soln_)->
+            ZScaleFromBrightness(GetBrightness());
+      bounds[4] = -scale;
+      bounds[5] = scale;
+    }
   }
-  bounds[4] = -1;
-  bounds[5] = 1;
 }
 
 void Cavity::ToggleShowBoundaryVertices() {
@@ -593,6 +633,11 @@ void Cavity::ToggleShowBoundaryLines() {
 
 void Cavity::ToggleShowBoundaryPorts() {
   show_boundary_ports_ = !show_boundary_ports_;
+  update();
+}
+
+void Cavity::ToggleShowBoundaryInterior() {
+  show_boundary_interior_ = !show_boundary_interior_;
   update();
 }
 
@@ -646,6 +691,19 @@ void Cavity::TimeDialChanged(int value) {
 
 void Cavity::TimeDialToZero() {
   extended_time_dial_ = 0;
+  update();
+}
+
+void Cavity::Toggle3D() {
+  in_3d_ = !in_3d_;
+  SetPerspective(in_3d_);
+  AllowCameraRotation(in_3d_);
+  if (in_3d_) {
+    GetCamera().SetCameraPlane(Vector3d(1, -1, 0), Vector3d(1, 1, 1));
+  } else {
+    Look(LOOK_AT_XY_PLANE_FROM_PLUS_Z);
+  }
+  ZoomExtents();
   update();
 }
 
@@ -711,7 +769,7 @@ void Cavity::ExportFieldMatlab(const char *filename) {
 }
 
 void Cavity::ExportBoundaryDXF(const char *filename) {
-  cd_.SaveBoundaryAsDXF(filename);
+  cd_.SaveBoundaryAsDXF(filename, config_.dxf_arc_dist, config_.dxf_arc_angle);
 }
 
 void Cavity::ExportBoundaryXY(const char *filename) {
@@ -967,7 +1025,10 @@ void Cavity::SetConfigFromTable() {
   GET_FIELD(boresight, false, ToDouble, lua_tonumber, LUA_TNUMBER, -1e99, 0)
   GET_FIELD(max_modes, config_.TypeIsWaveguideMode(), ToDouble, lua_tonumber,
             LUA_TNUMBER, 1, 1)
+  GET_FIELD(dxf_arc_dist, false, ToDouble, lua_tonumber, LUA_TNUMBER, 0, 0)
+  GET_FIELD(dxf_arc_angle, false, ToDouble, lua_tonumber, LUA_TNUMBER, 0, 0)
   #undef GET_FIELD
+  config_.schrodinger = false;                  // Default
   if (config_.type == ScriptConfig::SCHRODINGER) {
     config_.type = ScriptConfig::EZ;
     config_.schrodinger = true;

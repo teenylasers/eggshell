@@ -22,7 +22,7 @@
 class MatFile {
  public:
   // Create the given matlab file for writing.
-  MatFile(const char *filename);
+  explicit MatFile(const char *filename);
 
   // Close the file (this will not generate an error).
   ~MatFile();
@@ -41,6 +41,12 @@ class MatFile {
 
   // Specialize WriteMatrix() to some specific matrix types.
   void WriteScalar(const char *name, double value);
+
+  // Write a generic sparse matrix.
+  void WriteSparseMatrix(const char *name, int rows, int cols,
+                         int mx_class, int nonzeros,
+                         const int *row_indexes, const int *col_indexes,
+                         const void *real_data, const void *imag_data);
 
   // Write a sparse Eigen matrix.
   void WriteSparseMatrix(const char *name,

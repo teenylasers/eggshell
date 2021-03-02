@@ -16,7 +16,7 @@
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 #include "error.h"
-#include "myvector"
+#include <vector>
 
 namespace optimize {
 

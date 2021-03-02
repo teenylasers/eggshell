@@ -18,7 +18,7 @@
 #ifndef __TOOLKIT_FDTD_H__
 #define __TOOLKIT_FDTD_H__
 
-#include "myvector"
+#include <vector>
 #include "error.h"
 
 namespace fdtd {
