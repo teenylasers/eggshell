@@ -579,7 +579,7 @@ void EggshellView::Draw() {
     SetModelTransform(Matrix4d::Identity());
     ApplyCameraTransformations();
     if (!ground_texture_) {
-      QImage img("ground.jpg", "JPG");
+      QImage img("ground.png", "PNG");
       CHECK(!img.isNull());
       QImage img2 = img.convertToFormat(QImage::Format_RGB888);
       const uint8_t *bits = img2.bits();
