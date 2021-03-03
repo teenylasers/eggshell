@@ -17,7 +17,7 @@ default: all
 SHELL=/bin/bash -o pipefail
 
 # Build directories
-DIRS = build/toolkit build/qt build/lcp
+DIRS = build/toolkit build/qt
 
 # -R means no-builtin-variables and no-builtin-rules:
 MAKEFLAGS += -R
@@ -46,6 +46,7 @@ OBJ = body.o \
       eggshell_view.o \
       ensembles.o \
       joints.o \
+			lcp.o \
       model.o \
       util.o \
       collision.o \
@@ -61,8 +62,7 @@ OBJ = body.o \
       qt/error_window.o  \
       qt/moc_main_window.o \
       qt/moc_error_window.o \
-      qt/plugin_import.o \
-      lcp/lcp.o
+      qt/plugin_import.o
 
 UI_HEADERS = qt/ui_main_window.h qt/ui_error_window.h
 
@@ -119,7 +119,7 @@ ifeq ($(PLATFORM), windows)
   CCFLAGS += -fno-keep-inline-dllexport -fexceptions
   CCFLAGS += -Wa,-mbig-obj
 endif
-CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt -I../../lcp
+CCFLAGS += $(GUI_DEF) $(GUI_INC) -I../qt -Iqt
 
 # More compiler configuration.
 CFLAGS += -I. -I.. -Werror -Wall -MMD -Wno-sign-compare -I../../toolkit $(EIGEN_FLAGS)
@@ -145,9 +145,6 @@ qt/%.o: qt/%.cc $(UI_HEADERS)
 	$(CC_COMPILE)
 
 toolkit/%.o: ../../toolkit/%.cc
-	$(CC_COMPILE)
-
-lcp/%.o: ../../lcp/%.cc
 	$(CC_COMPILE)
 
 %.o: ../%.c

@@ -34,4 +34,7 @@ Eigen::Matrix3d GramSchmidt(const Eigen::Matrix3d& m);
 Eigen::Matrix3d AlignVectors(const Eigen::Vector3d& a,
                              const Eigen::Vector3d& b);
 
+// Return the condition number of a matrix
+double GetConditionNumber(const Eigen::MatrixXd& A);
+
 #endif

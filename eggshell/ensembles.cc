@@ -8,6 +8,8 @@
 #include "constants.h"
 #include "error.h"
 #include "lcp.h"
+#include "util.h"
+
 
 void Ensemble::Init() {
   ConstructMassInertiaMatrixInverse();
@@ -112,7 +114,7 @@ bool Ensemble::CheckJ(const MatrixXd& J) const {
                << " cols => singular.";
     return false;
   } else {
-    return true;
+    return GetConditionNumber(J) < kGoodConditionNumber;
   }
 }
 
@@ -345,6 +347,8 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
     // {x_lo, x_hi} set LCP solver x-limits in Ax=b+w.
     const MatrixXd JMJt = J * M_inverse_ * J.transpose();
     MatrixXd Cfm = MatrixXd::Zero(J_rows, J_rows);
+    // If CheckJ() finds an ill-conditioned J, then apply constraint force
+    // mixing (cfm).
     if (!CheckJ(J)) {
       const double cfm_coeff = 0.1;
       Cfm = cfm_coeff * MatrixXd::Identity(J_rows, J_rows);
