@@ -7,6 +7,7 @@
 
 #include "constants.h"
 #include "error.h"
+#include "util.h"
 
 namespace {
 
@@ -197,7 +198,8 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
         // best solution.
         cycle = true;
         std::cout << "WARNING: Detected cycle in LCP solver. iter = " << iter
-                  << ".\n";
+                  << ". Condition number of matrix A is "
+                  << GetConditionNumber(A) << ".\n";
         // If cycle is detected and the result is not a solution, then jump to a
         // new random init_S
         // const ArrayXb new_S = ArrayXb::Random(S.rows());

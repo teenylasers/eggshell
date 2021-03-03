@@ -112,6 +112,13 @@ Matrix3d AlignVectors(const Vector3d& a, const Vector3d& b) {
   // CHECK((R1 - R2).norm() < kAllowNumericalError);
 }
 
+double GetConditionNumber(const Eigen::MatrixXd& A) {
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(A);
+  double cond = svd.singularValues()(0) /
+                svd.singularValues()(svd.singularValues().size() - 1);
+  return cond;
+}
+
 //***************************************************************************
 // Testing.
 
