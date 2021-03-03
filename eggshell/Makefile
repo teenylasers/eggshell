@@ -178,4 +178,4 @@ unittest: $(TESTS)
 	rm -rf ./test
 
 # Include dependencies (only works from build directory).
-#-include *.d $(DIRS:build/%=%/*.d)
+-include *.d $(DIRS:build/%=%/*.d)

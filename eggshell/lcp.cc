@@ -1,6 +1,7 @@
 #include "lcp.h"
 
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -10,6 +11,10 @@
 #include "util.h"
 
 namespace {
+
+// If LCP aborts early due to max_iterations, we allow for a looser solution
+// check error.
+constexpr double kLcpLooserAllowedError = 1e-8;
 
 // Check whether {x, w, S} form a solution to the LCP problem. If not, update
 // one offending element in S.
@@ -31,6 +36,9 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 
   for (int i = 0; i < dim; ++i) {
     if (S(i)) {
+      // Check x(S),
+      // 1. if x(i) < x_lo, then S(i) = false, C(i) = x_lo
+      // 2. if x(i) > x_hi, then S(i) = false, C(i) = x_hi
       if (x(i) < x_lo) {
         S(i) = false;
         C(i) = x_lo;
@@ -41,6 +49,9 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
         return false;
       }  // else do nothing
     } else {
+      // Check w(~S),
+      // 1. if C(i) = x_lo && w(i) < 0, then S(i) = true
+      // 2. if C(i) = x_hi && w(i) > 0, then S(i) = true
       if (C(i) == x_lo && w(i) < 0) {
         S(i) = true;
         return false;
@@ -147,7 +158,6 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   const int dim = b.rows();
   const int max_iterations = pow(2, dim) > 1000 ? 1000 : pow(2, dim);
   int iter = 0;
-  bool cycle = false;
 
   // Initialize S, x, w
   // Default S is empty if init_S is not provided.
@@ -168,9 +178,9 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   // is C(i) == x_lo && w >= 0, or C(i) == x_hi && w <= 0. Initialize C to all
   // x_lo to start.
   ArrayXd C = ArrayXd::Ones(dim) * x_lo;
-  // Remeber the last best x and w, {prev_x, prev_w}
-  VectorXd prev_x = x;
-  VectorXd prev_w = w;
+  // Remeber the last best x and w, {last_best_x, last_best_w}
+  VectorXd last_best_x = x;
+  VectorXd last_best_w = w;
 
   // Compute solution
   while (iter < max_iterations) {
@@ -192,23 +202,11 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
           Lcp::SelectSubvector(b, !S);
       Lcp::UpdateSubvector(w, !S, new_wsc);  // Update w(!S)
       Lcp::UpdateSubvector(w, S, 0);         // Update w(S)
-      // Check whether this {x, w} is better than {prev_x, prev_w}.
-      if (!UpdatePreviousBestSolution(x, w, prev_x, prev_w)) {
-        // TODO: this will NOT detect cycles that do not include the current
-        // best solution.
-        cycle = true;
-        std::cout << "WARNING: Detected cycle in LCP solver. iter = " << iter
-                  << ". Condition number of matrix A is "
-                  << GetConditionNumber(A) << ".\n";
-        // If cycle is detected and the result is not a solution, then jump to a
-        // new random init_S
-        // const ArrayXb new_S = ArrayXb::Random(S.rows());
-        // max_iterations - iter, so that calling MurtyPrincipalPivot again
-        // doesn't reset max_iterations and risk infinite loop.
-        // return MurtyPrincipalPivot(A, b, x, w, new_S, max_iterations - iter);
-        break;
-      }
+
+      // Remember the current best solution
+      UpdatePreviousBestSolution(x, w, last_best_x, last_best_w);
     } else {
+      // We found a solution, break
       break;
     }
     ++iter;
@@ -221,24 +219,38 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   }
 
   // Check solution
-  if (iter >= max_iterations || cycle) {
-    x = prev_x;
-    w = prev_w;
-    if (!CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi,
-                            kAllowNumericalError)) {
-      std::cout << "ERROR: iteration count = " << iter
-                << ", max_iterations = " << max_iterations
-                << ", cycle = " << cycle
-                << ". Did not reach a sensible solution.\n";
-      return false;
-    } else {
-      return true;
-    }
-  } else if (!CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi)) {
-    std::cout << "ERROR: check solution returned false, error in algorithm.\n";
-    return false;
+  x = last_best_x;
+  w = last_best_w;
+  bool res_check = false;
+  if (iter >= max_iterations) {
+    res_check = CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi,
+                                   kLcpLooserAllowedError);
   } else {
+    res_check = CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi);
+  }
+  if (res_check) {
     return true;
+  } else {
+    std::cout << "ERROR: iteration count = " << iter
+              << ", max_iterations = " << max_iterations
+              << ". Did not reach a sensible solution.\n";
+    // Print A and b to file for debug.
+    std::ofstream f("lcp_debug.log");
+    if (f.is_open()) {
+      f << "A\n"
+        << A << "\nb\n"
+        << b << "\nx\n"
+        << x << "\nw\n"
+        << w << "\nx_lo\n"
+        << x_lo << "\nx_hi\n"
+        << x_hi << "\n";
+      std::cout << "Printed Ax = b + w, x_lo, x_hi to file "
+                   "lcp_debug.log.\n";
+    } else {
+      std::cout << "ERROR: could not open ofstream to pring debug log "
+                   "lcp_debug.log";
+    }
+    return false;
   }
 }
 

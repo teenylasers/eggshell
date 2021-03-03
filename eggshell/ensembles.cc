@@ -10,6 +10,9 @@
 #include "lcp.h"
 #include "util.h"
 
+namespace {
+constexpr double kCfmCoeff = 0.01;
+}
 
 void Ensemble::Init() {
   ConstructMassInertiaMatrixInverse();
@@ -114,7 +117,13 @@ bool Ensemble::CheckJ(const MatrixXd& J) const {
                << " cols => singular.";
     return false;
   } else {
-    return GetConditionNumber(J) < kGoodConditionNumber;
+    bool good = GetConditionNumber(J) < kGoodConditionNumber;
+    if (!good) {
+      LOG(ERROR) << "GetConditionNumber(J) [" << GetConditionNumber(J)
+                 << "] > kGoodConditionNumber [" << kGoodConditionNumber
+                 << "]\n.";
+    }
+    return good;
   }
 }
 
@@ -350,8 +359,7 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
     // If CheckJ() finds an ill-conditioned J, then apply constraint force
     // mixing (cfm).
     if (!CheckJ(J)) {
-      const double cfm_coeff = 0.1;
-      Cfm = cfm_coeff * MatrixXd::Identity(J_rows, J_rows);
+      Cfm = kCfmCoeff * MatrixXd::Identity(J_rows, J_rows);
     }
     const MatrixXd lhs = JMJt + Cfm;
     // Solve systems equation
