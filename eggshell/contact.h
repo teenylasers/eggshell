@@ -23,7 +23,7 @@ class Contact {
     COULOMB_PYRAMID,
   };
 
-  VectorXd ComputeError() const;
+  Vector3d ComputeError() const;
 
   // TODO: should contact and joint all be part of a constraint base class?
   void ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* constraint_type,
@@ -45,15 +45,10 @@ class Contact {
   //==========================================================================
   // Different implementations of ComputeError, ComputeJ and ComputeJDot, varies
   // in friction handling.
-  //
-  VectorXd ComputeError_NoFriction() const;
-  void ComputeJ_NoFriction(MatrixXd* J_b0, MatrixXd* J_b1) const;
+
   void ComputeJDot_NoFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
-  // Infinite friction and add constraint force mixing
-  VectorXd ComputeError_InfiniteFriction() const;
-  void ComputeJ_InfiniteFriction(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* C,
-                                 VectorXd* x_lo, VectorXd* x_hi) const;
   void ComputeJDot_InfiniteFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
+
   // Box friction with dynamic limits
   void ComputeJ_BoxFriction(MatrixXd* J_b0, MatrixXd* J_b1) const;
   void ComputeJDot_BoxFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
@@ -63,7 +58,7 @@ class Contact {
 
   //==========================================================================
   // Helper functions for error checking and experimentation
-  void CheckJ_InfiniteFriction() const;
+  //void CheckJ_InfiniteFriction() const;
 };
 
 std::ostream& operator<<(std::ostream* out, const Contact& c);
