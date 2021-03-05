@@ -45,16 +45,16 @@ MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
   *x_hi = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
 
   J << ComputeJ_Joints(),
-       ComputeJ_Contacts(&C_contacts, &x_lo_contacts, &x_hi_contacts);
+      ComputeJ_Contacts(&C_contacts, &x_lo_contacts, &x_hi_contacts);
   *C << C_joints, C_contacts;
   *x_lo << x_lo_joints, x_lo_contacts;
   *x_hi << x_hi_joints, x_hi_contacts;
 
-  std::cout << "=== ComputeJ() ===" << std::endl;
-  std::cout << "J =\n" << J << std::endl;
-  std::cout << "C =\n" << *C << std::endl;
-  std::cout << "x_lo =\n" << *x_lo << std::endl;
-  std::cout << "x_hi =\n" << *x_hi << std::endl;
+  // std::cout << "=== ComputeJ() ===" << std::endl;
+  // std::cout << "J =\n" << J << std::endl;
+  // std::cout << "C =\n" << *C << std::endl;
+  // std::cout << "x_lo =\n" << *x_lo << std::endl;
+  // std::cout << "x_hi =\n" << *x_hi << std::endl;
 
   return J;
 }
@@ -224,6 +224,22 @@ void Ensemble::Draw() const {
   }
 }
 
+bool Ensemble::CheckConservationOfEnergy() {
+  double energy = 0;
+  for (const auto& b : components_) {
+    energy = energy + b->GetRotationalKE();
+  }
+  if (std::fabs(energy - total_rotational_ke_) > kAllowNumericalError &&
+      total_rotational_ke_ != std::numeric_limits<double>::infinity()) {
+    std::cout << "Total rotational KE was " << total_rotational_ke_
+              << ", now it's " << energy << std::endl;
+    total_rotational_ke_ = energy;
+    return false;
+  }
+  total_rotational_ke_ = energy;
+  return true;
+}
+
 void Ensemble::ConstructMassInertiaMatrixInverse() {
   M_inverse_ = MatrixXd::Zero(n_ * 2 * 3, n_ * 2 * 3);
   for (int i = 0; i < n_; ++i) {
@@ -270,6 +286,17 @@ void Ensemble::Step(double dt, Integrator g) {
     StepPositions_ODE(dt, v, v_new);
   } else {
     LOG(ERROR) << "Unknown integrator type " << static_cast<int>(g);
+  }
+
+  // TODO: debug only
+  std::cout << "Num contacts = " << contacts_.size() << std::endl;
+  const VectorXd v1 = GetVelocities();
+  for (int i = 0; i < v1.size() / 6; ++i) {
+    std::cout << "Linear velocity = " << v1.block<3, 1>(i * 6, 0).norm()
+              << std::endl;
+  }
+  if (!CheckConservationOfEnergy()) {
+    // Panic("Conservation of rotational kinetic energy violated. Exit.");
   }
 }
 
