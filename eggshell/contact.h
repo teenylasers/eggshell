@@ -1,4 +1,3 @@
-
 #ifndef __CONTACTS_H__
 #define __CONTACTS_H__
 
@@ -8,8 +7,6 @@
 #include "body.h"
 #include "collision.h"
 #include "util.h"
-
-using namespace Eigen;
 
 class Contact {
  public:

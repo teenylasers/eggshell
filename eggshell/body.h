@@ -3,85 +3,89 @@
 
 #include "Eigen/Dense"
 
+using Eigen::Matrix3d;
+using Eigen::Matrix4d;
+using Eigen::Quaterniond;
+using Eigen::Vector3d;
+using Eigen::Vector3f;
+
 // Base class for a rigid body
 class Body {
  public:
   virtual ~Body() = default;
   Body()
-      : p_(Eigen::Vector3d::Zero()),
-        v_(Eigen::Vector3d::Zero()),
+      : p_(Vector3d::Zero()),
+        v_(Vector3d::Zero()),
         m_(0.0),
-        R_(Eigen::Matrix3d::Identity()),
-        w_(Eigen::Vector3d::Zero()),
-        I_(Eigen::Matrix3d::Identity()) {}
-  explicit Body(const Eigen::Vector3d& p, const Eigen::Matrix3d& R)
+        R_(Matrix3d::Identity()),
+        w_(Vector3d::Zero()),
+        I_(Matrix3d::Identity()) {}
+  explicit Body(const Vector3d& p, const Matrix3d& R)
       : p_(p),
-        v_(Eigen::Vector3d::Zero()),
+        v_(Vector3d::Zero()),
         m_(1.0),
         R_(R),
-        w_(Eigen::Vector3d::Zero()),
-        I_(Eigen::Matrix3d::Identity()) {}
-  explicit Body(const Eigen::Vector3d& p, const Eigen::Vector3d& v,
-                const Eigen::Matrix3d& R, const Eigen::Vector3d& w)
-      : p_(p), v_(v), m_(1.0), R_(R), w_(w), I_(Eigen::Matrix3d::Identity()) {}
-  explicit Body(const Eigen::Vector3d& p, const Eigen::Vector3d& v, double m,
-                const Eigen::Matrix3d& R, const Eigen::Vector3d& w,
-                const Eigen::Matrix3d& I)
+        w_(Vector3d::Zero()),
+        I_(Matrix3d::Identity()) {}
+  explicit Body(const Vector3d& p, const Vector3d& v, const Matrix3d& R,
+                const Vector3d& w)
+      : p_(p), v_(v), m_(1.0), R_(R), w_(w), I_(Matrix3d::Identity()) {}
+  explicit Body(const Vector3d& p, const Vector3d& v, double m,
+                const Matrix3d& R, const Vector3d& w, const Matrix3d& I)
       : p_(p), v_(v), m_(m), R_(R), w_(w), I_(I) {}
-  explicit Body(const Eigen::Vector3d& p, const Eigen::Vector3d& v,
-                const Eigen::Quaterniond& q, const Eigen::Vector3d& w)
+  explicit Body(const Vector3d& p, const Vector3d& v, const Quaterniond& q,
+                const Vector3d& w)
       : p_(p),
         v_(v),
         m_(1.0),
         R_(q.matrix()),
         w_(w),
-        I_(Eigen::Matrix3d::Identity()) {}
-  explicit Body(const Eigen::Vector3d& p, const Eigen::Vector3d& v, double m,
-                const Eigen::Quaterniond& q, const Eigen::Vector3d& w,
-                const Eigen::Matrix3d& I)
+        I_(Matrix3d::Identity()) {}
+  explicit Body(const Vector3d& p, const Vector3d& v, double m,
+                const Quaterniond& q, const Vector3d& w, const Matrix3d& I)
       : p_(p), v_(v), m_(m), R_(q.matrix()), w_(w), I_(I) {}
-  const Eigen::Vector3d& p() const { return p_; };
-  const Eigen::Vector3d& v() const { return v_; };
+  const Vector3d& p() const { return p_; };
+  const Vector3d& v() const { return v_; };
   const double m() const { return m_; };
-  const Eigen::Quaterniond q() const { return Eigen::Quaterniond(R_); };
-  const Eigen::Matrix3d& R() const { return R_; };
-  const Eigen::Vector3d w_b() const { return R().transpose() * w_; };
-  const Eigen::Vector3d& w_g() const { return w_; };
-  const Eigen::Matrix3d& I_b() const { return I_; };
-  const Eigen::Matrix3d I_g() const { return R() * I_ * R().transpose(); };
+  const Quaterniond q() const { return Quaterniond(R_); };
+  const Matrix3d& R() const { return R_; };
+  const Vector3d w_b() const { return R().transpose() * w_; };
+  const Vector3d& w_g() const { return w_; };
+  const Matrix3d& I_b() const { return I_; };
+  const Matrix3d I_g() const { return R() * I_ * R().transpose(); };
 
   // TODO: implement different types of Bodies
   // enum struct BodyType { Box = 0 };
 
-  void SetP(const Eigen::Vector3d& p) { p_ = p; };
-  void SetV(const Eigen::Vector3d& v) { v_ = v; };
+  void SetP(const Vector3d& p) { p_ = p; };
+  void SetV(const Vector3d& v) { v_ = v; };
   void SetM(double m) { m_ = m; };
-  void SetR(const Eigen::Matrix3d& R) { R_ = R; };
-  void SetR(const Eigen::Quaterniond& q) { R_ = q.matrix(); };
-  void SetW_GlobalFrame(const Eigen::Vector3d& w) { w_ = w; };
-  void SetW_BodyFrame(const Eigen::Vector3d& w) { w_ = R() * w; };
-  void SetI(const Eigen::Matrix3d& I) { I_ = I; };
+  void SetR(const Matrix3d& R) { R_ = R; };
+  void SetR(const Quaterniond& q) { R_ = q.matrix(); };
+  void SetW_GlobalFrame(const Vector3d& w) { w_ = w; };
+  void SetW_BodyFrame(const Vector3d& w) { w_ = R() * w; };
+  void SetI(const Matrix3d& I) { I_ = I; };
 
-  void Rotate(const Eigen::Matrix3d& R);
-  void Rotate(const Eigen::Quaterniond& q);
+  void Rotate(const Matrix3d& R);
+  void Rotate(const Quaterniond& q);
 
   double GetRotationalKE() const;
 
   // TODO: implement different types of Bodies
   void Draw() const;
-  const Eigen::Vector3d GetSideLengths() const { return side_lengths_; };
+  const Vector3d GetSideLengths() const { return side_lengths_; };
 
  private:
-  Eigen::Vector3d p_;  // position p of center of mass in global frame
-  Eigen::Vector3d v_;  // linear velocity of center of mass v in global frame
-  double m_;           // mass
-  Eigen::Matrix3d R_;  // rotation matrix R in global frame
-  Eigen::Vector3d w_;  // angular velocity w (omega) in global frame
-  Eigen::Matrix3d I_;  // inertia tensor I in body frame.
+  Vector3d p_;  // position p of center of mass in global frame
+  Vector3d v_;  // linear velocity of center of mass v in global frame
+  double m_;    // mass
+  Matrix3d R_;  // rotation matrix R in global frame
+  Vector3d w_;  // angular velocity w (omega) in global frame
+  Matrix3d I_;  // inertia tensor I in body frame.
 
   // TODO: move this to a subclass when there are different types of Bodies.
   // TODO: make side lengths settable, and constructible
-  const Eigen::Vector3d side_lengths_ = {0.3, 0.3, 0.3};
+  const Vector3d side_lengths_ = {0.3, 0.3, 0.3};
 };
 
 #endif

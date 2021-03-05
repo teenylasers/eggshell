@@ -64,7 +64,7 @@ MatrixXd Ensemble::ComputeJ_Joints() const {
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd j0(3, 6);
     MatrixXd j1(3, 6);
-    joints_.at(i).j->ComputeJ(j0, j1);
+    joints_.at(i).j->ComputeJ(&j0, &j1);
     if (joints_.at(i).b0 == -1) {
       CHECK(j1.sum() == 0);
       J.block<3, 6>(i * 3, joints_.at(i).b1 * 6) = j0;
@@ -95,8 +95,6 @@ MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo,
     contacts_.at(i).c.ComputeJ(&j0, &j1, &ct, &c_lo, &c_hi);
 
     if (contacts_.at(i).b0 != -1) {
-      std::cout << "contacts_.at(i).b0 = " << contacts_.at(i).b0
-                << ", b1 = " << contacts_.at(i).b1 << ", i=" << i << "\n";
       J.block<cn, 6>(i * cn, contacts_.at(i).b0 * 6) = j0;
       J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
     } else {
@@ -137,7 +135,7 @@ VectorXd Ensemble::ComputeJDotV_Joints() const {
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd Jdot_b0 = MatrixXd::Zero(3, 6);
     MatrixXd Jdot_b1 = MatrixXd::Zero(3, 6);
-    joints_.at(i).j->ComputeJDot(Jdot_b0, Jdot_b1);
+    joints_.at(i).j->ComputeJDot(&Jdot_b0, &Jdot_b1);
     const int b0 = joints_.at(i).b0;
     const int b1 = joints_.at(i).b1;
     VectorXd v0 = VectorXd::Zero(6);
@@ -323,7 +321,7 @@ void Ensemble::UpdateContacts() {
         ContactingBodies cb(c, i, j);
         contacts_.push_back(cb);
         // TODO: debug only.
-        std::cout << cb.PrintInfo() << std::endl;
+        // std::cout << cb.PrintInfo() << std::endl;
       }
     }
   }

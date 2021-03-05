@@ -5,8 +5,6 @@
 #include "constants.h"
 #include "error.h"
 
-using namespace Eigen;
-
 // TODO: put all this in a namespace or no?
 
 bool IsOrthonormal(const Matrix3d& R) {

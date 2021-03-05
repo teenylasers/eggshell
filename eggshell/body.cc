@@ -1,11 +1,6 @@
 #include "body.h"
-#include "model.h"
 
-using Eigen::Matrix3d;
-using Eigen::Matrix4d;
-using Eigen::Quaterniond;
-using Eigen::Vector3d;
-using Eigen::Vector3f;
+#include "model.h"
 
 void Body::Rotate(const Matrix3d& R) { R_ = R * R_; }
 

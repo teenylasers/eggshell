@@ -6,8 +6,6 @@
 #include "Eigen/Dense"
 #include "util.h"
 
-using namespace Eigen;
-
 namespace Lcp {
 
 bool MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,

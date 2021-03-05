@@ -11,13 +11,7 @@
 #include "collision.h"
 #include "contact.h"
 #include "joints.h"
-
-using Eigen::Matrix3d;
-using Eigen::MatrixXd;
-using Eigen::Quaterniond;
-using Eigen::Vector3d;
-using Eigen::VectorXd;
-typedef Eigen::Array<bool, Eigen::Dynamic, 1> ArrayXb;
+#include "util.h"
 
 // Base class.
 class Ensemble {
