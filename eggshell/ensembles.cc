@@ -29,7 +29,7 @@ MatrixXd Ensemble::ComputeJ() const {
 
 MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
   const int jn = 3;  // num rows in J per joint
-  const int cn = 1;  // num rows in J per contact
+  const int cn = 3;  // num rows in J per contact
   const int num_joint_constraints = jn * joints_.size();
   const int num_contact_constraints = cn * contacts_.size();
   MatrixXd J(num_joint_constraints + num_contact_constraints, 6 * n_);
@@ -50,11 +50,11 @@ MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
   *x_lo << x_lo_joints, x_lo_contacts;
   *x_hi << x_hi_joints, x_hi_contacts;
 
-  // std::cout << "=== ComputeJ() ===" << std::endl;
-  // std::cout << "J =\n" << J << std::endl;
-  // std::cout << "C =\n" << *C << std::endl;
-  // std::cout << "x_lo =\n" << *x_lo << std::endl;
-  // std::cout << "x_hi =\n" << *x_hi << std::endl;
+  std::cout << "=== ComputeJ() ===" << std::endl;
+  std::cout << "J =\n" << J << std::endl;
+  std::cout << "C =\n" << *C << std::endl;
+  std::cout << "x_lo =\n" << *x_lo << std::endl;
+  std::cout << "x_hi =\n" << *x_hi << std::endl;
 
   return J;
 }
@@ -83,7 +83,7 @@ MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo,
                                      VectorXd* x_hi) const {
   // TODO:
   // Do J dimensions need to be hard-coded here?
-  const int cn = 1;  // num rows in J per contact
+  const int cn = 3;  // num rows in J per contact
 
   MatrixXd J = MatrixXd::Zero(cn * contacts_.size(), 6 * n_);
 

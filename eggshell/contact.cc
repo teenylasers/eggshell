@@ -10,25 +10,51 @@
 
 
 VectorXd Contact::ComputeError() const {
-  switch (f_) {
-    case FrictionModel::NO_FRICTION:
-      return ComputeError_NoFriction();
-    case FrictionModel::INFINITE:
-      return ComputeError_InfiniteFriction();
-    default:
-      Panic("Contact constraint encountered an unknown FrictionModel::%i", f_);
-  }
+
+  Vector3d error(0, 0, -cg_.depth);
+  // std::cout << "contact_normal = \n" << cg_.normal << std::endl;
+  // std::cout << "contact_depth = " << cg_.depth << std::endl;
+  // std::cout << "contact error = \n" << error << std::endl;
+  return error;
 }
 
 void Contact::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* C,
                        VectorXd* x_lo, VectorXd* x_hi) const {
+
+  Vector3d z_axis(0, 0, 1);
+  Matrix3d R = AlignVectors(z_axis, cg_.normal);
+
+  std::cout << "R\n" << R << std::endl;
+
+  if (b0_ == nullptr) {
+    *J_b0 << Matrix3d::Zero(), Matrix3d::Zero();
+  } else {
+    Matrix3d J_v0 = -1 * Matrix3d::Identity();
+    Matrix3d J_w0 = CrossMat(cg_.position - b0_->p());
+    *J_b0 << R * J_v0, R * J_w0;
+  }
+
+  Matrix3d J_v1 = Matrix3d::Identity();
+  Matrix3d J_w1 = -1 * CrossMat(cg_.position - b1_->p());
+  *J_b1 << R * J_v1, R * J_w1;
+
+  // TODO: debug only
+  std::cout << "J_b1 in contact frame = \n" << *J_b1 << std::endl;
+  std::cout << "J_b1 (global frame) *dot* contact normal = "
+            << cg_.normal.transpose() * J_v1 << cg_.normal.transpose() * J_w1
+            << std::endl;
+
+  *C << 0, 0, 1;
+
   switch (f_) {
     case FrictionModel::NO_FRICTION:
-      ComputeJ_NoFriction(J_b0, J_b1);
+      *x_lo << 0, 0, 0;
+      *x_hi << 0, 0, 0;
       break;
     case FrictionModel::INFINITE:
       // CheckJ_InfiniteFriction();
-      ComputeJ_InfiniteFriction(J_b0, J_b1, C, x_lo, x_hi);
+      *x_lo << 0, 0, 0;
+      *x_hi << 0, 0, std::numeric_limits<double>::infinity();
       break;
     default:
       Panic("Contact constraint encountered an unknown FrictionModel::%i", f_);
@@ -83,11 +109,8 @@ VectorXd Contact::ComputeError_InfiniteFriction() const {
   Matrix3d R = AlignVectors(cg_.normal, z_axis);
 
   VectorXd error(3);
-  if (b1_ == nullptr) {
-    error << -cg_.depth * R * cg_.normal;
-  } else {
-    error << cg_.depth * R * cg_.normal;
-  }
+  error << -cg_.depth * R * cg_.normal;
+
   // std::cout << "contact_normal = \n" << cg_.normal << std::endl;
   // std::cout << "contact_depth = " << cg_.depth << std::endl;
   // std::cout << "contact error = \n" << error << std::endl;
@@ -115,7 +138,7 @@ void Contact::ComputeJ_InfiniteFriction(MatrixXd* J_b0, MatrixXd* J_b1,
   // constraints that are transverse to contact normal are equalities.
 
   // 1. Write out the ball-n-socket J for the contact. R * c = x - p
-  // 2. Find rotation matrices R, such that R*v expressed v in the local
+  // 2. Find rotation matrices R, such that R*v expresses v in the local
   //    coordinates where z aligns with contact normal.
   // 3. Return R * J.
   // Because of the z alignment with contact normal, row 0-1 are equality
@@ -124,17 +147,25 @@ void Contact::ComputeJ_InfiniteFriction(MatrixXd* J_b0, MatrixXd* J_b1,
   Vector3d z_axis(0, 0, 1);
   Matrix3d R = AlignVectors(cg_.normal, z_axis);
 
-  Matrix3d J_v0 = Matrix3d::Identity();
-  Matrix3d J_w0 = -1 * CrossMat(cg_.position - b0_->p());
-  *J_b0 << R * J_v0, R * J_w0;
+  std::cout << "R\n" << R << std::endl;
 
-  if (b1_ == nullptr) {
-    *J_b1 << Matrix3d::Zero(), Matrix3d::Zero();
+  if (b0_ == nullptr) {
+    *J_b0 << Matrix3d::Zero(), Matrix3d::Zero();
   } else {
-    Matrix3d J_v1 = -1 * Matrix3d::Identity();
-    Matrix3d J_w1 = CrossMat(cg_.position - b1_->p());
-    *J_b1 << R * J_v1, R * J_w1;
+    Matrix3d J_v0 = -1 * Matrix3d::Identity();
+    Matrix3d J_w0 = CrossMat(cg_.position - b0_->p());
+    *J_b0 << R * J_v0, R * J_w0;
   }
+
+  Matrix3d J_v1 = Matrix3d::Identity();
+  Matrix3d J_w1 = -1 * CrossMat(cg_.position - b1_->p());
+  *J_b1 << R * J_v1, R * J_w1;
+
+  // TODO: debug only
+  std::cout << "J_b1 in contact frame = \n" << *J_b1 << std::endl;
+  std::cout << "J_b1 (global frame) *dot* contact normal = "
+            << cg_.normal.transpose() * J_v1 << std::endl
+            << cg_.normal.transpose() * J_w1 << std::endl;
 
   *C << 0, 0, 1;
   *x_lo << 0, 0, 0;
