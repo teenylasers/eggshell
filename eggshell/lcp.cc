@@ -8,7 +8,6 @@
 
 #include "constants.h"
 #include "error.h"
-#include "util.h"
 
 namespace {
 
@@ -19,7 +18,7 @@ constexpr double kLcpLooserAllowedError = 1e-8;
 // Check whether {x, w, S} form a solution to the LCP problem. If not, update
 // one offending element in S.
 bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
-                        const VectorXd& w, Lcp::ArrayXb& S, ArrayXd& C,
+                        const VectorXd& w, ArrayXb& S, ArrayXd& C,
                         const double x_lo, const double x_hi,
                         const double err = 0) {
   // Option to allow for numerical error. When checking x(S) < zero and
@@ -95,7 +94,7 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 }
 
 bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, VectorXd& x,
-                        VectorXd& w, Lcp::ArrayXb& S, const double err = 0) {
+                        VectorXd& w, ArrayXb& S, const double err = 0) {
   const double x_lo = 0;
   const double x_hi = std::numeric_limits<double>::infinity();
   ArrayXd C = ArrayXd::Zero(S.rows());
@@ -432,7 +431,7 @@ MatrixXd GenerateRandomSpdMatrix(const int dim) {
 
 TEST_FUNCTION(SelectSubmatrix) {
   // Test case
-  Lcp::ArrayXb S(8);
+  ArrayXb S(8);
   S << 1, 1, 0, 0, 1, 0, 1, 1;
   MatrixXd A(8, 8);
   A << 44, 23, 81, 97, 37, 34, 72, 51, 12, 12, 3, 55, 99, 68, 91, 48, 26, 30,
@@ -449,7 +448,7 @@ TEST_FUNCTION(SelectSubmatrix) {
   MatrixXd A_ScSc(3, 3);
   A_ScSc << 93, 53, 14, 74, 24, 73, 58, 63, 66;
   // Run test
-  const Lcp::ArrayXb S_complement = !S;
+  const ArrayXb S_complement = !S;
   CHECK(A_SS == Lcp::SelectSubmatrix(A, S, S));
   CHECK(A_ScS == Lcp::SelectSubmatrix(A, S_complement, S));
   CHECK(A_SSc == Lcp::SelectSubmatrix(A, S, S_complement));
@@ -457,7 +456,7 @@ TEST_FUNCTION(SelectSubmatrix) {
 }
 
 TEST_FUNCTION(UpdateSubmatrix) {
-  Lcp::ArrayXb S(8);
+  ArrayXb S(8);
   S << 1, 1, 0, 0, 1, 0, 1, 1;
   MatrixXd A(8, 8);
   A << 90, 82, 36, 39, 57, 17, 23, 11, 96, 25, 84, 57, 47, 61, 92, 97, 55, 93,
@@ -471,7 +470,7 @@ TEST_FUNCTION(UpdateSubmatrix) {
   m2 << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15;
   m3 << 1, 2, 3, 4, 5, 6, 7, 8, 9;
   // Run test
-  const Lcp::ArrayXb S_complement = !S;
+  const ArrayXb S_complement = !S;
   Lcp::UpdateSubmatrix(A, S, S, m0);
   MatrixXd res(8, 8);
   res << 1, 2, 36, 39, 3, 17, 4, 5, 6, 7, 84, 57, 8, 61, 9, 10, 55, 93, 59, 8,
@@ -502,7 +501,7 @@ TEST_FUNCTION(SelectSubvector) {
   VectorXd v(20);
   v << 79, 9, 93, 78, 49, 44, 45, 31, 51, 52, 82, 80, 65, 38, 82, 54, 36, 94,
       88, 56;
-  Lcp::ArrayXb S(20);
+  ArrayXb S(20);
   S << 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1;
   VectorXd res(10);
   res << 79, 9, 49, 51, 52, 82, 38, 36, 88, 56;
@@ -515,7 +514,7 @@ TEST_FUNCTION(UpdateSubvector) {
   VectorXd v(20);
   v << 79, 9, 93, 78, 49, 44, 45, 31, 51, 52, 82, 80, 65, 38, 82, 54, 36, 94,
       88, 56;
-  Lcp::ArrayXb S(20);
+  ArrayXb S(20);
   S << 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1;
   VectorXd n(10);
   n << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10;
@@ -541,7 +540,7 @@ TEST_FUNCTION(CheckMurtySolution) {
   b << 0.6691, 0.1904, 0.3689, 0.4607, 0.9816;
   x << 0.0942, 0, 0, 0, 0.4121;
   w << 0, 0.7401, 0.4226, 0.0302, 0;
-  Lcp::ArrayXb S(5);
+  ArrayXb S(5);
   S << 1, 0, 0, 0, 1;
   CHECK(CheckMurtySolution(A, b, x, w, S, 1e-4));
   // Counter test, when is-not-a-solution
@@ -659,7 +658,7 @@ TEST_FUNCTION(MixedConstraintsSolver_NoBounds) {
   for (int i = 0; i < num_tests; ++i) {
     const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
     const VectorXd b = VectorXd::Random(matrix_size);
-    const Lcp::ArrayXb C = Lcp::ArrayXb::Random(matrix_size);
+    const ArrayXb C = ArrayXb::Random(matrix_size);
     if (Lcp::MixedConstraintsSolver(A, b, C, x_lo, x_hi, x, w)) {
       ++success_count;
       if (x == zeros) {
@@ -676,15 +675,15 @@ TEST_FUNCTION(MixedConstraintsSolver_NoBounds) {
 
 /*
 TEST_FUNCTION(Sandbox) {
-Lcp::ArrayXb a = Lcp::ArrayXb::Constant(5, false);
+ArrayXb a = ArrayXb::Constant(5, false);
 std::cout << "All false boolean array: \n" << a << std::endl;
 a = !a;
 std::cout << "All not-false boolean array: \n" << a << std::endl;
 for (int i = 0; i < 10; i++) {
-  a = Lcp::ArrayXb::Random(10);
+  a = ArrayXb::Random(10);
   std::cout << "a = \n" << a.transpose() << std::endl;
 }
-a = Lcp::ArrayXb::Constant(0, false);
+a = ArrayXb::Constant(0, false);
 std::cout << "a = " << a << std::endl;
 std::cout << "a.size() == 0: " << (a.size() != 0) << std::endl;
 }

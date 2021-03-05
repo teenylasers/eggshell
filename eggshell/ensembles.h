@@ -32,7 +32,7 @@ class Ensemble {
   // For mixed constraints, C = constraint type, true for equality, false for
   // inequality. For inequality constraints, {x_lo, x_hi} indicates lower and
   // higher x bound in Ax = b+w.
-  virtual MatrixXd ComputeJ(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const;
+  virtual MatrixXd ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const;
   virtual VectorXd ComputePositionConstraintError() const;
 
   // JDot is a sparse matrix, computing JDot then JDot * v is doing a lot of
@@ -66,7 +66,7 @@ class Ensemble {
   void StepPositionRelaxation(double dt, double step_scale = 0.2);
 
   // Position and velocity post-stabilization
-  void PostStabilize(const int max_steps = 500);
+  void PostStabilize(int max_steps = 500);
 
   // Render in EggshellView
   virtual void Draw() const;
@@ -92,9 +92,15 @@ class Ensemble {
     int b0;  // body0 index in components_
     int b1;  // body1 index in components_
 
-    ContactingBodies(const Contact _c, int _b) : c(_c), b0(_b), b1(-1) {}
+    // When a component contacts the ground. The component is saved in body1,
+    // because the contact normal is given from the ground.
+    ContactingBodies(const Contact _c, int _b) : c(_c), b0(-1), b1(_b) {}
+    // When 2 components contact each other. Contact normal is given from body0.
     ContactingBodies(const Contact _c, int _b0, int _b1)
         : c(_c), b0(_b0), b1(_b1) {}
+
+    // Return a string decription of this ContactingBodies
+    std::string PrintInfo() const;
   };
 
   // The Bodies that make up this ensemble. Use shared_ptr because Body is the
@@ -114,8 +120,8 @@ class Ensemble {
   void ConstructMassInertiaMatrixInverse();
   void InitializeExternalForceTorqueVector();  // Gravity is applied here
 
-  // Create v vector, which contains p_dot and w for all bodies.
-  VectorXd GetCurrentVelocities();
+  // Create and return the systems v vector, [p_dot_0; w_0; p_dot_1; w_1' ...]
+  const VectorXd GetVelocities() const;
 
   // Update p_dot and w in each Body in component_ using updated v (in global
   // frame).
@@ -125,7 +131,7 @@ class Ensemble {
   // way.
   // Compute J due to 1. joint constraints, 2. contact constraints
   MatrixXd ComputeJ_Joints() const;
-  MatrixXd ComputeJ_Contacts(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const;
+  MatrixXd ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const;
   // TODO: Pass argument to capture inequality constraints to separately treat
   // friction and non-penetrating contact. Is this the elegant thing to do?
 

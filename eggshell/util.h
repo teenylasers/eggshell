@@ -5,6 +5,8 @@
 
 #include "Eigen/Dense"
 
+typedef Eigen::Array<bool, Eigen::Dynamic, 1> ArrayXb;
+
 // Check whether columns of rotation matrix R are orthonormal
 bool IsOrthonormal(const Eigen::Matrix3d& R);
 
