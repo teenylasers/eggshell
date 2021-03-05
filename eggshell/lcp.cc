@@ -1,20 +1,24 @@
 #include "lcp.h"
 
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
 
 #include "constants.h"
 #include "error.h"
-#include "util.h"
 
 namespace {
+
+// If LCP aborts early due to max_iterations, we allow for a looser solution
+// check error.
+constexpr double kLcpLooserAllowedError = 1e-8;
 
 // Check whether {x, w, S} form a solution to the LCP problem. If not, update
 // one offending element in S.
 bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
-                        const VectorXd& w, Lcp::ArrayXb& S, ArrayXd& C,
+                        const VectorXd& w, ArrayXb& S, ArrayXd& C,
                         const double x_lo, const double x_hi,
                         const double err = 0) {
   // Option to allow for numerical error. When checking x(S) < zero and
@@ -31,6 +35,9 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 
   for (int i = 0; i < dim; ++i) {
     if (S(i)) {
+      // Check x(S),
+      // 1. if x(i) < x_lo, then S(i) = false, C(i) = x_lo
+      // 2. if x(i) > x_hi, then S(i) = false, C(i) = x_hi
       if (x(i) < x_lo) {
         S(i) = false;
         C(i) = x_lo;
@@ -41,6 +48,9 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
         return false;
       }  // else do nothing
     } else {
+      // Check w(~S),
+      // 1. if C(i) = x_lo && w(i) < 0, then S(i) = true
+      // 2. if C(i) = x_hi && w(i) > 0, then S(i) = true
       if (C(i) == x_lo && w(i) < 0) {
         S(i) = true;
         return false;
@@ -84,7 +94,7 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
 }
 
 bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, VectorXd& x,
-                        VectorXd& w, Lcp::ArrayXb& S, const double err = 0) {
+                        VectorXd& w, ArrayXb& S, const double err = 0) {
   const double x_lo = 0;
   const double x_hi = std::numeric_limits<double>::infinity();
   ArrayXd C = ArrayXd::Zero(S.rows());
@@ -147,7 +157,6 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   const int dim = b.rows();
   const int max_iterations = pow(2, dim) > 1000 ? 1000 : pow(2, dim);
   int iter = 0;
-  bool cycle = false;
 
   // Initialize S, x, w
   // Default S is empty if init_S is not provided.
@@ -168,9 +177,9 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   // is C(i) == x_lo && w >= 0, or C(i) == x_hi && w <= 0. Initialize C to all
   // x_lo to start.
   ArrayXd C = ArrayXd::Ones(dim) * x_lo;
-  // Remeber the last best x and w, {prev_x, prev_w}
-  VectorXd prev_x = x;
-  VectorXd prev_w = w;
+  // Remeber the last best x and w, {last_best_x, last_best_w}
+  VectorXd last_best_x = x;
+  VectorXd last_best_w = w;
 
   // Compute solution
   while (iter < max_iterations) {
@@ -192,23 +201,11 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
           Lcp::SelectSubvector(b, !S);
       Lcp::UpdateSubvector(w, !S, new_wsc);  // Update w(!S)
       Lcp::UpdateSubvector(w, S, 0);         // Update w(S)
-      // Check whether this {x, w} is better than {prev_x, prev_w}.
-      if (!UpdatePreviousBestSolution(x, w, prev_x, prev_w)) {
-        // TODO: this will NOT detect cycles that do not include the current
-        // best solution.
-        cycle = true;
-        std::cout << "WARNING: Detected cycle in LCP solver. iter = " << iter
-                  << ". Condition number of matrix A is "
-                  << GetConditionNumber(A) << ".\n";
-        // If cycle is detected and the result is not a solution, then jump to a
-        // new random init_S
-        // const ArrayXb new_S = ArrayXb::Random(S.rows());
-        // max_iterations - iter, so that calling MurtyPrincipalPivot again
-        // doesn't reset max_iterations and risk infinite loop.
-        // return MurtyPrincipalPivot(A, b, x, w, new_S, max_iterations - iter);
-        break;
-      }
+
+      // Remember the current best solution
+      UpdatePreviousBestSolution(x, w, last_best_x, last_best_w);
     } else {
+      // We found a solution, break
       break;
     }
     ++iter;
@@ -221,24 +218,38 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   }
 
   // Check solution
-  if (iter >= max_iterations || cycle) {
-    x = prev_x;
-    w = prev_w;
-    if (!CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi,
-                            kAllowNumericalError)) {
-      std::cout << "ERROR: iteration count = " << iter
-                << ", max_iterations = " << max_iterations
-                << ", cycle = " << cycle
-                << ". Did not reach a sensible solution.\n";
-      return false;
-    } else {
-      return true;
-    }
-  } else if (!CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi)) {
-    std::cout << "ERROR: check solution returned false, error in algorithm.\n";
-    return false;
+  x = last_best_x;
+  w = last_best_w;
+  bool res_check = false;
+  if (iter >= max_iterations) {
+    res_check = CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi,
+                                   kLcpLooserAllowedError);
   } else {
+    res_check = CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi);
+  }
+  if (res_check) {
     return true;
+  } else {
+    std::cout << "ERROR: iteration count = " << iter
+              << ", max_iterations = " << max_iterations
+              << ". Did not reach a sensible solution.\n";
+    // Print A and b to file for debug.
+    std::ofstream f("lcp_debug.log");
+    if (f.is_open()) {
+      f << "A\n"
+        << A << "\nb\n"
+        << b << "\nx\n"
+        << x << "\nw\n"
+        << w << "\nx_lo\n"
+        << x_lo << "\nx_hi\n"
+        << x_hi << "\n";
+      std::cout << "Printed Ax = b + w, x_lo, x_hi to file "
+                   "lcp_debug.log.\n";
+    } else {
+      std::cout << "ERROR: could not open ofstream to pring debug log "
+                   "lcp_debug.log";
+    }
+    return false;
   }
 }
 
@@ -420,7 +431,7 @@ MatrixXd GenerateRandomSpdMatrix(const int dim) {
 
 TEST_FUNCTION(SelectSubmatrix) {
   // Test case
-  Lcp::ArrayXb S(8);
+  ArrayXb S(8);
   S << 1, 1, 0, 0, 1, 0, 1, 1;
   MatrixXd A(8, 8);
   A << 44, 23, 81, 97, 37, 34, 72, 51, 12, 12, 3, 55, 99, 68, 91, 48, 26, 30,
@@ -437,7 +448,7 @@ TEST_FUNCTION(SelectSubmatrix) {
   MatrixXd A_ScSc(3, 3);
   A_ScSc << 93, 53, 14, 74, 24, 73, 58, 63, 66;
   // Run test
-  const Lcp::ArrayXb S_complement = !S;
+  const ArrayXb S_complement = !S;
   CHECK(A_SS == Lcp::SelectSubmatrix(A, S, S));
   CHECK(A_ScS == Lcp::SelectSubmatrix(A, S_complement, S));
   CHECK(A_SSc == Lcp::SelectSubmatrix(A, S, S_complement));
@@ -445,7 +456,7 @@ TEST_FUNCTION(SelectSubmatrix) {
 }
 
 TEST_FUNCTION(UpdateSubmatrix) {
-  Lcp::ArrayXb S(8);
+  ArrayXb S(8);
   S << 1, 1, 0, 0, 1, 0, 1, 1;
   MatrixXd A(8, 8);
   A << 90, 82, 36, 39, 57, 17, 23, 11, 96, 25, 84, 57, 47, 61, 92, 97, 55, 93,
@@ -459,7 +470,7 @@ TEST_FUNCTION(UpdateSubmatrix) {
   m2 << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15;
   m3 << 1, 2, 3, 4, 5, 6, 7, 8, 9;
   // Run test
-  const Lcp::ArrayXb S_complement = !S;
+  const ArrayXb S_complement = !S;
   Lcp::UpdateSubmatrix(A, S, S, m0);
   MatrixXd res(8, 8);
   res << 1, 2, 36, 39, 3, 17, 4, 5, 6, 7, 84, 57, 8, 61, 9, 10, 55, 93, 59, 8,
@@ -490,7 +501,7 @@ TEST_FUNCTION(SelectSubvector) {
   VectorXd v(20);
   v << 79, 9, 93, 78, 49, 44, 45, 31, 51, 52, 82, 80, 65, 38, 82, 54, 36, 94,
       88, 56;
-  Lcp::ArrayXb S(20);
+  ArrayXb S(20);
   S << 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1;
   VectorXd res(10);
   res << 79, 9, 49, 51, 52, 82, 38, 36, 88, 56;
@@ -503,7 +514,7 @@ TEST_FUNCTION(UpdateSubvector) {
   VectorXd v(20);
   v << 79, 9, 93, 78, 49, 44, 45, 31, 51, 52, 82, 80, 65, 38, 82, 54, 36, 94,
       88, 56;
-  Lcp::ArrayXb S(20);
+  ArrayXb S(20);
   S << 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1;
   VectorXd n(10);
   n << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10;
@@ -529,7 +540,7 @@ TEST_FUNCTION(CheckMurtySolution) {
   b << 0.6691, 0.1904, 0.3689, 0.4607, 0.9816;
   x << 0.0942, 0, 0, 0, 0.4121;
   w << 0, 0.7401, 0.4226, 0.0302, 0;
-  Lcp::ArrayXb S(5);
+  ArrayXb S(5);
   S << 1, 0, 0, 0, 1;
   CHECK(CheckMurtySolution(A, b, x, w, S, 1e-4));
   // Counter test, when is-not-a-solution
@@ -647,7 +658,7 @@ TEST_FUNCTION(MixedConstraintsSolver_NoBounds) {
   for (int i = 0; i < num_tests; ++i) {
     const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
     const VectorXd b = VectorXd::Random(matrix_size);
-    const Lcp::ArrayXb C = Lcp::ArrayXb::Random(matrix_size);
+    const ArrayXb C = ArrayXb::Random(matrix_size);
     if (Lcp::MixedConstraintsSolver(A, b, C, x_lo, x_hi, x, w)) {
       ++success_count;
       if (x == zeros) {
@@ -664,15 +675,15 @@ TEST_FUNCTION(MixedConstraintsSolver_NoBounds) {
 
 /*
 TEST_FUNCTION(Sandbox) {
-Lcp::ArrayXb a = Lcp::ArrayXb::Constant(5, false);
+ArrayXb a = ArrayXb::Constant(5, false);
 std::cout << "All false boolean array: \n" << a << std::endl;
 a = !a;
 std::cout << "All not-false boolean array: \n" << a << std::endl;
 for (int i = 0; i < 10; i++) {
-  a = Lcp::ArrayXb::Random(10);
+  a = ArrayXb::Random(10);
   std::cout << "a = \n" << a.transpose() << std::endl;
 }
-a = Lcp::ArrayXb::Constant(0, false);
+a = ArrayXb::Constant(0, false);
 std::cout << "a = " << a << std::endl;
 std::cout << "a.size() == 0: " << (a.size() != 0) << std::endl;
 }

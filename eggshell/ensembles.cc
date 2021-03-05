@@ -10,6 +10,9 @@
 #include "lcp.h"
 #include "util.h"
 
+namespace {
+constexpr double kCfmCoeff = 0.01;
+}
 
 void Ensemble::Init() {
   ConstructMassInertiaMatrixInverse();
@@ -18,13 +21,13 @@ void Ensemble::Init() {
 }
 
 MatrixXd Ensemble::ComputeJ() const {
-  Array<bool, Dynamic, 1> C;
+  ArrayXb C;
   VectorXd x_lo, x_hi;
-  const MatrixXd J = ComputeJ(C, x_lo, x_hi);
+  const MatrixXd J = ComputeJ(&C, &x_lo, &x_hi);
   return J;
 }
 
-MatrixXd Ensemble::ComputeJ(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const {
+MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
   const int jn = 3;  // num rows in J per joint
   const int cn = 1;  // num rows in J per contact
   const int num_joint_constraints = jn * joints_.size();
@@ -33,29 +36,25 @@ MatrixXd Ensemble::ComputeJ(ArrayXb& C, VectorXd& x_lo, VectorXd& x_hi) const {
   // initialize to constraint type to all equality
   ArrayXb C_joints = ArrayXb::Constant(num_joint_constraints, true);
   ArrayXb C_contacts = ArrayXb::Constant(num_contact_constraints, true);
-  C = ArrayXb::Constant(num_joint_constraints + num_contact_constraints, true);
+  *C = ArrayXb::Constant(num_joint_constraints + num_contact_constraints, true);
   VectorXd x_lo_joints = VectorXd::Zero(num_joint_constraints);
   VectorXd x_lo_contacts = VectorXd::Zero(num_contact_constraints);
-  x_lo = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
+  *x_lo = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
   VectorXd x_hi_joints = VectorXd::Zero(num_joint_constraints);
   VectorXd x_hi_contacts = VectorXd::Zero(num_contact_constraints);
-  x_hi = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
+  *x_hi = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
 
-  // clang-format off
   J << ComputeJ_Joints(),
-       ComputeJ_Contacts(C_contacts, x_lo_contacts, x_hi_contacts);
-  C << C_joints,
-       C_contacts;
-  x_lo << x_lo_joints,
-          x_lo_contacts;
-  x_hi << x_hi_joints,
-          x_hi_contacts;
-  // clang-format on
+       ComputeJ_Contacts(&C_contacts, &x_lo_contacts, &x_hi_contacts);
+  *C << C_joints, C_contacts;
+  *x_lo << x_lo_joints, x_lo_contacts;
+  *x_hi << x_hi_joints, x_hi_contacts;
 
+  // std::cout << "=== ComputeJ() ===" << std::endl;
   // std::cout << "J =\n" << J << std::endl;
-  // std::cout << "C =\n" << C << std::endl;
-  // std::cout << "x_lo =\n" << x_lo << std::endl;
-  // std::cout << "x_hi =\n" << x_hi << std::endl;
+  // std::cout << "C =\n" << *C << std::endl;
+  // std::cout << "x_lo =\n" << *x_lo << std::endl;
+  // std::cout << "x_hi =\n" << *x_hi << std::endl;
 
   return J;
 }
@@ -65,7 +64,7 @@ MatrixXd Ensemble::ComputeJ_Joints() const {
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd j0(3, 6);
     MatrixXd j1(3, 6);
-    joints_.at(i).j->ComputeJ(j0, j1);
+    joints_.at(i).j->ComputeJ(&j0, &j1);
     if (joints_.at(i).b0 == -1) {
       CHECK(j1.sum() == 0);
       J.block<3, 6>(i * 3, joints_.at(i).b1 * 6) = j0;
@@ -80,8 +79,8 @@ MatrixXd Ensemble::ComputeJ_Joints() const {
   return J;
 }
 
-MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb& C, VectorXd& x_lo,
-                                     VectorXd& x_hi) const {
+MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo,
+                                     VectorXd* x_hi) const {
   // TODO:
   // Do J dimensions need to be hard-coded here?
   const int cn = 1;  // num rows in J per contact
@@ -90,20 +89,21 @@ MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb& C, VectorXd& x_lo,
 
   for (int i = 0; i < contacts_.size(); ++i) {
     MatrixXd j0(cn, 6), j1(cn, 6);
-    Array<bool, Dynamic, 1> ct(cn);
-    VectorXd c_lo(cn), c_hi(cn);
-    contacts_.at(i).c.ComputeJ(j0, j1, ct, c_lo, c_hi);
+    ArrayXb ct = ArrayXb::Constant(cn, true);
+    VectorXd c_lo = VectorXd::Zero(cn);
+    VectorXd c_hi = VectorXd::Zero(cn);
+    contacts_.at(i).c.ComputeJ(&j0, &j1, &ct, &c_lo, &c_hi);
 
-    if (contacts_.at(i).b1 != -1) {
+    if (contacts_.at(i).b0 != -1) {
       J.block<cn, 6>(i * cn, contacts_.at(i).b0 * 6) = j0;
       J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
     } else {
-      J.block<cn, 6>(i * cn, contacts_.at(i).b0 * 6) = j0;
+      J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
     }
 
-    C.block<cn, 1>(i * cn, 0) = ct;
-    x_lo.block<cn, 1>(i * cn, 0) = c_lo;
-    x_hi.block<cn, 1>(i * cn, 0) = c_hi;
+    C->block<cn, 1>(i * cn, 0) = ct;
+    x_lo->block<cn, 1>(i * cn, 0) = c_lo;
+    x_hi->block<cn, 1>(i * cn, 0) = c_hi;
   }
   return J;
 }
@@ -114,7 +114,13 @@ bool Ensemble::CheckJ(const MatrixXd& J) const {
                << " cols => singular.";
     return false;
   } else {
-    return GetConditionNumber(J) < kGoodConditionNumber;
+    bool good = GetConditionNumber(J) < kGoodConditionNumber;
+    if (!good) {
+      LOG(ERROR) << "GetConditionNumber(J) [" << GetConditionNumber(J)
+                 << "] > kGoodConditionNumber [" << kGoodConditionNumber
+                 << "]\n.";
+    }
+    return good;
   }
 }
 
@@ -129,7 +135,7 @@ VectorXd Ensemble::ComputeJDotV_Joints() const {
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd Jdot_b0 = MatrixXd::Zero(3, 6);
     MatrixXd Jdot_b1 = MatrixXd::Zero(3, 6);
-    joints_.at(i).j->ComputeJDot(Jdot_b0, Jdot_b1);
+    joints_.at(i).j->ComputeJDot(&Jdot_b0, &Jdot_b1);
     const int b0 = joints_.at(i).b0;
     const int b1 = joints_.at(i).b1;
     VectorXd v0 = VectorXd::Zero(6);
@@ -159,7 +165,7 @@ VectorXd Ensemble::ComputeJDotV_Contacts() const {
   for (int i = 0; i < contacts_.size(); ++i) {
     MatrixXd Jdot_b0 = MatrixXd::Zero(1, 6);
     MatrixXd Jdot_b1 = MatrixXd::Zero(1, 6);
-    contacts_.at(i).c.ComputeJDot(Jdot_b0, Jdot_b1);
+    contacts_.at(i).c.ComputeJDot(&Jdot_b0, &Jdot_b1);
     const int b0 = contacts_.at(i).b0;
     const int b1 = contacts_.at(i).b1;
     VectorXd v0 = VectorXd::Zero(6);
@@ -244,7 +250,7 @@ void Ensemble::InitializeExternalForceTorqueVector() {
 
 void Ensemble::Step(double dt, Integrator g) {
   // Survey current state
-  VectorXd v = GetCurrentVelocities();
+  const VectorXd v = GetVelocities();
   UpdateContacts();
 
   // Time step
@@ -267,7 +273,7 @@ void Ensemble::Step(double dt, Integrator g) {
   }
 }
 
-VectorXd Ensemble::GetCurrentVelocities() {
+const VectorXd Ensemble::GetVelocities() const {
   VectorXd v = VectorXd::Zero(n_ * 6);
   for (int i = 0; i < n_; ++i) {
     v.segment<3>(i * 2 * 3) = components_.at(i)->v();
@@ -286,6 +292,7 @@ void Ensemble::UpdateComponentsVelocities(const Eigen::VectorXd& v) {
 
 void Ensemble::UpdateContacts() {
   contacts_.clear();
+
   // Detect collision with ground
   for (int i = 0; i < components_.size(); ++i) {
     std::shared_ptr<Body> b = components_.at(i);
@@ -313,9 +320,16 @@ void Ensemble::UpdateContacts() {
         // TODO: okay to use raw pointer b.get()? would it ever become dangling?
         ContactingBodies cb(c, i, j);
         contacts_.push_back(cb);
+        // TODO: debug only.
+        // std::cout << cb.PrintInfo() << std::endl;
       }
     }
   }
+
+  // Draw the contacts for debug viz
+  // for (const auto& ct : contacts_) {
+  //   ct.c.Draw();
+  // }
 }
 
 VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const {
@@ -350,8 +364,7 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
     // If CheckJ() finds an ill-conditioned J, then apply constraint force
     // mixing (cfm).
     if (!CheckJ(J)) {
-      const double cfm_coeff = 0.1;
-      Cfm = cfm_coeff * MatrixXd::Identity(J_rows, J_rows);
+      Cfm = kCfmCoeff * MatrixXd::Identity(J_rows, J_rows);
     }
     const MatrixXd lhs = JMJt + Cfm;
     // Solve systems equation
@@ -390,7 +403,7 @@ VectorXd Ensemble::StepVelocities_ODE(double dt, const VectorXd& v,
                                       double error_reduction_param) {
   ArrayXb C;
   VectorXd x_lo, x_hi;
-  MatrixXd J = ComputeJ(C, x_lo, x_hi);
+  MatrixXd J = ComputeJ(&C, &x_lo, &x_hi);
   VectorXd joint_error = ComputePositionConstraintError();
   VectorXd rhs = -error_reduction_param / dt / dt * joint_error -
                  J * (v / dt + M_inverse_ * external_force_torque_);
@@ -446,7 +459,7 @@ void Ensemble::InitStabilize() {
   std::cout << "Final err_sq : " << err_sq << std::endl;
 }
 
-void Ensemble::PostStabilize(const int max_steps) {
+void Ensemble::PostStabilize(int max_steps) {
   Eigen::VectorXd err = ComputePositionConstraintError();
   double err_sq = err.transpose() * err;
   // std::cout << "err = " << err.transpose() << std::endl;
@@ -477,7 +490,7 @@ void Ensemble::StepPositionRelaxation(double dt, double step_scale) {
 void Ensemble::StepPostStabilization(double dt, double step_scale) {
   const VectorXd velocity_relaxation = CalculateVelocityRelaxation(step_scale);
   StepPositions_ExplicitEuler(dt, velocity_relaxation);
-  const VectorXd v = GetCurrentVelocities();
+  const VectorXd v = GetVelocities();
   UpdateComponentsVelocities(v + velocity_relaxation);
 }
 
@@ -489,6 +502,13 @@ VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) const {
   VectorXd velocity_correction =
       -1.0 * step_scale * J.transpose() * (J * J.transpose()).ldlt().solve(err);
   return velocity_correction;
+}
+
+std::string Ensemble::ContactingBodies::PrintInfo() const {
+  std::ostringstream s;
+  s << "Contact between components " << b0 << " and " << b1 << ", @ "
+    << c.PrintInfo();
+  return s.str();
 }
 
 Chain::Chain(int num_links, const Vector3d& anchor_position) {

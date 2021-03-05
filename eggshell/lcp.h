@@ -4,13 +4,9 @@
 #define __LCP_H__
 
 #include "Eigen/Dense"
-
-using namespace Eigen;
+#include "util.h"
 
 namespace Lcp {
-
-// TODO: Move this typedef together with the Select/Update methods below.
-typedef Array<bool, Dynamic, 1> ArrayXb;
 
 bool MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
                          VectorXd& w);

@@ -1,8 +1,5 @@
 #include "joints.h"
 
-using Eigen::Matrix3d;
-using Eigen::MatrixXd;
-using Eigen::Vector3d;
 
 Vector3d BallAndSocketJoint::ComputeError() const {
   Vector3d error = Vector3d::Zero();
@@ -14,26 +11,26 @@ Vector3d BallAndSocketJoint::ComputeError() const {
   return error;
 }
 
-void BallAndSocketJoint::ComputeJ(MatrixXd& J_b0, MatrixXd& J_b1) const {
+void BallAndSocketJoint::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1) const {
   Matrix3d J_w0 = -1 * CrossMat(b0_->R() * c0_);
-  J_b0 << Matrix3d::Identity(), J_w0;
+  *J_b0 << Matrix3d::Identity(), J_w0;
   if (b1_ == nullptr) {
-    J_b1 << Matrix3d::Zero(), Matrix3d::Zero();
+    *J_b1 << Matrix3d::Zero(), Matrix3d::Zero();
   } else {
     Matrix3d J_w1 = CrossMat(b1_->R() * c1_);
-    J_b1 << -1 * Matrix3d::Identity(), J_w1;
+    *J_b1 << -1 * Matrix3d::Identity(), J_w1;
   }
 }
 
-void BallAndSocketJoint::ComputeJDot(MatrixXd& Jdot_b0,
-                                     MatrixXd& Jdot_b1) const {
+void BallAndSocketJoint::ComputeJDot(MatrixXd* Jdot_b0,
+                                     MatrixXd* Jdot_b1) const {
   Matrix3d Jdot_w0 = -1 * CrossMat(b0_->w_g().cross(b0_->R() * c0_));
-  Jdot_b0 << Matrix3d::Zero(), Jdot_w0;
+  *Jdot_b0 << Matrix3d::Zero(), Jdot_w0;
   if (b1_ != nullptr) {
     Matrix3d Jdot_w1 = CrossMat(b1_->w_g().cross(b1_->R() * c1_));
-    Jdot_b1 << Matrix3d::Zero(), Jdot_w1;
+    *Jdot_b1 << Matrix3d::Zero(), Jdot_w1;
   } else {
-    Jdot_b1 << Matrix3d::Zero(), Matrix3d::Zero();
+    *Jdot_b1 << Matrix3d::Zero(), Matrix3d::Zero();
   }
 }
 

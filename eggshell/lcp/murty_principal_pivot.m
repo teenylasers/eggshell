@@ -1,4 +1,4 @@
-function [x, w, return_code] = murty_pivot(A, b, x_lo, x_hi)
+function [x, w, return_code] = murty_principal_pivot(A, b, x_lo, x_hi)
 
 assert(nargin == 2 || nargin == 4);
 
@@ -52,8 +52,9 @@ while iteration_count < max_iterations
 end
 
 % Function exit checks and error code
-if iteration_count >= max_iterations
-  fprintf('ERROR: iteration_count exceeded max_iterations %d, exit.\n', max_iterations);
+if iteration_count >= max_iterations && ~check_solution(A,b,x,w,S,C,x_lo,x_hi)
+  fprintf(['ERROR: iteration_count exceeded max_iterations %d without ', ...
+           'finding a valid solution, exit.\n'], max_iterations);
   return_code = 1;
 elseif (~check_solution(A, b, x, w, S, C, x_lo, x_hi))
   disp('ERROR: check_solution returns false, check algorithm.');

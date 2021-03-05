@@ -5,13 +5,9 @@
 
 #include "constants.h"
 #include "error.h"
+#include "model.h"
+#include "util.h"
 
-using Eigen::Matrix3d;
-using Eigen::MatrixXd;
-using Eigen::Quaterniond;
-using Eigen::Vector3d;
-using Eigen::VectorXd;
-typedef Eigen::Array<bool, Eigen::Dynamic, 1> ArrayXb;
 
 VectorXd Contact::ComputeError() const {
   switch (f_) {
@@ -24,8 +20,8 @@ VectorXd Contact::ComputeError() const {
   }
 }
 
-void Contact::ComputeJ(MatrixXd& J_b0, MatrixXd& J_b1, ArrayXb& C,
-                       VectorXd& x_lo, VectorXd& x_hi) const {
+void Contact::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* C,
+                       VectorXd* x_lo, VectorXd* x_hi) const {
   switch (f_) {
     case FrictionModel::NO_FRICTION:
       ComputeJ_NoFriction(J_b0, J_b1);
@@ -39,36 +35,33 @@ void Contact::ComputeJ(MatrixXd& J_b0, MatrixXd& J_b1, ArrayXb& C,
   }
 }
 
-void Contact::ComputeJDot(MatrixXd& Jdot_b0, MatrixXd& Jdot_b1) const {
+void Contact::ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const {
   ComputeJDot_NoFriction(Jdot_b0, Jdot_b1);
 }
 
 VectorXd Contact::ComputeError_NoFriction() const {
   VectorXd error(1);
-  // TODO: why this distinction?
-  if (b1_ == nullptr) {
-    error << -cg_.depth;
-  } else {
-    error << cg_.depth;
-  }
+  error << -cg_.depth;
   return error;
 }
 
-void Contact::ComputeJ_NoFriction(MatrixXd& J_b0, MatrixXd& J_b1) const {
-  // R * c = x - p
-  MatrixXd J_w0 =
-      -1 * cg_.normal.transpose() * CrossMat(cg_.position - b0_->p());
-  J_b0 << cg_.normal.transpose(), J_w0;
-  if (b1_ == nullptr) {
-    J_b1 << MatrixXd::Zero(1, 3), MatrixXd::Zero(1, 3);
+void Contact::ComputeJ_NoFriction(MatrixXd* J_b0, MatrixXd* J_b1) const {
+  // R * c_hat = x - p
+
+  if (b0_ == nullptr) {
+    *J_b0 << MatrixXd::Zero(1, 3), MatrixXd::Zero(1, 3);
   } else {
-    MatrixXd J_w1 = cg_.normal.transpose() * CrossMat(cg_.position - b1_->p());
-    J_b1 << -1 * cg_.normal.transpose(), J_w1;
+    MatrixXd J_w0 = cg_.normal.transpose() * CrossMat(cg_.position - b0_->p());
+    *J_b0 << -1 * cg_.normal.transpose(), J_w0;
   }
+
+  MatrixXd J_w1 =
+      -1 * cg_.normal.transpose() * CrossMat(cg_.position - b1_->p());
+  *J_b1 << cg_.normal.transpose(), J_w1;
 }
 
-void Contact::ComputeJDot_NoFriction(MatrixXd& Jdot_b0,
-                                     MatrixXd& Jdot_b1) const {
+void Contact::ComputeJDot_NoFriction(MatrixXd* Jdot_b0,
+                                     MatrixXd* Jdot_b1) const {
   Panic(
       "ODE time stepper does not need to compute JdotV for contact "
       "constraints. Other integrators do not yet support contacts.");
@@ -115,9 +108,9 @@ VectorXd Contact::ComputeError_InfiniteFriction() const {
 //    - does the alignment/direction of transverse axes matter in some cases?
 // 2. implement LCP solver that takes in low and high limits
 // 3. Schur complement alternative to solve the mixed constraint problem.
-void Contact::ComputeJ_InfiniteFriction(MatrixXd& J_b0, MatrixXd& J_b1,
-                                        ArrayXb& C, VectorXd& x_lo,
-                                        VectorXd& x_hi) const {
+void Contact::ComputeJ_InfiniteFriction(MatrixXd* J_b0, MatrixXd* J_b1,
+                                        ArrayXb* C, VectorXd* x_lo,
+                                        VectorXd* x_hi) const {
   // Constraint in the direction of contact normal is an inequality,
   // constraints that are transverse to contact normal are equalities.
 
@@ -133,36 +126,39 @@ void Contact::ComputeJ_InfiniteFriction(MatrixXd& J_b0, MatrixXd& J_b1,
 
   Matrix3d J_v0 = Matrix3d::Identity();
   Matrix3d J_w0 = -1 * CrossMat(cg_.position - b0_->p());
-  J_b0 << R * J_v0, R * J_w0;
+  *J_b0 << R * J_v0, R * J_w0;
 
   if (b1_ == nullptr) {
-    J_b1 << Matrix3d::Zero(), Matrix3d::Zero();
+    *J_b1 << Matrix3d::Zero(), Matrix3d::Zero();
   } else {
     Matrix3d J_v1 = -1 * Matrix3d::Identity();
     Matrix3d J_w1 = CrossMat(cg_.position - b1_->p());
-    J_b1 << R * J_v1, R * J_w1;
+    *J_b1 << R * J_v1, R * J_w1;
   }
 
-  C << 0, 0, 1;
-  x_lo << 0, 0, 0;
-  x_hi << 0, 0, std::numeric_limits<double>::infinity();
+  *C << 0, 0, 1;
+  *x_lo << 0, 0, 0;
+  *x_hi << 0, 0, std::numeric_limits<double>::infinity();
 }
 
-void Contact::ComputeJDot_InfiniteFriction(MatrixXd& Jdot_b0,
-                                           MatrixXd& Jdot_b1) const {
+void Contact::ComputeJDot_InfiniteFriction(MatrixXd* Jdot_b0,
+                                           MatrixXd* Jdot_b1) const {
   Panic(
       "ODE time stepper does not need to compute JdotV for contact "
       "constraints. Other integrators do not yet support contacts.");
 }
 
-void Contact::ComputeJ_BoxFriction(MatrixXd& J_b0, MatrixXd& J_b1) const {}
-void Contact::ComputeJDot_BoxFriction(MatrixXd& Jdot_b0,
-                                      MatrixXd& Jdot_b1) const {}
-void Contact::ComputeJ_CoulombPyramid(MatrixXd& J_b0, MatrixXd& J_b1) const {}
-void Contact::ComputeJDot_CoulombPyramid(MatrixXd& Jdot_b0,
-                                         MatrixXd& Jdot_b1) const {}
+void Contact::ComputeJ_BoxFriction(MatrixXd* J_b0, MatrixXd* J_b1) const {}
+void Contact::ComputeJDot_BoxFriction(MatrixXd* Jdot_b0,
+                                      MatrixXd* Jdot_b1) const {}
+void Contact::ComputeJ_CoulombPyramid(MatrixXd* J_b0, MatrixXd* J_b1) const {}
+void Contact::ComputeJDot_CoulombPyramid(MatrixXd* Jdot_b0,
+                                         MatrixXd* Jdot_b1) const {}
 
-void Contact::Draw() const {}
+void Contact::Draw() const {
+  DrawPoint(cg_.position);
+  DrawLine(cg_.position, cg_.position + cg_.normal * 0.1);
+}
 
 std::string Contact::PrintInfo() const {
   std::ostringstream s;
@@ -182,10 +178,10 @@ void Contact::CheckJ_InfiniteFriction() const {
   ArrayXb C(3);
   VectorXd x_lo(3), x_hi(3);
 
-  ComputeJ_NoFriction(J0_b0, J0_b1);
-  ComputeJDot_NoFriction(Jdot0_b0, Jdot0_b1);
-  ComputeJ_InfiniteFriction(JCfm_b0, JCfm_b1, C, x_lo, x_hi);
-  ComputeJDot_InfiniteFriction(JdotCfm_b0, JdotCfm_b1);
+  ComputeJ_NoFriction(&J0_b0, &J0_b1);
+  ComputeJDot_NoFriction(&Jdot0_b0, &Jdot0_b1);
+  ComputeJ_InfiniteFriction(&JCfm_b0, &JCfm_b1, &C, &x_lo, &x_hi);
+  ComputeJDot_InfiniteFriction(&JdotCfm_b0, &JdotCfm_b1);
   J0 << J0_b0, J0_b1;
   Jdot0 << Jdot0_b0, Jdot0_b1;
   JCfm << JCfm_b0, JCfm_b1;
@@ -200,6 +196,6 @@ void Contact::CheckJ_InfiniteFriction() const {
   CHECK(Jdot0.row(0).isApprox(JdotCfm.row(2), kAllowNumericalError));
 }
 
-std::ostream& operator<<(std::ostream& out, const Contact& c) {
-  return out << c.PrintInfo();
+std::ostream& operator<<(std::ostream* out, const Contact& c) {
+  return *out << c.PrintInfo();
 }
