@@ -1,6 +1,5 @@
 #include "joints.h"
 
-
 VectorXd BallAndSocketJoint::ComputeError() const {
   VectorXd error = Vector3d::Zero(3);
   if (b1_ == nullptr) {
@@ -11,7 +10,14 @@ VectorXd BallAndSocketJoint::ComputeError() const {
   return error;
 }
 
-void BallAndSocketJoint::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1) const {
+void BallAndSocketJoint::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1,
+                                  ArrayXb* constraint_type,
+                                  VectorXd* constraint_lo,
+                                  VectorXd* constraint_hi) const {
+  // Construct Jacobians
+  J_b0->resize(3, 6);
+  J_b1->resize(3, 6);
+
   Matrix3d J_w0 = -1 * CrossMat(b0_->R() * c0_);
   *J_b0 << Matrix3d::Identity(), J_w0;
   if (b1_ == nullptr) {
@@ -20,6 +26,12 @@ void BallAndSocketJoint::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1) const {
     Matrix3d J_w1 = CrossMat(b1_->R() * c1_);
     *J_b1 << -1 * Matrix3d::Identity(), J_w1;
   }
+
+  // Construct constraints
+  constraint_type->resize(3, 1);
+  *constraint_type << 1, 1, 1;
+  *constraint_lo = VectorXd::Zero(3);
+  *constraint_hi = VectorXd::Zero(3);
 }
 
 void BallAndSocketJoint::ComputeJDot(MatrixXd* Jdot_b0,
