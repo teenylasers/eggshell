@@ -20,17 +20,20 @@ class Ensemble {
 
   virtual void Init();
 
-  // Compute constraints Jacobian.
-  // When only joint constraints, can use ComputeJ() without C, x_lo, x_hi.
+  // When there are only joint constraints and if the integrator does not
+  // require constraint type info for mixed constraint solver, e.g. explicit
+  // Euler, then we can use ComputeJ() without C, x_lo, x_hi.
   virtual MatrixXd ComputeJ() const;
   // For mixed constraints, C = constraint type, true for equality, false for
   // inequality. For inequality constraints, {x_lo, x_hi} indicates lower and
   // higher x bound in Ax = b+w.
   virtual MatrixXd ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const;
+
+  // Compute the position error.
   virtual VectorXd ComputePositionConstraintError() const;
 
   // JDot is a sparse matrix, computing JDot then JDot * v is doing a lot of
-  // multiplication with zero. Compute JDotV directly.
+  // multiplication with zero. Therefore compute JDotV directly.
   virtual VectorXd ComputeJDotV() const;
 
   // Sanity check the dimensions of ComputeError and ComputeJ results.
@@ -39,7 +42,8 @@ class Ensemble {
   virtual bool CheckErrorDims(VectorXd error) const = 0;
 
   // Sanity check the ensemble's initial conditions, before any time stepping
-  // has occurred.
+  // has occurred. Specifically, check that position constraint error is no more
+  // than reasonably allowed numerical error.
   virtual bool CheckInitialConditions() const;
 
   // Advance one time step with step size dt
@@ -54,12 +58,13 @@ class Ensemble {
   // update contacts_
   void UpdateContacts();
 
-  // When Ensemble is first initialized, check and correct for position errors.
+  // When Ensemble is first initialized, check for position errors, correct them
+  // if any using StepPositionRelaxation().
   void InitStabilize();
-  // Stabilize position only. Bring the ensemble into a legal configuration.
-  void StepPositionRelaxation(double dt, double step_scale = 0.2);
 
-  // Position and velocity post-stabilization
+  // Takes Ensemble's state after an integrator Step, apply stabilization to
+  // bring the state closer to or back to the constraint manifold in both
+  // position and velocity.
   void PostStabilize(int max_steps = 500);
 
   // Render in EggshellView
@@ -108,7 +113,7 @@ class Ensemble {
   VectorXd ComputeJDotV_Joints() const;
   VectorXd ComputeJDotV_Contacts() const;
 
-  // Compute v_dot for stepping velocity
+  ////// Compute v_dot for stepping velocity //////
   // When there is only equality constraints, i.e. no contact constraints, used
   // when Integrator::EXPLICIT_EULER.
   VectorXd ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const;
@@ -130,9 +135,10 @@ class Ensemble {
                               double error_reduction_param = 0.2);
   void StepPositions_ODE(double dt, const VectorXd& v, const VectorXd& v_new);
 
-  // Post-stabilization: takes Ensemble's state after an integrator Step, apply
-  // stabilization to bring the state closer to or back to the constraint
-  // manifold.
+  ////// Helper functions to InitStablize() and PostStablize(). //////
+
+  // Stabilize position only. Bring the ensemble into a legal configuration.
+  void StepPositionRelaxation(double dt, double step_scale = 0.2);
   // Calculate velocity correction for post-stabilization
   VectorXd CalculateVelocityRelaxation(double step_scale) const;
   // Update both position and velocity using velocity relaxation results.
@@ -142,15 +148,6 @@ class Ensemble {
 class Chain : public Ensemble {
  public:
   Chain(int num_links, const Vector3d& anchor_position);
-
-  // TODO: this implementation assumes joint i is between component i and i+1.
-  // The assumption is used by ComputeJ. Make general by adding integer label
-  // to each component, std::vector<std::pair<std::vector<int>,
-  // std::shared_ptr<Joint>>> joints_
-  // Then, will be able to move ComputeJ() and ComputeJDot() to Ensemble class.
-  // MatrixXd ComputeJ() const override;
-  // MatrixXd ComputeJDot() const override;
-
   bool CheckErrorDims(VectorXd error) const override;
 
  private:
