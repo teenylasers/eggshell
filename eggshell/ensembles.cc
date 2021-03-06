@@ -29,25 +29,29 @@ MatrixXd Ensemble::ComputeJ() const {
 
 MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
   const int jn = 3;  // num rows in J per joint
-  const int cn = 3;  // num rows in J per contact
   const int num_joint_constraints = jn * joints_.size();
-  const int num_contact_constraints = cn * contacts_.size();
-  MatrixXd J(num_joint_constraints + num_contact_constraints, 6 * n_);
   // initialize to constraint type to all equality
   ArrayXb C_joints = ArrayXb::Constant(num_joint_constraints, true);
-  ArrayXb C_contacts = ArrayXb::Constant(num_contact_constraints, true);
-  *C = ArrayXb::Constant(num_joint_constraints + num_contact_constraints, true);
+  ArrayXb C_contacts;
   VectorXd x_lo_joints = VectorXd::Zero(num_joint_constraints);
-  VectorXd x_lo_contacts = VectorXd::Zero(num_contact_constraints);
-  *x_lo = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
+  VectorXd x_lo_contacts;
   VectorXd x_hi_joints = VectorXd::Zero(num_joint_constraints);
-  VectorXd x_hi_contacts = VectorXd::Zero(num_contact_constraints);
-  *x_hi = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
+  VectorXd x_hi_contacts;
 
-  J << ComputeJ_Joints(),
+  MatrixXd J_joints = ComputeJ_Joints();
+  MatrixXd J_contacts =
       ComputeJ_Contacts(&C_contacts, &x_lo_contacts, &x_hi_contacts);
+  const int J_cols = J_joints.cols() > 0 ? J_joints.cols() : J_contacts.cols();
+  MatrixXd J(J_joints.rows() + J_contacts.rows(), J_cols);
+  J << J_joints, J_contacts;
+
+  C->resize(C_joints.rows() + C_contacts.rows(), C_joints.cols());
   *C << C_joints, C_contacts;
+
+  x_lo->resize(x_lo_joints.rows() + x_lo_contacts.rows(), x_lo_contacts.cols());
   *x_lo << x_lo_joints, x_lo_contacts;
+
+  x_hi->resize(x_hi_joints.rows() + x_hi_contacts.rows(), x_hi_contacts.cols());
   *x_hi << x_hi_joints, x_hi_contacts;
 
   // std::cout << "=== ComputeJ() ===" << std::endl;
@@ -81,30 +85,43 @@ MatrixXd Ensemble::ComputeJ_Joints() const {
 
 MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo,
                                      VectorXd* x_hi) const {
-  // TODO:
-  // Do J dimensions need to be hard-coded here?
-  const int cn = 3;  // num rows in J per contact
-
-  MatrixXd J = MatrixXd::Zero(cn * contacts_.size(), 6 * n_);
+  MatrixXd J;
 
   for (int i = 0; i < contacts_.size(); ++i) {
-    MatrixXd j0(cn, 6), j1(cn, 6);
-    ArrayXb ct = ArrayXb::Constant(cn, true);
-    VectorXd c_lo = VectorXd::Zero(cn);
-    VectorXd c_hi = VectorXd::Zero(cn);
+    MatrixXd j0, j1;
+    ArrayXb ct;
+    VectorXd c_lo;
+    VectorXd c_hi;
     contacts_.at(i).c.ComputeJ(&j0, &j1, &ct, &c_lo, &c_hi);
 
-    if (contacts_.at(i).b0 != -1) {
-      J.block<cn, 6>(i * cn, contacts_.at(i).b0 * 6) = j0;
-      J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
-    } else {
-      J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
+    // Construct new rows of J from j0 and j1
+    CHECK(j0.rows() == j1.rows());
+    MatrixXd J_new_rows = MatrixXd::Zero(j0.rows(), 6 * n_);
+    if (contacts_.at(i).b0 >= 0) {
+      J_new_rows.block(0, contacts_.at(i).b0 * 6, j0.rows(), j0.cols()) = j0;
+    }
+    if (contacts_.at(i).b1 >= 0) {
+      J_new_rows.block(0, contacts_.at(i).b1 * 6, j1.rows(), j1.cols()) = j1;
     }
 
-    C->block<cn, 1>(i * cn, 0) = ct;
-    x_lo->block<cn, 1>(i * cn, 0) = c_lo;
-    x_hi->block<cn, 1>(i * cn, 0) = c_hi;
+    // Append new rows to J, C, x_lo, x_hi
+    J.conservativeResize(J.rows() + J_new_rows.rows(), J_new_rows.cols());
+    J.block(J.rows() - J_new_rows.rows(), 0, J_new_rows.rows(),
+            J_new_rows.cols()) = J_new_rows;
+
+    CHECK(C->cols() == ct.cols());
+    C->conservativeResize(C->rows() + ct.rows(), ct.cols());
+    C->block(C->rows() - ct.rows(), 0, ct.rows(), ct.cols()) = ct;
+
+    CHECK(x_lo->cols() == c_lo.cols());
+    x_lo->conservativeResize(x_lo->rows() + c_lo.rows(), x_lo->cols());
+    x_lo->block(x_lo->rows() - c_lo.rows(), 0, c_lo.rows(), c_lo.cols()) = c_lo;
+
+    CHECK(x_hi->cols() == c_hi.cols());
+    x_hi->conservativeResize(x_hi->rows() + c_hi.rows(), x_hi->cols());
+    x_hi->block(x_hi->rows() - c_hi.rows(), 0, c_hi.rows(), c_hi.cols()) = c_hi;
   }
+
   return J;
 }
 

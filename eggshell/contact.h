@@ -23,7 +23,7 @@ class Contact {
     COULOMB_PYRAMID,
   };
 
-  Vector3d ComputeError() const;
+  VectorXd ComputeError() const;
 
   // TODO: should contact and joint all be part of a constraint base class?
   void ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* constraint_type,

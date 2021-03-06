@@ -12,9 +12,14 @@ namespace {
 constexpr double kBoxFrictionBound = 100;
 }
 
-Vector3d Contact::ComputeError() const {
-  Vector3d error(0, 0, -cg_.depth);
-  return error;
+VectorXd Contact::ComputeError() const {
+  if (f_ == FrictionModel::NO_FRICTION) {
+    return VectorXd::Constant(1, -cg_.depth);
+  } else {
+    VectorXd error(3);
+    error << 0, 0, -cg_.depth;
+    return error;
+  }
 }
 
 // TODO:
@@ -49,17 +54,23 @@ void Contact::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* C,
   // TODO: debug only
   // std::cout << "R\n" << R << std::endl;
 
+  MatrixXd j0(3, 6);
   if (b0_ == nullptr) {
-    *J_b0 << Matrix3d::Zero(), Matrix3d::Zero();
+    j0 << Matrix3d::Zero(), Matrix3d::Zero();
   } else {
     Matrix3d J_v0 = -1 * Matrix3d::Identity();
     Matrix3d J_w0 = CrossMat(cg_.position - b0_->p());
-    *J_b0 << R * J_v0, R * J_w0;
+    j0 << R * J_v0, R * J_w0;
   }
 
-  Matrix3d J_v1 = Matrix3d::Identity();
-  Matrix3d J_w1 = -1 * CrossMat(cg_.position - b1_->p());
-  *J_b1 << R * J_v1, R * J_w1;
+  MatrixXd j1(3, 6);
+  if (b1_ == nullptr) {
+    j1 << Matrix3d::Zero(), Matrix3d::Zero();
+  } else {
+    Matrix3d J_v1 = Matrix3d::Identity();
+    Matrix3d J_w1 = -1 * CrossMat(cg_.position - b1_->p());
+    j1 << R * J_v1, R * J_w1;
+  }
 
   // TODO: debug only
   // std::cout << "J_b1 in contact frame = \n" << *J_b1 << std::endl;
@@ -69,19 +80,33 @@ void Contact::ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* C,
 
   switch (f_) {
     case FrictionModel::NO_FRICTION:
-      *C << 0, 0, 0;
-      *x_lo << -1 * std::numeric_limits<double>::infinity(),
-          -1 * std::numeric_limits<double>::infinity(), 0;
-      *x_hi << std::numeric_limits<double>::infinity(),
-          std::numeric_limits<double>::infinity(),
-          std::numeric_limits<double>::infinity();
+      // When there is no friction, there is only constraint in the direction of
+      // contact normal. We can discard the first 2 rows of J
+      *J_b0 = j0.block(j0.rows() - 1, 0, 1, j0.cols());
+      *J_b1 = j1.block(j1.rows() - 1, 0, 1, j1.cols());
+      C->resize(1);
+      x_lo->resize(1);
+      x_hi->resize(1);
+      *C << 0;
+      *x_lo << 0;
+      *x_hi << std::numeric_limits<double>::infinity();
       break;
     case FrictionModel::INFINITE:
+      *J_b0 = j0;
+      *J_b1 = j1;
+      C->resize(3);
+      x_lo->resize(3);
+      x_hi->resize(3);
       *C << 1, 1, 0;
       *x_lo << 0, 0, 0;
       *x_hi << 0, 0, std::numeric_limits<double>::infinity();
       break;
     case FrictionModel::BOX:
+      *J_b0 = j0;
+      *J_b1 = j1;
+      C->resize(3);
+      x_lo->resize(3);
+      x_hi->resize(3);
       *C << 0, 0, 0;
       *x_lo << -1 * kBoxFrictionBound, -1 * kBoxFrictionBound, 0;
       *x_hi << kBoxFrictionBound, kBoxFrictionBound,
