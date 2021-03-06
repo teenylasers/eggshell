@@ -65,6 +65,13 @@ class Ensemble {
   // Render in EggshellView
   virtual void Draw() const;
 
+  // TODO:
+  // Check conservation of energy and impact, is the following even true?
+  //
+  // Check that the rotational kinetic energy is conserved. Linear kinetic
+  // energy changes due to gravity, thus not checked in this function.
+  bool CheckConservationOfEnergy();
+
  protected:
   // Number of Bodies that make up this ensemble
   int n_;
@@ -111,6 +118,8 @@ class Ensemble {
   VectorXd external_force_torque_;
 
  private:
+  double total_rotational_ke_ = std::numeric_limits<double>::infinity();
+
   void ConstructMassInertiaMatrixInverse();
   void InitializeExternalForceTorqueVector();  // Gravity is applied here
 
