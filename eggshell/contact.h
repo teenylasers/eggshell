@@ -4,17 +4,19 @@
 #include <Eigen/Dense>
 #include <vector>
 
-#include "body.h"
 #include "collision.h"
+#include "constraints.h"
 #include "util.h"
 
-class Contact {
+class Contact : public Constraint {
  public:
-  explicit Contact(const Body* b, const ContactGeometry& cg)
-      : b0_(nullptr), b1_(b), cg_(cg), ci_(CollisionInfo()) {}
-  explicit Contact(const Body* b0, const Body* b1, const ContactGeometry& cg,
-                   const CollisionInfo& ci)
-      : b0_(b0), b1_(b1), cg_(cg), ci_(ci) {}
+  explicit Contact(const std::shared_ptr<Body> b, int index,
+                   const ContactGeometry& cg)
+      : Constraint(nullptr, -1, b, index), cg_(cg), ci_(CollisionInfo()) {}
+  explicit Contact(const std::shared_ptr<Body> b0, int i0,
+                   const std::shared_ptr<Body> b1, int i1,
+                   const ContactGeometry& cg, const CollisionInfo& ci)
+      : Constraint(b0, i0, b1, i1), cg_(cg), ci_(ci) {}
 
   enum struct FrictionModel {
     NO_FRICTION,
@@ -23,23 +25,19 @@ class Contact {
     COULOMB_PYRAMID,
   };
 
-  VectorXd ComputeError() const;
-
-  // TODO: should contact and joint all be part of a constraint base class?
+  VectorXd ComputeError() const override;
   void ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* constraint_type,
-                VectorXd* constraint_lo, VectorXd* constraint_hi) const;
-  void ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
+                VectorXd* constraint_lo,
+                VectorXd* constraint_hi) const override;
+  void ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const override;
 
-  void Draw() const;
+  void Draw() const override;
 
-  std::string PrintInfo() const;
+  std::string PrintInfo() const override;
 
  private:
-  const Body* b0_;
-  const Body* b1_;
   const ContactGeometry cg_;
   const CollisionInfo ci_;
-
   const FrictionModel f_ = FrictionModel::NO_FRICTION;
 
   //==========================================================================
@@ -48,10 +46,8 @@ class Contact {
 
   void ComputeJDot_NoFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
   void ComputeJDot_InfiniteFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
-
-  // Box friction with dynamic limits
-  void ComputeJ_BoxFriction(MatrixXd* J_b0, MatrixXd* J_b1) const;
   void ComputeJDot_BoxFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
+
   // Models Coulomb friction cone as an N-sided pyramid.
   void ComputeJ_CoulombPyramid(MatrixXd* J_b0, MatrixXd* J_b1) const;
   void ComputeJDot_CoulombPyramid(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;

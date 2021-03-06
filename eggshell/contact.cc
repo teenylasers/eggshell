@@ -146,7 +146,6 @@ void Contact::ComputeJDot_InfiniteFriction(MatrixXd* Jdot_b0,
       "constraints. Other integrators do not yet support contacts.");
 }
 
-void Contact::ComputeJ_BoxFriction(MatrixXd* J_b0, MatrixXd* J_b1) const {}
 void Contact::ComputeJDot_BoxFriction(MatrixXd* Jdot_b0,
                                       MatrixXd* Jdot_b1) const {}
 void Contact::ComputeJ_CoulombPyramid(MatrixXd* J_b0, MatrixXd* J_b1) const {}
@@ -160,9 +159,10 @@ void Contact::Draw() const {
 
 std::string Contact::PrintInfo() const {
   std::ostringstream s;
-  s << "Vector3d position = \n"
-    << cg_.position << "\nVector3d normal = \n"
-    << cg_.normal << "\ndepth = " << cg_.depth;
+  s << "Contact between components " << i0_ << " and " << i1_
+    << ", @ position = \n"
+    << cg_.position << "\nContact normal = \n"
+    << cg_.normal << "\nContact depth = " << cg_.depth;
   return s.str();
 }
 

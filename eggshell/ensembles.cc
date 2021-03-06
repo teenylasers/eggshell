@@ -28,80 +28,30 @@ MatrixXd Ensemble::ComputeJ() const {
 }
 
 MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
-  const int jn = 3;  // num rows in J per joint
-  const int num_joint_constraints = jn * joints_.size();
-  // initialize to constraint type to all equality
-  ArrayXb C_joints = ArrayXb::Constant(num_joint_constraints, true);
-  ArrayXb C_contacts;
-  VectorXd x_lo_joints = VectorXd::Zero(num_joint_constraints);
-  VectorXd x_lo_contacts;
-  VectorXd x_hi_joints = VectorXd::Zero(num_joint_constraints);
-  VectorXd x_hi_contacts;
+  // TODO: check with russ
+  std::vector<std::shared_ptr<Constraint>> constraints;
+  constraints.insert(constraints.end(), joints_.begin(), joints_.end());
+  constraints.insert(constraints.end(), contacts_.begin(), contacts_.end());
 
-  MatrixXd J_joints = ComputeJ_Joints();
-  MatrixXd J_contacts =
-      ComputeJ_Contacts(&C_contacts, &x_lo_contacts, &x_hi_contacts);
-  const int J_cols = J_joints.cols() > 0 ? J_joints.cols() : J_contacts.cols();
-  MatrixXd J(J_joints.rows() + J_contacts.rows(), J_cols);
-  J << J_joints, J_contacts;
-
-  C->resize(C_joints.rows() + C_contacts.rows(), C_joints.cols());
-  *C << C_joints, C_contacts;
-
-  x_lo->resize(x_lo_joints.rows() + x_lo_contacts.rows(), x_lo_contacts.cols());
-  *x_lo << x_lo_joints, x_lo_contacts;
-
-  x_hi->resize(x_hi_joints.rows() + x_hi_contacts.rows(), x_hi_contacts.cols());
-  *x_hi << x_hi_joints, x_hi_contacts;
-
-  // std::cout << "=== ComputeJ() ===" << std::endl;
-  // std::cout << "J =\n" << J << std::endl;
-  // std::cout << "C =\n" << *C << std::endl;
-  // std::cout << "x_lo =\n" << *x_lo << std::endl;
-  // std::cout << "x_hi =\n" << *x_hi << std::endl;
-
-  return J;
-}
-
-MatrixXd Ensemble::ComputeJ_Joints() const {
-  MatrixXd J = MatrixXd::Zero(3 * joints_.size(), 6 * n_);
-  for (int i = 0; i < joints_.size(); ++i) {
-    MatrixXd j0(3, 6);
-    MatrixXd j1(3, 6);
-    joints_.at(i).j->ComputeJ(&j0, &j1);
-    if (joints_.at(i).b0 == -1) {
-      CHECK(j1.sum() == 0);
-      J.block<3, 6>(i * 3, joints_.at(i).b1 * 6) = j0;
-    } else if (joints_.at(i).b1 == -1) {
-      CHECK(j1.sum() == 0);
-      J.block<3, 6>(i * 3, joints_.at(i).b0 * 6) = j0;
-    } else {
-      J.block<3, 6>(i * 3, joints_.at(i).b0 * 6) = j0;
-      J.block<3, 6>(i * 3, joints_.at(i).b1 * 6) = j1;
-    }
-  }
-  return J;
-}
-
-MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo,
-                                     VectorXd* x_hi) const {
   MatrixXd J;
 
-  for (int i = 0; i < contacts_.size(); ++i) {
+  for (int i = 0; i < constraints.size(); ++i) {
     MatrixXd j0, j1;
     ArrayXb ct;
     VectorXd c_lo;
     VectorXd c_hi;
-    contacts_.at(i).c->ComputeJ(&j0, &j1, &ct, &c_lo, &c_hi);
+    constraints.at(i)->ComputeJ(&j0, &j1, &ct, &c_lo, &c_hi);
 
     // Construct new rows of J from j0 and j1
     CHECK(j0.rows() == j1.rows());
     MatrixXd J_new_rows = MatrixXd::Zero(j0.rows(), 6 * n_);
-    if (contacts_.at(i).b0 >= 0) {
-      J_new_rows.block(0, contacts_.at(i).b0 * 6, j0.rows(), j0.cols()) = j0;
+    if (constraints.at(i)->i0_ >= 0) {
+      J_new_rows.block(0, constraints.at(i)->i0_ * 6, j0.rows(), j0.cols()) =
+          j0;
     }
-    if (contacts_.at(i).b1 >= 0) {
-      J_new_rows.block(0, contacts_.at(i).b1 * 6, j1.rows(), j1.cols()) = j1;
+    if (constraints.at(i)->i1_ >= 0) {
+      J_new_rows.block(0, constraints.at(i)->i1_ * 6, j1.rows(), j1.cols()) =
+          j1;
     }
 
     // Append new rows to J, C, x_lo, x_hi
@@ -121,6 +71,12 @@ MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo,
     x_hi->conservativeResize(x_hi->rows() + c_hi.rows(), x_hi->cols());
     x_hi->block(x_hi->rows() - c_hi.rows(), 0, c_hi.rows(), c_hi.cols()) = c_hi;
   }
+
+  // std::cout << "=== ComputeJ() ===" << std::endl;
+  // std::cout << "J =\n" << J << std::endl;
+  // std::cout << "C =\n" << *C << std::endl;
+  // std::cout << "x_lo =\n" << *x_lo << std::endl;
+  // std::cout << "x_hi =\n" << *x_hi << std::endl;
 
   return J;
 }
@@ -152,9 +108,9 @@ VectorXd Ensemble::ComputeJDotV_Joints() const {
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd Jdot_b0 = MatrixXd::Zero(3, 6);
     MatrixXd Jdot_b1 = MatrixXd::Zero(3, 6);
-    joints_.at(i).j->ComputeJDot(&Jdot_b0, &Jdot_b1);
-    const int b0 = joints_.at(i).b0;
-    const int b1 = joints_.at(i).b1;
+    joints_.at(i)->ComputeJDot(&Jdot_b0, &Jdot_b1);
+    const int b0 = joints_.at(i)->i0_;
+    const int b1 = joints_.at(i)->i1_;
     VectorXd v0 = VectorXd::Zero(6);
     VectorXd v1 = VectorXd::Zero(6);
     if (b0 == -1) {
@@ -178,40 +134,40 @@ VectorXd Ensemble::ComputeJDotV_Contacts() const {
       "constraints. Other integrators do not yet support contacts.");
 
   // Implemented but unused.
-  VectorXd JdotV = VectorXd::Zero(1 * contacts_.size());
-  for (int i = 0; i < contacts_.size(); ++i) {
-    MatrixXd Jdot_b0 = MatrixXd::Zero(1, 6);
-    MatrixXd Jdot_b1 = MatrixXd::Zero(1, 6);
-    contacts_.at(i).c->ComputeJDot(&Jdot_b0, &Jdot_b1);
-    const int b0 = contacts_.at(i).b0;
-    const int b1 = contacts_.at(i).b1;
-    VectorXd v0 = VectorXd::Zero(6);
-    VectorXd v1 = VectorXd::Zero(6);
-    if (b0 == -1) {
-      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
-      JdotV.segment<1>(i) = Jdot_b0 * v1;
-    } else if (b1 == -1) {
-      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
-      JdotV.segment<1>(i) = Jdot_b0 * v0;
-    } else {
-      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
-      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
-      JdotV.segment<1>(i) = Jdot_b0 * v0 + Jdot_b1 * v1;
-    }
-  }
-  return JdotV;
+  // VectorXd JdotV = VectorXd::Zero(1 * contacts_.size());
+  // for (int i = 0; i < contacts_.size(); ++i) {
+  //   MatrixXd Jdot_b0 = MatrixXd::Zero(1, 6);
+  //   MatrixXd Jdot_b1 = MatrixXd::Zero(1, 6);
+  //   contacts_.at(i)->ComputeJDot(&Jdot_b0, &Jdot_b1);
+  //   const int b0 = contacts_.at(i).b0;
+  //   const int b1 = contacts_.at(i).b1;
+  //   VectorXd v0 = VectorXd::Zero(6);
+  //   VectorXd v1 = VectorXd::Zero(6);
+  //   if (b0 == -1) {
+  //     v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+  //     JdotV.segment<1>(i) = Jdot_b0 * v1;
+  //   } else if (b1 == -1) {
+  //     v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+  //     JdotV.segment<1>(i) = Jdot_b0 * v0;
+  //   } else {
+  //     v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+  //     v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+  //     JdotV.segment<1>(i) = Jdot_b0 * v0 + Jdot_b1 * v1;
+  //   }
+  // }
+  // return JdotV;
 }
 
 VectorXd Ensemble::ComputePositionConstraintError() const {
   VectorXd prev_errors(0, 0);
   for (const auto& joint : joints_) {
-    const auto e = joint.j->ComputeError();
+    const auto e = joint->ComputeError();
     VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
     errors << prev_errors, e;
     prev_errors = errors;
   }
   for (const auto& contact : contacts_) {
-    const auto e = contact.c->ComputeError();
+    const auto e = contact->ComputeError();
     VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
     errors << prev_errors, e;
     prev_errors = errors;
@@ -234,7 +190,7 @@ void Ensemble::Draw() const {
     l->Draw();
   }
   for (const auto& j : joints_) {
-    j.j->Draw();
+    j->Draw();
   }
 }
 
@@ -340,10 +296,8 @@ void Ensemble::UpdateContacts() {
     std::vector<ContactGeometry> cgs;
     CollideBoxAndGround(b->p(), b->R(), b->GetSideLengths(), &cgs);
     for (auto cg : cgs) {
-      // TODO: okay to use raw pointer b.get()? would it ever become dangling?
-      auto c = std::shared_ptr<Contact>(new Contact(b.get(), cg));
-      ContactingBodies cb(c, i);
-      contacts_.push_back(cb);
+      auto contact = std::shared_ptr<Contact>(new Contact(b, i, cg));
+      contacts_.push_back(contact);
     }
   }
 
@@ -357,11 +311,9 @@ void Ensemble::UpdateContacts() {
       CollideBoxes(b0->p(), b0->R(), b0->GetSideLengths(), b1->p(), b1->R(),
                    b1->GetSideLengths(), &ci, &cgs);
       for (auto cg : cgs) {
-        // TODO: okay to use raw pointer b.get()? would it ever become dangling?
-        auto c =
-            std::shared_ptr<Contact>(new Contact(b0.get(), b1.get(), cg, ci));
-        ContactingBodies cb(c, i, j);
-        contacts_.push_back(cb);
+        auto contact =
+            std::shared_ptr<Contact>(new Contact(b0, i, b1, j, cg, ci));
+        contacts_.push_back(contact);
         // TODO: debug only.
         // std::cout << cb.PrintInfo() << std::endl;
       }
@@ -370,7 +322,7 @@ void Ensemble::UpdateContacts() {
 
   // Draw the contacts for debug viz
   // for (const auto& ct : contacts_) {
-  //   ct.c->Draw();
+  //   ct->Draw();
   // }
 }
 
@@ -546,13 +498,6 @@ VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) const {
   return velocity_correction;
 }
 
-std::string Ensemble::ContactingBodies::PrintInfo() const {
-  std::ostringstream s;
-  s << "Contact between components " << b0 << " and " << b1 << ", @ "
-    << c->PrintInfo();
-  return s.str();
-}
-
 Chain::Chain(int num_links, const Vector3d& anchor_position) {
   // TODO: set max allowed n_
   CHECK(num_links > 0) << "Cannot create a Chain with " << num_links
@@ -582,21 +527,17 @@ void Chain::InitJoints() {
   Vector3d c1{0.15, -0.15, 0.15};
   Vector3d c2{-0.15, 0.15, -0.15};
   for (int i = 0; i < n_ - 1; ++i) {
-    // TODO: should joints use plain pointer or shared_ptr?
-    joints_.push_back(JointBodies(
-        std::shared_ptr<Joint>(new BallAndSocketJoint(
-            components_.at(i).get(), c1, components_.at(i + 1).get(), c2)),
-        i, i + 1));
+    auto joint = std::shared_ptr<Joint>(new BallAndSocketJoint(
+        components_.at(i), i, c1, components_.at(i + 1), i + 1, c2));
+    joints_.push_back(joint);
   }
 }
 
 void Chain::SetAnchor() {
   Vector3d anchor_position = components_.at(0)->p();
-  // TODO: should joints use plain pointer or shared_ptr?
-  joints_.push_back(JointBodies(
-      std::shared_ptr<Joint>(new BallAndSocketJoint(
-          components_.at(0).get(), Vector3d::Zero(), anchor_position)),
-      0));
+  auto joint = std::shared_ptr<Joint>(new BallAndSocketJoint(
+      components_.at(0), 0, Vector3d::Zero(), anchor_position));
+  joints_.push_back(joint);
 }
 
 bool Chain::CheckErrorDims(VectorXd error) const {

@@ -9,8 +9,8 @@ default: all
 -include ../common.mk       # For top level invocation
 -include ../../common.mk    # For invocation in the build directory
 
-#CFLAGS += -fsanitize=address
-#CCFLAGS += -fsanitize=address
+CFLAGS += -fsanitize=address
+CCFLAGS += -fsanitize=address
 
 #############################################################################
 # Rules that can be run from the top level directory (all other rules need
@@ -170,6 +170,7 @@ $(APP): $(OBJ)
 
 TESTS = toolkit/testing.o \
 	toolkit/error.o \
+	lcp.o \
 	util.o
 
 # TODO: fix
