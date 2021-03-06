@@ -26,13 +26,13 @@ static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 
 // HangingChain
 // static Chain ch0 = Chain(10, Vector3d(0, 0, 8));
-static Chain ch1 = Chain(10, Vector3d(0, 0, 8));
+static Chain ch1 = Chain(10, Vector3d(2, 2, 3));
 
 // Cairn
-static Cairn cairn(5, {-0.5, 0.5}, {-0.5, 0.5}, {1, 2});
+static Cairn cairn(15, {-0.5, 0.5}, {-0.5, 0.5}, {1, 8});
 
 void SimulationInitialization() {
-  //SimulationInitialization_HangingChain();
+  SimulationInitialization_HangingChain();
   SimulationInitialization_Cairn();
 };
 
@@ -65,7 +65,7 @@ bool SimulationStep() {
   // angle1 += 0.01;
   // angle2 += 0.002;
 
-  //SimulationStep_HangingChain();
+  SimulationStep_HangingChain();
   SimulationStep_Cairn();
 
   return true;
@@ -73,7 +73,7 @@ bool SimulationStep() {
 
 void SimulationInitialization_Cairn() {
   cairn.Init();
-  //cairn.InitStabilize();
+  // cairn.InitStabilize();
 }
 
 bool SimulationStep_Cairn() {
@@ -107,9 +107,10 @@ bool SimulationStep_HangingChain() {
 
   ch1.Draw();
   ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-  VectorXd err = ch1.ComputePositionConstraintError();
-  double err_sq = err.transpose() * err;
-  LOG(INFO) << "ODE step error_sq sum " << err_sq;
+  // ch1.PostStabilize();
+  // VectorXd err = ch1.ComputePositionConstraintError();
+  // double err_sq = err.transpose() * err;
+  // LOG(INFO) << "ODE step error_sq sum " << err_sq;
 
   return true;
 }

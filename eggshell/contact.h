@@ -38,7 +38,7 @@ class Contact : public Constraint {
  private:
   const ContactGeometry cg_;
   const CollisionInfo ci_;
-  const FrictionModel f_ = FrictionModel::NO_FRICTION;
+  const FrictionModel f_ = FrictionModel::INFINITE;
 
   //==========================================================================
   // Different implementations of ComputeError, ComputeJ and ComputeJDot, varies

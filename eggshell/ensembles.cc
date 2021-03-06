@@ -72,6 +72,7 @@ MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
     x_hi->block(x_hi->rows() - c_hi.rows(), 0, c_hi.rows(), c_hi.cols()) = c_hi;
   }
 
+  // DEBUG ONLY
   // std::cout << "=== ComputeJ() ===" << std::endl;
   // std::cout << "J =\n" << J << std::endl;
   // std::cout << "C =\n" << *C << std::endl;
@@ -84,15 +85,15 @@ MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
 bool Ensemble::CheckJ(const MatrixXd& J) const {
   if (J.rows() > J.cols()) {
     std::cout << "ERROR: J has " << J.rows() << " rows and " << J.cols()
-              << " cols => singular.";
+              << " cols => singular." << std::endl;
     return false;
   } else {
     bool good = GetConditionNumber(J) < kGoodConditionNumber;
-    if (!good) {
-      std::cout << "ERROR: GetConditionNumber(J) [" << GetConditionNumber(J)
-                << "] > kGoodConditionNumber [" << kGoodConditionNumber
-                << "]\n.";
-    }
+    // if (!good) {
+    //   std::cout << "ERROR: GetConditionNumber(J) [" << GetConditionNumber(J)
+    //             << "] > kGoodConditionNumber [" << kGoodConditionNumber
+    //             << "]\n.";
+    // }
     return good;
   }
 }
@@ -226,7 +227,6 @@ void Ensemble::ConstructMassInertiaMatrixInverse() {
     M_inverse_.block<3, 3>((i * 2 + 1) * 3, (i * 2 + 1) * 3) =
         b->I_g().inverse();
   }
-  // std::cout << "M^-1 = \n" << M_inverse_;
 }
 
 void Ensemble::InitializeExternalForceTorqueVector() {
@@ -237,7 +237,6 @@ void Ensemble::InitializeExternalForceTorqueVector() {
     external_force_torque_.segment<3>((i * 2 + 1) * 3) =
         -1 * CrossMat(b->w_g()) * b->I_g() * b->w_g();  // TODO: -1?
   }
-  // std::cout << "f_e = \n" << external_force_torque_;
 }
 
 void Ensemble::Step(double dt, Integrator g) {
@@ -264,13 +263,15 @@ void Ensemble::Step(double dt, Integrator g) {
     std::cout << "ERROR: Unknown integrator type " << static_cast<int>(g);
   }
 
-  // TODO: debug only
+  // DEBUG ONLY: print all linear velocities.
   // std::cout << "Num contacts = " << contacts_.size() << std::endl;
   // const VectorXd v1 = GetVelocities();
   // for (int i = 0; i < v1.size() / 6; ++i) {
   //   std::cout << "Linear velocity = " << v1.block<3, 1>(i * 6, 0).norm()
   //             << std::endl;
   // }
+
+  // DEBUG ONLY: check and print rotational kinetic energy at each step.
   // if (!CheckConservationOfEnergy()) {
   //   Panic("Conservation of rotational kinetic energy violated. Exit.");
   // }
@@ -282,7 +283,6 @@ const VectorXd Ensemble::GetVelocities() const {
     v.segment<3>(i * 2 * 3) = components_.at(i)->v();
     v.segment<3>((i * 2 + 1) * 3) = components_.at(i)->w_g();
   }
-  // std::cout << "v = \n" << v;
   return v;
 }
 
@@ -320,13 +320,14 @@ void Ensemble::UpdateContacts() {
         auto contact =
             std::shared_ptr<Contact>(new Contact(b0, i, b1, j, cg, ci));
         contacts_.push_back(contact);
-        // TODO: debug only.
-        // std::cout << cb.PrintInfo() << std::endl;
+        // DEBUG ONLY: print Contact description to check collision detection
+        // results
+        // std::cout << contact->PrintInfo() << std::endl;
       }
     }
   }
 
-  // Draw the contacts for debug viz
+  // DEBUG ONLY: Draw the contacts for viz
   // for (const auto& ct : contacts_) {
   //   ct->Draw();
   // }
@@ -477,9 +478,9 @@ void Ensemble::PostStabilize(int max_steps) {
     ++step_counter;
   }
   // std::cout << "Post-stabilization steps count : " << step_counter <<
-  // std::endl; std::cout << "Explicit Euler post-stabilization error_sq sum : "
-  // << err_sq
-  //           << std::endl;
+  // std::endl;
+  // std::cout << "Explicit Euler post-stabilization error_sq sum : " << err_sq
+  // << std::endl;
 }
 
 void Ensemble::StepPositionRelaxation(double dt, double step_scale) {
