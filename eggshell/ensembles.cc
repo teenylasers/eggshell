@@ -104,6 +104,9 @@ VectorXd Ensemble::ComputeJDotV() const {
 }
 
 VectorXd Ensemble::ComputeJDotV_Joints() const {
+  Panic(
+      "Jdot is hardcoded to have 3 rows. Should be decided by the Constraint.");
+
   VectorXd JdotV = VectorXd::Zero(3 * joints_.size());
   for (int i = 0; i < joints_.size(); ++i) {
     MatrixXd Jdot_b0 = MatrixXd::Zero(3, 6);
@@ -133,29 +136,32 @@ VectorXd Ensemble::ComputeJDotV_Contacts() const {
       "ODE time stepper does not need to compute JdotV for contact "
       "constraints. Other integrators do not yet support contacts.");
 
+  Panic(
+      "Jdot is hardcoded to have 1 row. Should be decided by the Constraint.");
+
   // Implemented but unused.
-  // VectorXd JdotV = VectorXd::Zero(1 * contacts_.size());
-  // for (int i = 0; i < contacts_.size(); ++i) {
-  //   MatrixXd Jdot_b0 = MatrixXd::Zero(1, 6);
-  //   MatrixXd Jdot_b1 = MatrixXd::Zero(1, 6);
-  //   contacts_.at(i)->ComputeJDot(&Jdot_b0, &Jdot_b1);
-  //   const int b0 = contacts_.at(i).b0;
-  //   const int b1 = contacts_.at(i).b1;
-  //   VectorXd v0 = VectorXd::Zero(6);
-  //   VectorXd v1 = VectorXd::Zero(6);
-  //   if (b0 == -1) {
-  //     v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
-  //     JdotV.segment<1>(i) = Jdot_b0 * v1;
-  //   } else if (b1 == -1) {
-  //     v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
-  //     JdotV.segment<1>(i) = Jdot_b0 * v0;
-  //   } else {
-  //     v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
-  //     v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
-  //     JdotV.segment<1>(i) = Jdot_b0 * v0 + Jdot_b1 * v1;
-  //   }
-  // }
-  // return JdotV;
+  VectorXd JdotV = VectorXd::Zero(1 * contacts_.size());
+  for (int i = 0; i < contacts_.size(); ++i) {
+    MatrixXd Jdot_b0 = MatrixXd::Zero(1, 6);
+    MatrixXd Jdot_b1 = MatrixXd::Zero(1, 6);
+    contacts_.at(i)->ComputeJDot(&Jdot_b0, &Jdot_b1);
+    const int b0 = contacts_.at(i)->i0_;
+    const int b1 = contacts_.at(i)->i1_;
+    VectorXd v0 = VectorXd::Zero(6);
+    VectorXd v1 = VectorXd::Zero(6);
+    if (b0 == -1) {
+      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+      JdotV.segment<1>(i) = Jdot_b0 * v1;
+    } else if (b1 == -1) {
+      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+      JdotV.segment<1>(i) = Jdot_b0 * v0;
+    } else {
+      v0 << components_.at(b0)->v(), components_.at(b0)->w_g();
+      v1 << components_.at(b1)->v(), components_.at(b1)->w_g();
+      JdotV.segment<1>(i) = Jdot_b0 * v0 + Jdot_b1 * v1;
+    }
+  }
+  return JdotV;
 }
 
 VectorXd Ensemble::ComputePositionConstraintError() const {
