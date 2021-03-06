@@ -14,7 +14,7 @@ class Joint {
  public:
   virtual ~Joint() = default;
 
-  virtual Vector3d ComputeError() const = 0;
+  virtual VectorXd ComputeError() const = 0;
   virtual void ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1) const = 0;
   virtual void ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const = 0;
 
@@ -33,7 +33,7 @@ class BallAndSocketJoint : public Joint {
                               const Body* b1, const Vector3d& c1)
       : b0_(b0), c0_(c0), b1_(b1), c1_(c1) {}
 
-  Vector3d ComputeError() const override;
+  VectorXd ComputeError() const override;
   void ComputeJ(MatrixXd* J_b0, MatrixXd* J_b1) const override;
   void ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const override;
 

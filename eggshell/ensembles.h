@@ -65,6 +65,13 @@ class Ensemble {
   // Render in EggshellView
   virtual void Draw() const;
 
+  // TODO:
+  // Check conservation of energy and impact, is the following even true?
+  //
+  // Check that the rotational kinetic energy is conserved. Linear kinetic
+  // energy changes due to gravity, thus not checked in this function.
+  bool CheckConservationOfEnergy();
+
  protected:
   // Number of Bodies that make up this ensemble
   int n_;
@@ -82,15 +89,16 @@ class Ensemble {
   };
 
   struct ContactingBodies {
-    Contact c;
+    std::shared_ptr<Contact> c;
     int b0;  // body0 index in components_
     int b1;  // body1 index in components_
 
     // When a component contacts the ground. The component is saved in body1,
     // because the contact normal is given from the ground.
-    ContactingBodies(const Contact _c, int _b) : c(_c), b0(-1), b1(_b) {}
+    ContactingBodies(const std::shared_ptr<Contact> _c, int _b)
+        : c(_c), b0(-1), b1(_b) {}
     // When 2 components contact each other. Contact normal is given from body0.
-    ContactingBodies(const Contact _c, int _b0, int _b1)
+    ContactingBodies(const std::shared_ptr<Contact> _c, int _b0, int _b1)
         : c(_c), b0(_b0), b1(_b1) {}
 
     // Return a string decription of this ContactingBodies
@@ -111,6 +119,8 @@ class Ensemble {
   VectorXd external_force_torque_;
 
  private:
+  double total_rotational_ke_ = std::numeric_limits<double>::infinity();
+
   void ConstructMassInertiaMatrixInverse();
   void InitializeExternalForceTorqueVector();  // Gravity is applied here
 

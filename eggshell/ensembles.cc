@@ -29,25 +29,29 @@ MatrixXd Ensemble::ComputeJ() const {
 
 MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
   const int jn = 3;  // num rows in J per joint
-  const int cn = 1;  // num rows in J per contact
   const int num_joint_constraints = jn * joints_.size();
-  const int num_contact_constraints = cn * contacts_.size();
-  MatrixXd J(num_joint_constraints + num_contact_constraints, 6 * n_);
   // initialize to constraint type to all equality
   ArrayXb C_joints = ArrayXb::Constant(num_joint_constraints, true);
-  ArrayXb C_contacts = ArrayXb::Constant(num_contact_constraints, true);
-  *C = ArrayXb::Constant(num_joint_constraints + num_contact_constraints, true);
+  ArrayXb C_contacts;
   VectorXd x_lo_joints = VectorXd::Zero(num_joint_constraints);
-  VectorXd x_lo_contacts = VectorXd::Zero(num_contact_constraints);
-  *x_lo = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
+  VectorXd x_lo_contacts;
   VectorXd x_hi_joints = VectorXd::Zero(num_joint_constraints);
-  VectorXd x_hi_contacts = VectorXd::Zero(num_contact_constraints);
-  *x_hi = VectorXd::Zero(num_joint_constraints + num_contact_constraints);
+  VectorXd x_hi_contacts;
 
-  J << ComputeJ_Joints(),
-       ComputeJ_Contacts(&C_contacts, &x_lo_contacts, &x_hi_contacts);
+  MatrixXd J_joints = ComputeJ_Joints();
+  MatrixXd J_contacts =
+      ComputeJ_Contacts(&C_contacts, &x_lo_contacts, &x_hi_contacts);
+  const int J_cols = J_joints.cols() > 0 ? J_joints.cols() : J_contacts.cols();
+  MatrixXd J(J_joints.rows() + J_contacts.rows(), J_cols);
+  J << J_joints, J_contacts;
+
+  C->resize(C_joints.rows() + C_contacts.rows(), C_joints.cols());
   *C << C_joints, C_contacts;
+
+  x_lo->resize(x_lo_joints.rows() + x_lo_contacts.rows(), x_lo_contacts.cols());
   *x_lo << x_lo_joints, x_lo_contacts;
+
+  x_hi->resize(x_hi_joints.rows() + x_hi_contacts.rows(), x_hi_contacts.cols());
   *x_hi << x_hi_joints, x_hi_contacts;
 
   // std::cout << "=== ComputeJ() ===" << std::endl;
@@ -81,44 +85,57 @@ MatrixXd Ensemble::ComputeJ_Joints() const {
 
 MatrixXd Ensemble::ComputeJ_Contacts(ArrayXb* C, VectorXd* x_lo,
                                      VectorXd* x_hi) const {
-  // TODO:
-  // Do J dimensions need to be hard-coded here?
-  const int cn = 1;  // num rows in J per contact
-
-  MatrixXd J = MatrixXd::Zero(cn * contacts_.size(), 6 * n_);
+  MatrixXd J;
 
   for (int i = 0; i < contacts_.size(); ++i) {
-    MatrixXd j0(cn, 6), j1(cn, 6);
-    ArrayXb ct = ArrayXb::Constant(cn, true);
-    VectorXd c_lo = VectorXd::Zero(cn);
-    VectorXd c_hi = VectorXd::Zero(cn);
-    contacts_.at(i).c.ComputeJ(&j0, &j1, &ct, &c_lo, &c_hi);
+    MatrixXd j0, j1;
+    ArrayXb ct;
+    VectorXd c_lo;
+    VectorXd c_hi;
+    contacts_.at(i).c->ComputeJ(&j0, &j1, &ct, &c_lo, &c_hi);
 
-    if (contacts_.at(i).b0 != -1) {
-      J.block<cn, 6>(i * cn, contacts_.at(i).b0 * 6) = j0;
-      J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
-    } else {
-      J.block<cn, 6>(i * cn, contacts_.at(i).b1 * 6) = j1;
+    // Construct new rows of J from j0 and j1
+    CHECK(j0.rows() == j1.rows());
+    MatrixXd J_new_rows = MatrixXd::Zero(j0.rows(), 6 * n_);
+    if (contacts_.at(i).b0 >= 0) {
+      J_new_rows.block(0, contacts_.at(i).b0 * 6, j0.rows(), j0.cols()) = j0;
+    }
+    if (contacts_.at(i).b1 >= 0) {
+      J_new_rows.block(0, contacts_.at(i).b1 * 6, j1.rows(), j1.cols()) = j1;
     }
 
-    C->block<cn, 1>(i * cn, 0) = ct;
-    x_lo->block<cn, 1>(i * cn, 0) = c_lo;
-    x_hi->block<cn, 1>(i * cn, 0) = c_hi;
+    // Append new rows to J, C, x_lo, x_hi
+    J.conservativeResize(J.rows() + J_new_rows.rows(), J_new_rows.cols());
+    J.block(J.rows() - J_new_rows.rows(), 0, J_new_rows.rows(),
+            J_new_rows.cols()) = J_new_rows;
+
+    CHECK(C->cols() == ct.cols());
+    C->conservativeResize(C->rows() + ct.rows(), ct.cols());
+    C->block(C->rows() - ct.rows(), 0, ct.rows(), ct.cols()) = ct;
+
+    CHECK(x_lo->cols() == c_lo.cols());
+    x_lo->conservativeResize(x_lo->rows() + c_lo.rows(), x_lo->cols());
+    x_lo->block(x_lo->rows() - c_lo.rows(), 0, c_lo.rows(), c_lo.cols()) = c_lo;
+
+    CHECK(x_hi->cols() == c_hi.cols());
+    x_hi->conservativeResize(x_hi->rows() + c_hi.rows(), x_hi->cols());
+    x_hi->block(x_hi->rows() - c_hi.rows(), 0, c_hi.rows(), c_hi.cols()) = c_hi;
   }
+
   return J;
 }
 
 bool Ensemble::CheckJ(const MatrixXd& J) const {
   if (J.rows() > J.cols()) {
-    LOG(ERROR) << "J has " << J.rows() << " rows and " << J.cols()
-               << " cols => singular.";
+    std::cout << "ERROR: J has " << J.rows() << " rows and " << J.cols()
+              << " cols => singular.";
     return false;
   } else {
     bool good = GetConditionNumber(J) < kGoodConditionNumber;
     if (!good) {
-      LOG(ERROR) << "GetConditionNumber(J) [" << GetConditionNumber(J)
-                 << "] > kGoodConditionNumber [" << kGoodConditionNumber
-                 << "]\n.";
+      std::cout << "ERROR: GetConditionNumber(J) [" << GetConditionNumber(J)
+                << "] > kGoodConditionNumber [" << kGoodConditionNumber
+                << "]\n.";
     }
     return good;
   }
@@ -165,7 +182,7 @@ VectorXd Ensemble::ComputeJDotV_Contacts() const {
   for (int i = 0; i < contacts_.size(); ++i) {
     MatrixXd Jdot_b0 = MatrixXd::Zero(1, 6);
     MatrixXd Jdot_b1 = MatrixXd::Zero(1, 6);
-    contacts_.at(i).c.ComputeJDot(&Jdot_b0, &Jdot_b1);
+    contacts_.at(i).c->ComputeJDot(&Jdot_b0, &Jdot_b1);
     const int b0 = contacts_.at(i).b0;
     const int b1 = contacts_.at(i).b1;
     VectorXd v0 = VectorXd::Zero(6);
@@ -194,21 +211,18 @@ VectorXd Ensemble::ComputePositionConstraintError() const {
     prev_errors = errors;
   }
   for (const auto& contact : contacts_) {
-    const auto e = contact.c.ComputeError();
+    const auto e = contact.c->ComputeError();
     VectorXd errors(prev_errors.rows() + e.rows(), e.cols());
     errors << prev_errors, e;
     prev_errors = errors;
   }
-  CHECK(CheckErrorDims(prev_errors))
-      << "Unexpected error vector dimensions: " << prev_errors.rows() << "x"
-      << prev_errors.cols();
   return prev_errors;
 }
 
 bool Ensemble::CheckInitialConditions() const {
   auto error = ComputePositionConstraintError();
   if (!error.isZero(kAllowNumericalError)) {
-    LOG(ERROR) << "Initial error: " << std::endl << error;
+    std::cout << "ERROR: Initial conditions: " << std::endl << error;
     return false;
   } else {
     return true;
@@ -222,6 +236,22 @@ void Ensemble::Draw() const {
   for (const auto& j : joints_) {
     j.j->Draw();
   }
+}
+
+bool Ensemble::CheckConservationOfEnergy() {
+  double energy = 0;
+  for (const auto& b : components_) {
+    energy = energy + b->GetRotationalKE();
+  }
+  if (std::fabs(energy - total_rotational_ke_) > kAllowNumericalError &&
+      total_rotational_ke_ != std::numeric_limits<double>::infinity()) {
+    std::cout << "Total rotational KE was " << total_rotational_ke_
+              << ", now it's " << energy << std::endl;
+    total_rotational_ke_ = energy;
+    return false;
+  }
+  total_rotational_ke_ = energy;
+  return true;
 }
 
 void Ensemble::ConstructMassInertiaMatrixInverse() {
@@ -269,8 +299,19 @@ void Ensemble::Step(double dt, Integrator g) {
     VectorXd v_new = StepVelocities_ODE(dt, v);
     StepPositions_ODE(dt, v, v_new);
   } else {
-    LOG(ERROR) << "Unknown integrator type " << static_cast<int>(g);
+    std::cout << "ERROR: Unknown integrator type " << static_cast<int>(g);
   }
+
+  // TODO: debug only
+  // std::cout << "Num contacts = " << contacts_.size() << std::endl;
+  // const VectorXd v1 = GetVelocities();
+  // for (int i = 0; i < v1.size() / 6; ++i) {
+  //   std::cout << "Linear velocity = " << v1.block<3, 1>(i * 6, 0).norm()
+  //             << std::endl;
+  // }
+  // if (!CheckConservationOfEnergy()) {
+  //   Panic("Conservation of rotational kinetic energy violated. Exit.");
+  // }
 }
 
 const VectorXd Ensemble::GetVelocities() const {
@@ -300,7 +341,7 @@ void Ensemble::UpdateContacts() {
     CollideBoxAndGround(b->p(), b->R(), b->GetSideLengths(), &cgs);
     for (auto cg : cgs) {
       // TODO: okay to use raw pointer b.get()? would it ever become dangling?
-      Contact c(b.get(), cg);
+      auto c = std::shared_ptr<Contact>(new Contact(b.get(), cg));
       ContactingBodies cb(c, i);
       contacts_.push_back(cb);
     }
@@ -316,8 +357,9 @@ void Ensemble::UpdateContacts() {
       CollideBoxes(b0->p(), b0->R(), b0->GetSideLengths(), b1->p(), b1->R(),
                    b1->GetSideLengths(), &ci, &cgs);
       for (auto cg : cgs) {
-        Contact c(b0.get(), b1.get(), cg, ci);
         // TODO: okay to use raw pointer b.get()? would it ever become dangling?
+        auto c =
+            std::shared_ptr<Contact>(new Contact(b0.get(), b1.get(), cg, ci));
         ContactingBodies cb(c, i, j);
         contacts_.push_back(cb);
         // TODO: debug only.
@@ -328,7 +370,7 @@ void Ensemble::UpdateContacts() {
 
   // Draw the contacts for debug viz
   // for (const auto& ct : contacts_) {
-  //   ct.c.Draw();
+  //   ct.c->Draw();
   // }
 }
 
@@ -507,7 +549,7 @@ VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) const {
 std::string Ensemble::ContactingBodies::PrintInfo() const {
   std::ostringstream s;
   s << "Contact between components " << b0 << " and " << b1 << ", @ "
-    << c.PrintInfo();
+    << c->PrintInfo();
   return s.str();
 }
 

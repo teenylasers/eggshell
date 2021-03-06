@@ -45,25 +45,16 @@ class Contact {
   //==========================================================================
   // Different implementations of ComputeError, ComputeJ and ComputeJDot, varies
   // in friction handling.
-  //
-  VectorXd ComputeError_NoFriction() const;
-  void ComputeJ_NoFriction(MatrixXd* J_b0, MatrixXd* J_b1) const;
+
   void ComputeJDot_NoFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
-  // Infinite friction and add constraint force mixing
-  VectorXd ComputeError_InfiniteFriction() const;
-  void ComputeJ_InfiniteFriction(MatrixXd* J_b0, MatrixXd* J_b1, ArrayXb* C,
-                                 VectorXd* x_lo, VectorXd* x_hi) const;
   void ComputeJDot_InfiniteFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
+
   // Box friction with dynamic limits
   void ComputeJ_BoxFriction(MatrixXd* J_b0, MatrixXd* J_b1) const;
   void ComputeJDot_BoxFriction(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
   // Models Coulomb friction cone as an N-sided pyramid.
   void ComputeJ_CoulombPyramid(MatrixXd* J_b0, MatrixXd* J_b1) const;
   void ComputeJDot_CoulombPyramid(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
-
-  //==========================================================================
-  // Helper functions for error checking and experimentation
-  void CheckJ_InfiniteFriction() const;
 };
 
 std::ostream& operator<<(std::ostream* out, const Contact& c);
