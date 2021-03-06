@@ -55,10 +55,6 @@ class Contact {
   // Models Coulomb friction cone as an N-sided pyramid.
   void ComputeJ_CoulombPyramid(MatrixXd* J_b0, MatrixXd* J_b1) const;
   void ComputeJDot_CoulombPyramid(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const;
-
-  //==========================================================================
-  // Helper functions for error checking and experimentation
-  //void CheckJ_InfiniteFriction() const;
 };
 
 std::ostream& operator<<(std::ostream* out, const Contact& c);

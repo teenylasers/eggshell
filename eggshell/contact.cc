@@ -166,34 +166,6 @@ std::string Contact::PrintInfo() const {
   return s.str();
 }
 
-// void Contact::CheckJ_InfiniteFriction() const {
-//   // J and Jdot for no friction
-//   MatrixXd J0_b0(1, 6), J0_b1(1, 6), Jdot0_b0(1, 6), Jdot0_b1(1, 6);
-//   MatrixXd J0(1, 12), Jdot0(1, 12);
-//   // J and Jdot for CFM with infinite friction
-//   MatrixXd JCfm_b0(3, 6), JCfm_b1(3, 6), JdotCfm_b0(3, 6), JdotCfm_b1(3, 6);
-//   MatrixXd JCfm(3, 12), JdotCfm(3, 12);
-//   ArrayXb C(3);
-//   VectorXd x_lo(3), x_hi(3);
-//
-//   ComputeJ_NoFriction(&J0_b0, &J0_b1);
-//   ComputeJDot_NoFriction(&Jdot0_b0, &Jdot0_b1);
-//   ComputeJ_InfiniteFriction(&JCfm_b0, &JCfm_b1, &C, &x_lo, &x_hi);
-//   ComputeJDot_InfiniteFriction(&JdotCfm_b0, &JdotCfm_b1);
-//   J0 << J0_b0, J0_b1;
-//   Jdot0 << Jdot0_b0, Jdot0_b1;
-//   JCfm << JCfm_b0, JCfm_b1;
-//   JdotCfm << JdotCfm_b0, JdotCfm_b1;
-//
-//   // Check that J0 == JCfm.row(2);
-//   std::cout << "J0: \n" << J0 << "\n";
-//   std::cout << "JCfm: \n" << JCfm << "\n";
-//   std::cout << "Jdot0: \n" << Jdot0 << "\n";
-//   std::cout << "JdotCfm: \n" << JdotCfm << "\n";
-//   CHECK(J0.row(0).isApprox(JCfm.row(2), kAllowNumericalError));
-//   CHECK(Jdot0.row(0).isApprox(JdotCfm.row(2), kAllowNumericalError));
-// }
-
 std::ostream& operator<<(std::ostream* out, const Contact& c) {
   return *out << c.PrintInfo();
 }

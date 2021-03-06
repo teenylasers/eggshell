@@ -89,15 +89,16 @@ class Ensemble {
   };
 
   struct ContactingBodies {
-    Contact c;
+    std::shared_ptr<Contact> c;
     int b0;  // body0 index in components_
     int b1;  // body1 index in components_
 
     // When a component contacts the ground. The component is saved in body1,
     // because the contact normal is given from the ground.
-    ContactingBodies(const Contact _c, int _b) : c(_c), b0(-1), b1(_b) {}
+    ContactingBodies(const std::shared_ptr<Contact> _c, int _b)
+        : c(_c), b0(-1), b1(_b) {}
     // When 2 components contact each other. Contact normal is given from body0.
-    ContactingBodies(const Contact _c, int _b0, int _b1)
+    ContactingBodies(const std::shared_ptr<Contact> _c, int _b0, int _b1)
         : c(_c), b0(_b0), b1(_b1) {}
 
     // Return a string decription of this ContactingBodies

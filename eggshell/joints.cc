@@ -1,8 +1,8 @@
 #include "joints.h"
 
 
-Vector3d BallAndSocketJoint::ComputeError() const {
-  Vector3d error = Vector3d::Zero();
+VectorXd BallAndSocketJoint::ComputeError() const {
+  VectorXd error = Vector3d::Zero(3);
   if (b1_ == nullptr) {
     error = b0_->p() + b0_->R() * c0_ - c1_;
   } else {
