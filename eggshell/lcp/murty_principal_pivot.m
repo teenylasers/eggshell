@@ -12,16 +12,24 @@ assert(n == m(1) && m(2) == 1)
 
 % If x_lo and x_hi are not specified, then standard LCP problem, x >= 0
 if nargin == 2
-  x_lo = 0;
-  x_hi = Inf;
+  x_lo = zeros(n, 1);
+  x_hi = ones(n, 1) * Inf;
+end
+
+% If x_lo and x_hi were given as scalars, form them into vectors.
+if all(size(x_lo)==1)
+  x_lo = ones(n, 1) * x_lo;
+end
+if all(size(x_hi)==1)
+  x_hi = ones(n, 1) * x_hi;
 end
 
 % Check that
 % 1. x_lo < x_hi
 % 2. x_lo <= 0 and x_hi > 0
 % TODO: why does the algorithm not work for x_lo > 0? and should that be the case?
-assert(x_lo < x_hi)
-assert(x_lo <= 0 && x_hi > 0)
+assert(all(x_lo < x_hi))
+assert(all(x_lo <= 0) && all(x_hi > 0))
 
 % S indicates whether the solution element lies on
 %  S : x_lo <= x <= x_hi, w = 0, or
@@ -32,7 +40,7 @@ x = zeros(n, 1);
 w = -b;
 % For elements in ~S, C indicates which domain w(i) should be, whether it is C(i) == x_lo
 % && w >= 0, or C(i) == x_hi && w <= 0.
-C = ones(n, 1) * x_lo;
+C = ones(n, 1) .* x_lo;
 
 % TODO: how to guard against infinite loops
 max_iterations = min(1000, 2^n);
@@ -41,8 +49,8 @@ while iteration_count < max_iterations
   [check S C] = check_solution(A, b, x, w, S, C, x_lo, x_hi);
   if ~check
     x(S) = A(S,S) \ b(S);
-    x(~S & (C == x_lo)) = ones(sum(~S & (C == x_lo)), 1) * x_lo;
-    x(~S & (C == x_hi)) = ones(sum(~S & (C == x_hi)), 1) * x_hi;
+    x(~S & (C == x_lo)) = ones(sum(~S & (C == x_lo)), 1) .* x_lo(~S & (C == x_lo));
+    x(~S & (C == x_hi)) = ones(sum(~S & (C == x_hi)), 1) .* x_hi(~S & (C == x_hi));
     w(~S) = A(~S,S) * x(S) - b(~S);
     w(S) = zeros(sum(S), 1);
   else
@@ -64,7 +72,9 @@ else
 end
 
 if return_code ~= 0
-  fprintf('x_lo = %d, x_hi = %d\n', x_lo, x_hi);
+  %fprintf('x_lo = %d, x_hi = %d\n', x_lo, x_hi);
+  x_lo
+  x_hi
   %x
   %w
   %S
@@ -86,23 +96,23 @@ for i = 1:dim
   % 1. if x(i) < x_lo, then S(i) = false, C(i) = x_lo
   % 2. if x(i) > x_hi, then S(i) = false, C(i) = x_hi
   if S(i)
-    if x(i) < x_lo
+    if x(i) < x_lo(i)
       S(i) = false;
-      C(i) = x_lo;
+      C(i) = x_lo(i);
       return;
-    elseif x(i) > x_hi
+    elseif x(i) > x_hi(i)
       S(i) = false;
-      C(i) = x_hi;
+      C(i) = x_hi(i);
       return;
     end
   % Check w(~S),
   % 1. if C(i) = x_lo && w(i) < 0, then S(i) = true
   % 2. if C(i) = x_hi && w(i) > 0, then S(i) = true
   else
-    if C(i) == x_lo && w(i) < 0
+    if C(i) == x_lo(i) && w(i) < 0
       S(i) = true;
       return;
-    elseif C(i) == x_hi && w(i) > 0
+    elseif C(i) == x_hi(i) && w(i) > 0
       S(i) = true;
       return;
     end
