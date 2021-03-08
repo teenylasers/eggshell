@@ -12,6 +12,9 @@ bool MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
                          VectorXd& w);
 bool MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
                          VectorXd& w, const double x_lo, const double x_hi);
+bool MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
+                         VectorXd& w, const VectorXd& x_lo,
+                         const VectorXd& x_hi);
 
 // C = constraint_type, true for equality constraint, false for inequality
 // constraint
@@ -24,16 +27,23 @@ bool MixedConstraintsSolver(const MatrixXd& A, const VectorXd& b,
 // TODO: make ind an array of boolean instead of int
 // TODO: combine for matrices and vectors.
 // TODO: return type should work for all element types: d, f, i
+
 // Select submatrix from A using a vector ind of indices, return the results in
 // Matrix ret. No modifications to input A or ind.
 MatrixXd SelectSubmatrix(const MatrixXd& A, const ArrayXb& row_ind,
                          const ArrayXb& col_ind);
 VectorXd SelectSubvector(const VectorXd& v, const ArrayXb& ind);
+
 // Update submatrix of A indicated by ind with content of m. Dimensions of
-// ind(true) and m shouild match.
+// ind(true) and m should match.
 void UpdateSubmatrix(MatrixXd& A, const ArrayXb& row_ind,
                      const ArrayXb& col_ind, const MatrixXd& m);
+
+// Update subvector of v indicated by ind with content of n. Dimensions of
+// ind(true) and n should match.
 void UpdateSubvector(VectorXd& v, const ArrayXb& ind, const VectorXd& n);
+
+// Update subvector of v indicated by ind with d.
 void UpdateSubvector(VectorXd& v, const ArrayXb& ind, double d);
 
 }  // namespace Lcp

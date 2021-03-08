@@ -19,7 +19,7 @@ constexpr double kLcpLooserAllowedError = 1e-8;
 // one offending element in S.
 bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
                         const VectorXd& w, ArrayXb& S, ArrayXd& C,
-                        const double x_lo, const double x_hi,
+                        const VectorXd& x_lo, const VectorXd& x_hi,
                         const double err = 0) {
   // Option to allow for numerical error. When checking x(S) < zero and
   // w(S_complement) < zero, zero can be 0 or a small negative number.
@@ -36,25 +36,25 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
   for (int i = 0; i < dim; ++i) {
     if (S(i)) {
       // Check x(S),
-      // 1. if x(i) < x_lo, then S(i) = false, C(i) = x_lo
-      // 2. if x(i) > x_hi, then S(i) = false, C(i) = x_hi
-      if (x(i) < x_lo) {
+      // 1. if x(i) < x_lo(i), then S(i) = false, C(i) = x_lo(i)
+      // 2. if x(i) > x_hi(i), then S(i) = false, C(i) = x_hi(i)
+      if (x(i) < x_lo(i)) {
         S(i) = false;
-        C(i) = x_lo;
+        C(i) = x_lo(i);
         return false;
-      } else if (x(i) > x_hi) {
+      } else if (x(i) > x_hi(i)) {
         S(i) = false;
-        C(i) = x_hi;
+        C(i) = x_hi(i);
         return false;
       }  // else do nothing
     } else {
       // Check w(~S),
       // 1. if C(i) = x_lo && w(i) < 0, then S(i) = true
       // 2. if C(i) = x_hi && w(i) > 0, then S(i) = true
-      if (C(i) == x_lo && w(i) < 0) {
+      if (C(i) == x_lo(i) && w(i) < 0) {
         S(i) = true;
         return false;
-      } else if (C(i) == x_hi && w(i) > 0) {
+      } else if (C(i) == x_hi(i) && w(i) > 0) {
         S(i) = true;
         return false;
       }  // else do nothing
@@ -62,14 +62,14 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
   }
 
   // Passed both x(S) and w(!S) checks above, check goodness of solution.
-  if ((x.array() < x_lo).any() || (x.array() > x_hi).any()) {
+  if ((x.array() < x_lo.array()).any() || (x.array() > x_hi.array()).any()) {
     // std::cout << "Some elements of x are less than x_lo or greater than
     // x_hi:\n"
     //           << x;
     return false;
   }
-  const VectorXd w_at_xlo = Lcp::SelectSubvector(w, x.array() == x_lo);
-  const VectorXd w_at_xhi = Lcp::SelectSubvector(w, x.array() == x_hi);
+  const VectorXd w_at_xlo = Lcp::SelectSubvector(w, x.array() == x_lo.array());
+  const VectorXd w_at_xhi = Lcp::SelectSubvector(w, x.array() == x_hi.array());
   if ((w_at_xlo.array() < 0).any() || (w_at_xhi.array() > 0).any()) {
     // std::cout << "Some elements of w are out of bound. \nx = \n"
     //           << x << "w = \n"
@@ -93,10 +93,11 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
   return true;
 }
 
-bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, VectorXd& x,
-                        VectorXd& w, ArrayXb& S, const double err = 0) {
-  const double x_lo = 0;
-  const double x_hi = std::numeric_limits<double>::infinity();
+bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
+                        const VectorXd& w, ArrayXb& S, const double err = 0) {
+  const VectorXd x_lo = VectorXd::Constant(A.rows(), 0);
+  const VectorXd x_hi =
+      VectorXd::Constant(A.rows(), std::numeric_limits<double>::infinity());
   ArrayXd C = ArrayXd::Zero(S.rows());
   return CheckMurtySolution(A, b, x, w, S, C, x_lo, x_hi, err);
 }
@@ -139,19 +140,28 @@ bool UpdatePreviousBestSolution(const VectorXd& new_x, const VectorXd& new_w,
 
 bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
                               VectorXd& w) {
-  const double x_lo = 0;
-  const double x_hi = std::numeric_limits<double>::infinity();
+  const VectorXd x_lo = VectorXd::Constant(A.rows(), 0);
+  const VectorXd x_hi =
+      VectorXd::Constant(A.rows(), std::numeric_limits<double>::infinity());
   return MurtyPrincipalPivot(A, b, x, w, x_lo, x_hi);
 }
 
 bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
                               VectorXd& w, const double x_lo,
                               const double x_hi) {
+  const VectorXd x_lo_vector = VectorXd::Constant(A.rows(), x_lo);
+  const VectorXd x_hi_vector = VectorXd::Constant(A.rows(), x_hi);
+  return MurtyPrincipalPivot(A, b, x, w, x_lo_vector, x_hi_vector);
+}
+
+bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
+                              VectorXd& w, const VectorXd& x_lo,
+                              const VectorXd& x_hi) {
   // Check input arguments
-  CHECK(x_lo < x_hi);
+  CHECK((x_lo.array() < x_hi.array()).all());
   // TODO: why does x_lo need to be <= 0?
-  CHECK(x_lo <= 0);
-  CHECK(x_hi > 0);
+  CHECK((x_lo.array() <= 0).all());
+  CHECK((x_hi.array() > 0).all());
 
   // Dimension of the input Ax=b+w problem.
   const int dim = b.rows();
@@ -176,7 +186,7 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
   // For elements in !S, C indicates which domain w(i) should be in, whether it
   // is C(i) == x_lo && w >= 0, or C(i) == x_hi && w <= 0. Initialize C to all
   // x_lo to start.
-  ArrayXd C = ArrayXd::Ones(dim) * x_lo;
+  ArrayXd C = ArrayXd::Ones(dim) * x_lo.array();
   // Remeber the last best x and w, {last_best_x, last_best_w}
   VectorXd last_best_x = x;
   VectorXd last_best_w = w;
@@ -191,11 +201,21 @@ bool Lcp::MurtyPrincipalPivot(const MatrixXd& A, const VectorXd& b, VectorXd& x,
       // CheckMurtySolution() has updated S.
       const VectorXd new_xs = Lcp::SelectSubmatrix(A, S, S).ldlt().solve(
           Lcp::SelectSubvector(b, S));
-      Lcp::UpdateSubvector(x, S, new_xs);  // Update x(S)
-      Lcp::UpdateSubvector(x, !S * (C.array() == x_lo),
-                           x_lo);  // Update x(!S) = x_lo
-      Lcp::UpdateSubvector(x, !S * (C.array() == x_hi),
-                           x_hi);  // Update x(!S) = x_hi
+
+      // Update x(S)
+      Lcp::UpdateSubvector(x, S, new_xs);
+
+      // Update x(!S) = x_lo
+      const VectorXd select_x_lo =
+          Lcp::SelectSubvector(x_lo, !S * (C.array() == x_lo.array()));
+      Lcp::UpdateSubvector(x, !S * (C.array() == x_lo.array()), select_x_lo);
+
+      // Update x(!S) = x_hi
+      const VectorXd select_x_hi =
+          Lcp::SelectSubvector(x_hi, !S * (C.array() == x_hi.array()));
+      Lcp::UpdateSubvector(x, !S * (C.array() == x_hi.array()), select_x_hi);
+
+      // Construct new w
       const VectorXd new_wsc =
           Lcp::SelectSubmatrix(A, !S, S) * Lcp::SelectSubvector(x, S) -
           Lcp::SelectSubvector(b, !S);
@@ -652,6 +672,33 @@ TEST_FUNCTION(MixedConstraintsSolver_NoBounds) {
   const VectorXd x_lo = VectorXd::Constant(matrix_size, 0);
   const VectorXd x_hi =
       VectorXd::Constant(matrix_size, std::numeric_limits<double>::infinity());
+  VectorXd x(matrix_size), w(matrix_size);
+  VectorXd zeros = VectorXd::Zero(matrix_size);
+  int success_count = 0, trivial_count = 0;
+  for (int i = 0; i < num_tests; ++i) {
+    const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
+    const VectorXd b = VectorXd::Random(matrix_size);
+    const ArrayXb C = ArrayXb::Random(matrix_size);
+    if (Lcp::MixedConstraintsSolver(A, b, C, x_lo, x_hi, x, w)) {
+      ++success_count;
+      if (x == zeros) {
+        ++trivial_count;
+      }
+    }
+  }
+  std::cout << "Mixed constraints solver: matrix size " << matrix_size << "x"
+            << matrix_size << ", " << trivial_count
+            << " had trivial solutions, " << success_count << " of "
+            << num_tests << " tests passed.\n";
+  CHECK(success_count == num_tests);
+}
+
+TEST_FUNCTION(MixedConstraintsSolver_WithBounds) {
+  std::cout << "x_lo = -10; x_hi = 10.\n";
+  constexpr int num_tests = 100;
+  constexpr int matrix_size = 50;
+  const VectorXd x_lo = VectorXd::Constant(matrix_size, -10);
+  const VectorXd x_hi = VectorXd::Constant(matrix_size, 10);
   VectorXd x(matrix_size), w(matrix_size);
   VectorXd zeros = VectorXd::Zero(matrix_size);
   int success_count = 0, trivial_count = 0;
