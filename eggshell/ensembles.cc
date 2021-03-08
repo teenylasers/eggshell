@@ -84,8 +84,8 @@ MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
 
 bool Ensemble::CheckJ(const MatrixXd& J) const {
   if (J.rows() > J.cols()) {
-    std::cout << "ERROR: J has " << J.rows() << " rows and " << J.cols()
-              << " cols => singular." << std::endl;
+    // std::cout << "ERROR: J has " << J.rows() << " rows and " << J.cols()
+    //           << " cols => singular." << std::endl;
     return false;
   } else {
     bool good = GetConditionNumber(J) < kGoodConditionNumber;
