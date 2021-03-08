@@ -180,7 +180,7 @@ ifeq ($(PLATFORM), osx)
 endif
 
 ifeq ($(OPTIMIZE), 1)
-  EIGEN_FLAGS = -DEIGEN_NO_DEBUG
+  EIGEN_FLAGS = -DEIGEN_NO_DEBUG -march=native
 endif
 
 # -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int reduces sparse matrix memory usage in
