@@ -200,8 +200,10 @@ EIGEN_FLAGS += -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int
 ifeq ($(PLATFORM), osx)
   # Eigen can connect to the Apple-provided Accelerate framework, which has
 	# a much faster implementation of dense matrix multiply, factorizations, etc.
-	# This has no effect on sparse matrix operations.
-	EIGEN_FLAGS += -DEIGEN_USE_BLAS -DEIGEN_USE_LAPACKE
+	# This has no effect on sparse matrix operations. We intentionally omit
+	# -DEIGEN_USE_LAPACKE, because this flag (plus the required liblapacke) seems
+	# to make dense factorization *much* slower on the mac.
+	EIGEN_FLAGS += -DEIGEN_USE_BLAS
 	LDFLAGS += -framework Accelerate
 	# Turn off some Eigen compiler warnings.
   EIGEN_FLAGS += -Wno-int-in-bool-context
