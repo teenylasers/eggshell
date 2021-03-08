@@ -29,6 +29,10 @@ using Eigen::Vector4f;
 using Eigen::VectorXcd;         // Eigen vector of complex double
 using Eigen::Vector2cd;         // Eigen vector of two complex doubles
 
+#ifndef EIGEN_VECTORIZE
+#error "Eigen vectorization was not enabled, some performance will be lost"
+#endif
+
 //***************************************************************************
 // Add some operators that my_jet.h is missing.
 // @@@ We can implement these inside my_jet.h a bit more efficiently.
