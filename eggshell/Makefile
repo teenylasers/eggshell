@@ -58,6 +58,7 @@ OBJ = body.o \
       toolkit/gl_utils.o \
       toolkit/camera.o \
       toolkit/mystring.o \
+			toolkit/random.o \
       toolkit/shaders.o \
       toolkit/testing.o \
       qt/main.o \
@@ -169,12 +170,13 @@ $(APP): $(OBJ)
 # Files to run tests on
 
 TESTS = toolkit/testing.o \
+  toolkit/random.o \
 	toolkit/error.o \
 	lcp.o \
 	util.o
 
 # TODO: fix
-#$(TESTS): CCFLAGS += -D__TOOLKIT_DEFINE_TESTING_MAIN__
+# $(TESTS): CCFLAGS += -D__TOOLKIT_DEFINE_TESTING_MAIN__
 
 unittest: $(TESTS)
 	$(CXX) $(CCFLAGS) -I$(EIGEN_DIR) $(LDFLAGS) -o test $(TESTS)
