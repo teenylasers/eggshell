@@ -181,8 +181,12 @@ endif
 
 ifeq ($(OPTIMIZE), 1)
   # The -march=native flag is needed to unlock all vectorized instruction sets,
-  # and e.g. makes the Rama factor step about 40% faster.
-  EIGEN_FLAGS = -DEIGEN_NO_DEBUG -march=native
+  # and e.g. makes the Rama factor step about 40% faster. Take care with this
+  # flag though: it changes the ABI on some platforms and can cause hard to
+  # find bugs.
+  EIGEN_FLAGS = -DEIGEN_NO_DEBUG
+  CFLAGS += -march=native
+  FFLAGS += -march=native
 endif
 
 # -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int reduces sparse matrix memory usage in
