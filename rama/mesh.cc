@@ -873,7 +873,7 @@ void Mesh::DetermineBoundaryParameters(Lua *lua,
       continue;
     }
     vector<RobinArg> &arg = it.second;
-    port_callbacks_[port_number].Push(lua->L());                // fn
+    port_callbacks_[port_number].callback.Push(lua->L());       // fn
 
     // Create the Lua vectors that will be passed to the callback function.
     LuaVector *d = LuaUserClassCreateObj<LuaVector>(lua->L());  // fn d

@@ -231,7 +231,8 @@ class Shape : public LuaUserClass {
   // Return the material for the n'th piece.
   const Material& GetMaterial(int n) const { return polys_[n].material; }
 
-  // Set this polygon to the n'th piece of 'p' (p can be this).
+  // Set this polygon to the n'th piece of 'p' (p can be this). The port
+  // callbacks and other auxiliary information is copied too.
   void SetToPiece(int n, const Shape &p);
 
   // Set the given piece,edge to the given edge kind. Return true on success or
@@ -390,9 +391,19 @@ class Shape : public LuaUserClass {
   bool LoadSTL(const char *filename);
 
   // Access port callbacks.
-  const std::map<int, LuaCallback> & PortCallbacks() const {
+  struct CallbackInfo {
+    LuaCallback callback;
+    JetComplex S11;
+    bool operator==(const CallbackInfo &v) const
+        { return callback == v.callback && S11 == v.S11; }
+  };
+  const std::map<int, CallbackInfo> & PortCallbacks() const {
     return port_callbacks_;
   }
+
+  // Return a human readable string that describes the port callbacks. This is
+  // for debugging.
+  std::string CallbackDebugString() const;
 
   //.........................................................................
   // Lua interface. All lua functions that don't return some other value will
@@ -451,7 +462,7 @@ class Shape : public LuaUserClass {
     }
   };
   vector<Polygon> polys_;
-  std::map<int, LuaCallback> port_callbacks_;  // port num -> callback func
+  std::map<int, CallbackInfo> port_callbacks_;  // port num -> callback func
 
   int UpdateBounds(JetNum *min_x, JetNum *min_y, JetNum *max_x, JetNum *max_y)
       const;

@@ -909,6 +909,7 @@ void Shape::MakePolyline() {
 
 void Shape::SetToPiece(int n, const Shape &p) {
   CHECK(n >= 0 && n < p.polys_.size());
+  Clear();
   // Use swaps where possible to minimize the number of copies.
   vector<Polygon> new_polys_(1);
   if (&p == this) {
@@ -917,6 +918,7 @@ void Shape::SetToPiece(int n, const Shape &p) {
     new_polys_[0] = p.polys_[n];
   }
   new_polys_.swap(polys_);
+  port_callbacks_ = p.port_callbacks_;
 }
 
 bool Shape::AssignPort(int piece, int edge, EdgeKind kind, PointMap *pmap) {
@@ -1960,8 +1962,10 @@ bool Shape::CombinePortCallbacks(const Shape *c1, const Shape *c2) {
   }
   if (c2) {
     for (auto it : c2->port_callbacks_) {
-      if (port_callbacks_.count(it.first) > 0) {
-        Error("Merged shapes contain port callbacks for the same port.");
+      if (port_callbacks_.count(it.first) > 0 &&
+          !(port_callbacks_[it.first] == it.second)) {
+        Error("Merged shapes contain different port callbacks for the same "
+              "port.");
         return false;
       }
       port_callbacks_[it.first] = it.second;
@@ -1977,6 +1981,14 @@ const Shape &Shape::LuaCheckShape(lua_State *L, int argument_index) const {
     LuaError(L, "Argument %d must be a Shape", argument_index);
   }
   return *s;
+}
+
+std::string Shape::CallbackDebugString() const {
+  std::string s = "Callbacks on ports";
+  for (const auto &it : port_callbacks_) {
+    s += " " + std::to_string(it.first);
+  }
+  return s;
 }
 
 //...........................................................................
@@ -2015,7 +2027,9 @@ int Shape::Index(lua_State *L) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaSelect>));
     } else if (strcmp(s, "SelectAll") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaSelectAll>));
-    } else if (strcmp(s, "Port") == 0) {
+    } else if (strcmp(s, "Port") == 0) {  // __Port__ in user_script_util.lua
+      lua_getglobal(L, "__Port__");       // calls RawPort defined here.
+    } else if (strcmp(s, "RawPort") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaPort>));
     } else if (strcmp(s, "ABC") == 0) {
       lua_pushcfunction(L, (LuaUserClassStub<Shape, &Shape::LuaABC>));
@@ -2076,6 +2090,8 @@ int Shape::Index(lua_State *L) {
       lua_pushnumber(L, polys_[0].material.epsilon.imag());
       lua_call(L, 2, 1);
       lua_rawset(L, -3);
+    } else if (strcmp(s, "callbacks") == 0) {
+      lua_pushstring(L, CallbackDebugString().c_str());
     } else {
       LuaError(L, "Unknown shape field '%s'", s);
     }
@@ -2380,23 +2396,15 @@ int Shape::LuaSelectAll(lua_State *L) {
 enum { MAGIC_ABC_PORT = -15485863 };
 
 int Shape::LuaPort(lua_State *L) {
-  // Trim off nils at the end before we start counting arguments.
-  LuaErrorIfNaNOrInfs(L);
-  while (lua_gettop(L) >= 1 && lua_type(L, lua_gettop(L)) == LUA_TNIL) {
-    lua_pop(L, 1);
-  }
-
-  // Check that this is called with the arguments:
+  // This marks the edge from vertex e to vertex e+1 as a port. It is called
+  // with the arguments:
   //   1: {p=#, e=#} table (piece and edge), or an array of such tables
   //   2: port number
-  //   3: optional callback function
-  // to mark the edge from vertex e to vertex e+1 as a port.
-  if (lua_gettop(L) < 3 || lua_gettop(L) > 4) {
-    LuaError(L, "Shape:Port() expecting 2 or 3 arguments");
-  }
-  if (lua_gettop(L) == 4 && lua_type(L, 4) != LUA_TFUNCTION) {
-    LuaError(L, "Shape:Port() third argument must be a function");
-  }
+  //   3: real part of S11
+  //   4: imaginary part of S11
+  //   5: optional callback function
+  // Some argument checking is already done in __Port__.
+  CHECK(lua_gettop(L) == 6);
   EdgeKind edge_kind;
   int port_number = ToDouble(luaL_checknumber(L, 3));
   if (port_number >= 1 && port_number <= EdgeKind::MaxPort() &&
@@ -2408,9 +2416,11 @@ int Shape::LuaPort(lua_State *L) {
     LuaError(L, "Invalid port number (should be an integer in the range 1..%d)",
              EdgeKind::MaxPort());
   }
-  if (lua_gettop(L) == 4) {
+  JetComplex S11(luaL_checknumber(L, 4), luaL_checknumber(L, 5));
+  if (lua_type(L, 6) == LUA_TFUNCTION) {
     // Save the port callback, if any.
-    port_callbacks_[port_number] = LuaCallback(L);
+    port_callbacks_[port_number].callback = LuaCallback(L);
+    port_callbacks_[port_number].S11 = S11;
   }
   vector<int> piece(1), edge(1);
   if (!GetPieceEdge(L, 2, &piece[0], &edge[0])) {

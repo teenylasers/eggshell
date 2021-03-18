@@ -176,7 +176,6 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
         *alpha = JetComplex(0, 1) * k;          // Works for all ports and ABC
         *beta = JetComplex(0, 2.0) * excitation * k;
       } else if (s->config_.type == ScriptConfig::EZ) {
-        JetComplex S11(0, 0);       // Desired S11 at port @@@ allow this to be changeable
         // Compute the propagation constant 'beta0' for the TE10 mode. It can
         // be imaginary for too-narrow ports. For ABC ports we assume large
         // port length so that normal-incidence waves are the ones absorbed.
@@ -192,8 +191,7 @@ struct HelmholtzFEMProblem : FEM::FEMProblem {
           // at the port boundary conditions and not exponential increase.
           beta0 = -beta0;
         }
-        *alpha = JetComplex(0, -1) * beta0 *
-                 (S11 + JetNum(1.0)) / (S11 - JetNum(1.0));
+        *alpha = JetComplex(0, 1) * beta0;
         *beta = JetComplex(0, (2.0 * sin(dist * M_PI)) * abs(*alpha)) *
                 excitation;
       } else {
@@ -1022,22 +1020,33 @@ bool Solver::ComputePortOutgoingPower(vector<JetComplex> *result) {
   JetNum overall_scale = 0;
   for (int i = 0; i < field.size(); i++) {
     int port_number = i + 1;
-    // The power compensation required depends on the cavity type.
-    JetNum power_scale = 1;
+    // If an S11 has been set for this port then compensate for the reflected
+    // power. Note that we use s11*conj(s11) instead of sqr(abs(s11), because
+    // the latter expression does not propagate derivatives well.
+    JetComplex s11(0, 0);       // Default assumption
+    if (port_callbacks_.count(port_number) > 0) {
+      s11 = port_callbacks_[port_number].S11;
+    }
+    JetNum denom = abs(JetComplex(1,0) + std::conj(s11));
+    JetComplex power_scale = (JetComplex(1.0) - s11 * std::conj(s11)) /
+                             sqr(denom);
+    JetComplex phase_scale = (JetComplex(1,0) + std::conj(s11)) / denom;
+
+    // Further power compensation depends on the cavity type.
     if (config_.type == ScriptConfig::EZ) {
       JetNum a = port_lengths_[port_number];     // Waveguide A-dimension
       double k = 2.0 * M_PI * frequency_ / kSpeedOfLight;
       JetComplex beta = sqrt(JetComplex(sqr(k) - sqr(M_PI / a)));
-      power_scale = a * beta.real();
+      power_scale *= a * beta.real();
     } else if (config_.type == ScriptConfig::EXY) {
       // @@@ This does not account for depth differences at the ports - but if
       // the model contains depth changes the final field is approximate
       // anyway:
-      power_scale = port_lengths_[port_number];  // Waveguide B-dimension
+      power_scale *= port_lengths_[port_number];  // Waveguide B-dimension
     }
-    (*result)[i] = field[i] * abs(field[i]) * power_scale;
+    (*result)[i] = field[i] * abs(field[i]) * power_scale * phase_scale;
     if (config_.PortExcitation(port_number) != JetComplex(0.0)) {
-      overall_scale = power_scale;
+      overall_scale = abs(power_scale);
     }
   }
 
