@@ -265,6 +265,10 @@ void LinearReducer::MultiplyA(const VectorXd &x, VectorXd *b) const {
 }
 
 void LinearReducer::SwapRowsAndColumns(int i, int j) {
+  // Note that we physically move data around rather than simply adjusting a
+  // permutation and doing later indirection. This is because data locality is
+  // important for the speed of big matrix operations, so the cost of data
+  // movement pays off.
   if (i == j) {
     return;
   }
@@ -290,10 +294,11 @@ void LinearReducer::SwapRowsAndColumns(int i, int j) {
 }
 
 //***************************************************************************
-// PrincipalPivoting.
+// LCP.
 
-bool SolveLCP(const MatrixXd &A, const VectorXd &b,
-              VectorXd *x, VectorXd *w) {
+bool SolveLCP_Murty(const Settings &settings,
+                    const MatrixXd &A, const VectorXd &b,
+                    VectorXd *x, VectorXd *w) {
   const int kMaxIterations = 1000000;
   int n = A.rows();
   LinearReducer reducer(A, b);
@@ -339,9 +344,10 @@ bool SolveLCP(const MatrixXd &A, const VectorXd &b,
   return false;
 }
 
-bool SolveBoxLCP(const MatrixXd &A, const VectorXd &b,
-                 const VectorXd &lo, const VectorXd &hi,
-                 VectorXd *x, VectorXd *w) {
+bool SolveLCP_BoxMurty(const Settings &settings,
+                       const MatrixXd &A, const VectorXd &b,
+                       const VectorXd &lo, const VectorXd &hi,
+                       VectorXd *x, VectorXd *w) {
   const int kMaxIterations = 1000000;
   int n = A.rows();
   LinearReducer reducer(A, b);
@@ -398,6 +404,113 @@ bool SolveBoxLCP(const MatrixXd &A, const VectorXd &b,
 
   // We exceeded the maximum number of iterations.
   return false;
+}
+
+bool SolveLCP_BoxSchur(const Settings &settings,
+                       const MatrixXd &A, const VectorXd &b,
+                       const VectorXd &lo, const VectorXd &hi,
+                       VectorXd *x, VectorXd *w, int nub = -1) {
+  // To solve the linear system
+  //   [ Z B' ] [ y ] = [ c ]
+  //   [ B C  ] [ z ] = [ d ]
+  // by the Schur complement we do this:
+  //   L*L' = Z             // Factor Z
+  //   Q = inv(L)*B'        // Note: solving B rows one by one is inefficient
+  //   R = C - Q'*Q         // R = C - B*inv(Z)*B'. Only compute lower triangle.
+  //   t = inv(Z)*c         // Z solve
+  //   z = d - B*t          // z = d - B*inv(Z)*c
+  //   z = inv(R)*z         // z = inv(C - B*inv(Z)*B') (d - B*inv(Z)*c)
+  //   y = inv(Z)*(c - B'*z)
+  // One advantage here is that we refer to Z purely by its ability to solve
+  // for some right hand side, so we do not necessarily need a dense matrix
+  // representation of Z. Another advantage is that we can solve for z as an
+  // LCP problem.
+
+  // Identify the number of unbounded variables.
+  int n = A.rows();
+  if (nub < 0) {
+    nub = 0;
+    for (; nub < n; nub++) {
+      if (lo[nub] > -__DBL_MAX__ || hi[nub] < -__DBL_MAX__) {
+        break;                // This index is bounded
+      }
+    }
+  }
+  if (nub == n) {
+    // This is not actually an LCP problem, so just solve it directly here.
+    *x = A.llt().solve(b);
+    w->resize(A.rows());
+    w->setZero();
+    return true;
+  }
+
+  // Form the sub-matrices of the Schur complement. Only refer to the lower
+  // triangle of A, which means we only refer to the lower triangle of Z and C.
+  typedef Eigen::Map<const MatrixXd, 0, Eigen::OuterStride<>> Map;
+  Map Z(A.data(), nub, nub, Eigen::OuterStride<>(n));
+  Map B(A.data() + nub, n-nub, nub, Eigen::OuterStride<>(n));
+  Map C(A.data() + nub + n*nub, n-nub, n-nub, Eigen::OuterStride<>(n));
+  Map c(b.data(), nub, 1, Eigen::OuterStride<>(n));
+  Map d(b.data() + nub, n-nub, 1, Eigen::OuterStride<>(n));
+  Map lo2(lo.data() + nub, n-nub, 1, Eigen::OuterStride<>(n));
+  Map hi2(hi.data() + nub, n-nub, 1, Eigen::OuterStride<>(n));
+
+  // Schur complement with LCP. Note we only compute the lower triangle of R.
+  MatrixXd L = Z;
+  lcp::Cholesky(&L);
+  MatrixXd Q = L.triangularView<Eigen::Lower>().solve(B.transpose());
+  MatrixXd R = C.triangularView<Eigen::Lower>();
+  R.selfadjointView<Eigen::Lower>().rankUpdate(Q.transpose(), -1);
+  VectorXd t = c;
+  lcp::LLTSolve(L, nub, &t);
+  // The non-LCP variant is:
+  //   lcp::Cholesky(&R);
+  //   VectorXd z = d - B*t;
+  //   lcp::LLTSolve(R, n-nub, &z);
+  VectorXd rhs = d - B*t;
+  VectorXd z, w2;
+  Settings settings2 = settings;
+  settings2.schur_complement = false;
+  if (!SolveLCP(settings2, R, rhs, lo2, hi2, &z, &w2)) {
+    return false;
+  }
+  VectorXd y = c - B.transpose()*z;
+  lcp::LLTSolve(L, nub, &y);
+
+  // Assemble results.
+  x->resize(n);
+  x->head(nub) = y;
+  x->tail(n - nub) = z;
+  w->resize(n);
+  w->head(nub).setZero();
+  w->tail(n - nub) = w2;
+  return true;
+}
+
+//***************************************************************************
+// Drivers.
+
+bool SolveLCP(const Settings &settings,
+              const MatrixXd &A, const VectorXd &b,
+              const VectorXd &lo, const VectorXd &hi,
+              VectorXd *x, VectorXd *w) {
+  if (settings.schur_complement) {
+    if (settings.box_lcp) {
+      return SolveLCP_BoxSchur(settings, A, b, lo, hi, x, w);
+    } else {
+      Panic("Schur complement solver only available for box LCP");
+    }
+  }
+
+  if (settings.algorithm == MURTY) {
+    if (settings.box_lcp) {
+      return SolveLCP_BoxMurty(settings, A, b, lo, hi, x, w);
+    } else {
+      return SolveLCP_Murty(settings, A, b, x, w);
+    }
+  } else {
+    Panic("Unknown LCP solver selection");
+  }
 }
 
 }  // namespace lcp
@@ -497,7 +610,7 @@ TEST_FUNCTION(PrincipalPivoting) {
       // to ensure that the upper triangle is not read.
       VectorXd x, w;
       MatrixXd Alower = A.triangularView<Eigen::Lower>();
-      CHECK(lcp::SolveLCP(Alower, b, &x, &w));
+      CHECK(lcp::SolveLCP_Murty(lcp::Settings(), Alower, b, &x, &w));
 
       // Check the solution.
       for (int i = 0; i < N; i++) {
@@ -516,7 +629,7 @@ TEST_FUNCTION(PrincipalPivoting) {
         lo[i] = 0;
         hi[i] = __DBL_MAX__;
       }
-      CHECK(lcp::SolveBoxLCP(A, b, lo, hi, &x2, &w2));
+      CHECK(lcp::SolveLCP_BoxMurty(lcp::Settings(), A, b, lo, hi, &x2, &w2));
       CHECK((x-x2).norm() < 1e-10);
       CHECK((w-w2).norm() < 1e-10);
     }
@@ -539,7 +652,7 @@ TEST_FUNCTION(PrincipalPivoting) {
         }
       }
       MatrixXd Alower = A.triangularView<Eigen::Lower>();
-      CHECK(lcp::SolveBoxLCP(Alower, b, lo, hi, &x, &w));
+      CHECK(lcp::SolveLCP_BoxMurty(lcp::Settings(), Alower, b, lo, hi, &x, &w));
 
       // Check the solution.
       //std::cout << "x:\n" << x << "\n";
@@ -626,6 +739,85 @@ TEST_FUNCTION(SwapCholeskyRows) {
         CHECK(L.block(N, 0, sz-N, sz) == Lorig.block(N, 0, sz-N, sz))
       }
     }
+  }
+}
+
+TEST_FUNCTION(SolveLCP_BoxSchur) {
+  const int n = 20;
+  MatrixXd A0 = MatrixXd::Random(n, n);
+  MatrixXd A = A0 * A0.transpose();
+  VectorXd b = VectorXd::Random(n);
+  // Only pass the lower triangle of A to the solver, to ensure that the upper
+  // triangle is not read.
+  MatrixXd Alower = A.triangularView<Eigen::Lower>();
+
+  const int M = 1;     // Number of repeats, for more accurate timing
+
+  // Full solve.
+  double t1 = Now();
+  VectorXd x;
+  for (int i = 0; i < M; i++) {
+    MatrixXd L = A;
+    lcp::Cholesky(&L);
+    x = b;
+    lcp::LLTSolve(L, n, &x);
+  }
+  double t2 = Now();
+  double error = (A*x - b).norm();
+  printf("Full solve,            time = %f, error = %e\n", (t2-t1)/M, error);
+  CHECK(error < 1e-6);
+
+  // Unbounded problem, test nub==n (i.e. just do a direct factor and solve).
+  VectorXd lo(n), hi(n), x2, w2;
+  lo.setConstant(-__DBL_MAX__);
+  hi.setConstant(__DBL_MAX__);
+  t1 = Now();
+  for (int i = 0; i < M; i++) {
+    CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
+                                           Alower, b, lo, hi, &x2, &w2, n));
+  }
+  t2 = Now();
+  error = (x2 - x).norm();
+  printf("Solve, nub=n,   time = %f, error = %e\n", (t2-t1)/M, error);
+  CHECK(error < 1e-6);
+  CHECK(w2.size() == x2.size());
+  for (int i = 0; i < w2.size(); i++) {
+    CHECK(w2[i] == 0);
+  }
+
+  // Unbounded problem, test schur complement for nub==n/2.
+  VectorXd x3, w3;
+  t1 = Now();
+  for (int i = 0; i < M; i++) {
+    CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
+                                           Alower, b, lo, hi, &x3, &w3, n/2));
+  }
+  t2 = Now();
+  error = (x3 - x).norm();
+  printf("Solve, nub=n/2, time = %f, error = %e\n", (t2-t1)/M, error);
+  CHECK(error < 1e-6);
+  CHECK(w3.size() == x3.size());
+  for (int i = 0; i < w3.size(); i++) {
+    CHECK(w3[i] == 0);
+  }
+
+  // Solve a full box LCP problem, with nub = n/2.
+  for (int i = n/2; i < n; i++) {
+    lo[i] = -RandomDouble() * 10.0;
+    hi[i] = +RandomDouble() * 10.0;
+  }
+  VectorXd x4, w4;
+  t1 = Now();
+  for (int i = 0; i < M; i++) {
+    CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
+                                           Alower, b, lo, hi, &x4, &w4));
+  }
+  t2 = Now();
+  error = (A*x4 - b - w4).norm();
+  printf("Solve lcp,  time = %f, error = %e\n", (t2-t1)/M, error);
+  CHECK(error < 1e-6);
+  for (int i = 0; i < n; i++) {
+    CHECK(x4[i] >= lo[i] && x4[i] <= hi[i]);
   }
 }
 

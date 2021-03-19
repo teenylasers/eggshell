@@ -78,8 +78,8 @@ class LinearReducer {
 // Use the Murty principal pivoting method to solve the LCP problem A*x=b+w,
 // x>=0, w>=0, x'*w=0. Murty guarantees convergence for P-matrices, we will use
 // only real symmetric positive definite matrices (which are also P-matrices).
-// The algorithm is optimized by assuming that the solution has a small number
-// of zeros in x, letting us use the LinearReducer to best advantage.
+// The algorithm is optimized by assuming that the solution has a smallish
+// number of zeros in x, letting us use the LinearReducer to best advantage.
 //
 // In the "Box LCP" version of this problem we solve A*x = b + w, with x[i] and
 // w[i] on one of the three line segments in this diagram:
@@ -101,16 +101,41 @@ class LinearReducer {
 //
 // We must have lo <= 0 and hi >= 0.
 
-// Solve the standard LCP problem. Return true on success or false if a
-// solution can not be found.
-bool SolveLCP(const MatrixXd &A, const VectorXd &b,
-              VectorXd *x, VectorXd *w) MUST_USE_RESULT;
+// The LCP solver algorithms.
+enum Algorithm {
+  // Principal pivoting method described in: Murty, K. G. (1988). Linear
+  // complementarity, linear and nonlinear programming.
+  MURTY,
 
-// Solve the "Box LCP" problem. Return true on success or false if a solution
+  // Principal pivoting method described in: Cottle, R. W.; Dantzig, G. B.
+  // (1968). "Complementary pivot theory of mathematical programming". Linear
+  // Algebra and its Applications. 1: 103–125.
+  COTTLE_DANTZIG,
+};
+
+// LCP solver settings.
+struct Settings {
+  // The algorithm to use.
+  Algorithm algorithm = MURTY;
+
+  // If true, solve the box LCP problem. Vectors lo and hi must be valid. If
+  // false, this is equivalent to lo=0 and hi=infinity.
+  bool box_lcp = true;
+
+  // Use a Schur complement approach to speed up solutions where large numbers
+  // of unbounded variables are present.
+  bool schur_complement = true;
+
+  // Maximum number of solver iterations to run before giving up and returning
+  // false.
+  int max_iterations = 1000000000;
+};
+
+// Solve the LCP problem. Return true on success or false if a solution
 // can not be found.
-bool SolveBoxLCP(const MatrixXd &A, const VectorXd &b,
-                  const VectorXd &lo, const VectorXd &hi,
-                  VectorXd *x, VectorXd *w) MUST_USE_RESULT;
+bool SolveLCP(const Settings &settings, const MatrixXd &A, const VectorXd &b,
+              const VectorXd &lo, const VectorXd &hi,
+              VectorXd *x, VectorXd *w) MUST_USE_RESULT;
 
 }  // namespace lcp
 
