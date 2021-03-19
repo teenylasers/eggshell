@@ -29,6 +29,7 @@ public:
   explicit MainWindow(QWidget *parent = 0);
   ~MainWindow();
 
+  void AsynchronouslySeeIfNewerVersionAvailable();
   void ToggleRunTestAfterSolve();
   void ScriptTestMode();
   void LoadFile(const QString &full_path);

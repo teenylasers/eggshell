@@ -1984,9 +1984,15 @@ const Shape &Shape::LuaCheckShape(lua_State *L, int argument_index) const {
 }
 
 std::string Shape::CallbackDebugString() const {
-  std::string s = "Callbacks on ports";
+  std::string s;
   for (const auto &it : port_callbacks_) {
+    if (s.empty()) {
+      s = "Callbacks on ports";
+    }
     s += " " + std::to_string(it.first);
+  }
+  if (s.empty()) {
+    s = "No callbacks on ports";
   }
   return s;
 }
