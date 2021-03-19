@@ -51,7 +51,7 @@ OBJ = body.o \
       joints.o \
 			lcp.o \
       model.o \
-      util.o \
+      utils.o \
       collision.o \
       toolkit/error.o \
       toolkit/viewer.o \
@@ -173,7 +173,7 @@ TESTS = toolkit/testing.o \
   toolkit/random.o \
 	toolkit/error.o \
 	lcp.o \
-	util.o
+	utils.o
 
 # TODO: fix
 # $(TESTS): CCFLAGS += -D__TOOLKIT_DEFINE_TESTING_MAIN__

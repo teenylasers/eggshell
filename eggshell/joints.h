@@ -6,7 +6,7 @@
 #include "Eigen/Dense"
 #include "constraints.h"
 #include "model.h"
-#include "util.h"
+#include "utils.h"
 
 // Base class
 class Joint : public Constraint {
@@ -21,7 +21,8 @@ class Joint : public Constraint {
       : Constraint(b0, i0, b1, i1), c0_(c0), c1_(c1) {}
 
  protected:
-  // Joint locations for components b0_ and b1_
+  // Joint locations for components b0_ and b1_, c0_ and c1_ are in the
+  // components' respective local frame.
   Vector3d c0_;
   Vector3d c1_;
 };

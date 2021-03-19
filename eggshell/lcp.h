@@ -4,7 +4,7 @@
 #define __LCP_H__
 
 #include "Eigen/Dense"
-#include "util.h"
+#include "utils.h"
 
 namespace Lcp {
 

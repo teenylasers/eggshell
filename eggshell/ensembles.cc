@@ -8,10 +8,9 @@
 #include "constants.h"
 #include "error.h"
 #include "lcp.h"
-#include "util.h"
 
 namespace {
-constexpr double kCfmCoeff = 0.01;
+constexpr double kCfmCoeff = 10;
 }
 
 void Ensemble::Init() {
@@ -320,17 +319,14 @@ void Ensemble::UpdateContacts() {
         auto contact =
             std::shared_ptr<Contact>(new Contact(b0, i, b1, j, cg, ci));
         contacts_.push_back(contact);
-        // DEBUG ONLY: print Contact description to check collision detection
-        // results
-        // std::cout << contact->PrintInfo() << std::endl;
       }
     }
   }
 
   // DEBUG ONLY: Draw the contacts for viz
-  // for (const auto& ct : contacts_) {
-  //   ct->Draw();
-  // }
+  for (const auto& ct : contacts_) {
+    ct->Draw();
+  }
 }
 
 VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const {
@@ -368,6 +364,11 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
       Cfm = kCfmCoeff * MatrixXd::Identity(J_rows, J_rows);
     }
     const MatrixXd lhs = JMJt + Cfm;
+
+    // DEBUG ONLY: Print and visualize systems matrix structure.
+    std::cout << "JMJt \n" << JMJt << std::endl;
+    std::cout << "lhs = JMJt + Cfm \n" << lhs << std::endl;
+
     // Solve systems equation
     VectorXd lambda(J_rows);
     VectorXd weights(J_rows);

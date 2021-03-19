@@ -11,7 +11,7 @@
 #include "collision.h"
 #include "contact.h"
 #include "joints.h"
-#include "util.h"
+#include "utils.h"
 
 // Base class.
 class Ensemble {

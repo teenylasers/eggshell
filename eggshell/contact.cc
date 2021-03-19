@@ -6,10 +6,9 @@
 #include "constants.h"
 #include "error.h"
 #include "model.h"
-#include "util.h"
 
 namespace {
-constexpr double kBoxFrictionBound = 100;
+constexpr double kBoxFrictionBound = 1;
 }
 
 VectorXd Contact::ComputeError() const {

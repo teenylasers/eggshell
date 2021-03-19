@@ -9,7 +9,7 @@
 #include "body.h"
 #include "glog/logging.h"
 #include "model.h"
-#include "util.h"
+#include "utils.h"
 
 class Constraint {
  public:

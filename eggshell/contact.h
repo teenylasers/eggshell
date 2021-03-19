@@ -6,7 +6,7 @@
 
 #include "collision.h"
 #include "constraints.h"
-#include "util.h"
+#include "utils.h"
 
 class Contact : public Constraint {
  public:
