@@ -25,13 +25,40 @@ using Eigen::VectorXd;
 using Eigen::MatrixXd;
 
 //***************************************************************************
+// MatrixPermutation.
+
+class MatrixPermutation {
+ public:
+  explicit MatrixPermutation(MatrixXd &A);
+
+  // Swap rows and columns of A_ and x_. Permuted (not original) indexes i and
+  // j are given.
+  void SwapRowsAndColumns(int i, int j);
+
+  // Permute the original vector 'in' to get the permuted vector 'out'.
+  void Permute(const VectorXd &in, VectorXd *out) const;
+
+  // Unpermute the permuted vector 'in' to get the original vector 'out'.
+  void Unpermute(const VectorXd &in, VectorXd *out,
+                 int start_index = 0, int end_index = 0) const;
+
+ protected:
+  // perm_[i] is the original index of current index i. iperm_ is the inverse
+  // of perm_.
+  std::vector<int> perm_, iperm_;
+  MatrixXd &A_;   // Original A, permuted by perm_
+
+  DISALLOW_COPY_AND_ASSIGN(MatrixPermutation);
+};
+
+//***************************************************************************
 // LinearReducer.
 // Given a matrix A, solve problems involving principal submatrices of A.
-// Only the lower triangle of A is ever accessed.
+// Only the lower triangle of A is ever accessed. A is permuted in place.
 
-class LinearReducer {
+class LinearReducer : public MatrixPermutation {
  public:
-  LinearReducer(const MatrixXd &A, const VectorXd &b);
+  LinearReducer(MatrixXd &A, const VectorXd &b);
   virtual ~LinearReducer();
 
   int Asize() const { return A_.rows(); }
@@ -57,16 +84,10 @@ class LinearReducer {
   void DebuggingPrintState() const;
 
  private:
-  // A permutation of A,x,b. perm_[i] is the original index of current index i.
-  // iperm_ is the inverse of perm_.
-  std::vector<int> perm_, iperm_;
-  MatrixXd A_;    // Original A permuted by perm_
   VectorXd x_;    // Solution of A*x = b, permuted by perm_
   MatrixXd L_;    // Cholesky factorization of Aii (top/left of A in index set)
   int index_;     // All permuted indexes < index_ are in the index set
 
-  // Swap rows and columns of A_, b_, x_. Permuted (not original) indexes i and
-  // j are given.
   void SwapRowsAndColumns(int i, int j);
 
   DISALLOW_COPY_AND_ASSIGN(LinearReducer);
@@ -132,8 +153,8 @@ struct Settings {
 };
 
 // Solve the LCP problem. Return true on success or false if a solution
-// can not be found.
-bool SolveLCP(const Settings &settings, const MatrixXd &A, const VectorXd &b,
+// can not be found. The matrix 'A' is permuted in-place.
+bool SolveLCP(const Settings &settings, MatrixXd &A, const VectorXd &b,
               const VectorXd &lo, const VectorXd &hi,
               VectorXd *x, VectorXd *w) MUST_USE_RESULT;
 

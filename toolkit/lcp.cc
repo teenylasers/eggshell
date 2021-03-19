@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <utility>
 #include "lcp.h"
 #include "testing.h"
 #include "random.h"
@@ -31,7 +32,7 @@ namespace lcp {
 #define EIGEN_VERSION_IS(x, y, z) (EIGEN_WORLD_VERSION == x && \
     EIGEN_MAJOR_VERSION == y && EIGEN_MINOR_VERSION == z)
 #if !EIGEN_VERSION_IS(3, 3, 8) && !EIGEN_VERSION_IS(3, 3, 9)
-  #error "Unexpected Eigen version. Update this after ensuring code is ok."
+  #error "Unexpected Eigen version. Update check after ensuring code is ok."
 #endif
 
 // Perform an in-place Cholesky factorization on an SPD matrix A to give a
@@ -134,17 +135,64 @@ static void SwapCholeskyRows(const MatrixXd &A, int i, int n, MatrixXd *L) {
 }
 
 //***************************************************************************
-// LinearReducer.
+// MatrixPermutation.
 
-LinearReducer::LinearReducer(const MatrixXd &A, const VectorXd &b)
-    : A_(A) {
-  index_ = A.rows();
+MatrixPermutation::MatrixPermutation(MatrixXd &A) : A_(A) {
   perm_.resize(A_.rows());
   iperm_.resize(A_.rows());
   for (int i = 0; i < A_.rows(); i++) {
     perm_[i] = i;
     iperm_[i] = i;
   }
+}
+
+void MatrixPermutation::SwapRowsAndColumns(int i, int j) {
+  // Note that we physically move data around rather than simply adjusting a
+  // permutation and doing later indirection. This is because data locality is
+  // important for the speed of big matrix operations, so the cost of data
+  // movement pays off.
+  if (i == j) {
+    return;
+  }
+  if (i > j) {
+    std::swap(i, j);      // Enforce i < j
+  }
+  int i2 = perm_[i];      // perm_ maps current index to original
+  int j2 = perm_[j];
+  std::swap(perm_[i], perm_[j]);
+  std::swap(iperm_[i2], iperm_[j2]);
+  // For swapping in A_ we can't do the following since we only access the
+  // lower triangle:
+  //   A_.col(i).swap(A_.col(j));
+  //   A_.row(i).swap(A_.row(j));
+  int n = A_.rows();
+  A_.block(i, 0, 1, i).swap(A_.block(j, 0, 1, i));
+  A_.block(j+1, i, n-j-1, 1).swap(A_.block(j+1, j, n-j-1, 1));
+  A_.block(i+1, i, j-i-1, 1).swap(A_.block(j, i+1, 1, j-i-1).transpose());
+  std::swap(A_(i, i), A_(j, j));
+}
+
+void MatrixPermutation::Permute(const VectorXd &in, VectorXd *out) const {
+  for (int i = 0; i < perm_.size(); i++) {
+    (*out)[i] = in[perm_[i]];
+  }
+}
+
+void MatrixPermutation::Unpermute(const VectorXd &in, VectorXd *out,
+                                  int start_index, int end_index) const {
+  if (end_index == 0)
+    end_index = perm_.size();
+  for (int i = 0; i < perm_.size(); i++) {
+    (*out)[perm_[i]] = in[i];
+  }
+}
+
+//***************************************************************************
+// LinearReducer.
+
+LinearReducer::LinearReducer(MatrixXd &A, const VectorXd &b)
+    : MatrixPermutation(A) {
+  index_ = A.rows();
 
   // Factor A into L_, solve for x_.
   L_ = A;
@@ -217,9 +265,7 @@ void LinearReducer::SubSolve(const VectorXd &c, VectorXd *x) {
 
   // Permute c to match our A.
   VectorXd c2(n);
-  for (int i = 0; i < n; i++) {
-    c2[i] = c[perm_[i]];
-  }
+  Permute(c, &c2);
 
   // Compute xi -= inv(Aii) Ain (cn - xn)
   VectorXd newx_head = A_.block(index_, 0, n - index_, index_).transpose() *
@@ -247,9 +293,7 @@ void LinearReducer::MultiplyA(const VectorXd &x, VectorXd *b) const {
 
   // Permute x to match our A.
   VectorXd x2(n);
-  for (int i = 0; i < n; i++) {
-    x2[i] = x[perm_[i]];
-  }
+  Permute(x, &x2);
 
   // Do the multiplication, but only for indexes not in the index set.
   VectorXd b2(n);
@@ -259,45 +303,19 @@ void LinearReducer::MultiplyA(const VectorXd &x, VectorXd *b) const {
 
   // Unpermute (indexes not in the index set only).
   b->resize(n);
-  for (int i = index_; i < n; i++) {
-    (*b)[perm_[i]] = b2[i];
-  }
+  Unpermute(b2, b, index_);
 }
 
 void LinearReducer::SwapRowsAndColumns(int i, int j) {
-  // Note that we physically move data around rather than simply adjusting a
-  // permutation and doing later indirection. This is because data locality is
-  // important for the speed of big matrix operations, so the cost of data
-  // movement pays off.
-  if (i == j) {
-    return;
-  }
-  #define SWAP(a, b) { auto tmp = a; a = b; b = tmp; }
-  if (i > j) {
-    SWAP(i, j);           // Enforce i < j
-  }
-  int i2 = perm_[i];      // perm_ maps current index to original
-  int j2 = perm_[j];
-  SWAP(x_[i], x_[j]);
-  SWAP(perm_[i], perm_[j]);
-  SWAP(iperm_[i2], iperm_[j2]);
-  // For swapping in A_ we can't to do this since we only access the lower
-  // triangle:
-  //   A_.col(i).swap(A_.col(j));
-  //   A_.row(i).swap(A_.row(j));
-  int n = A_.rows();
-  A_.block(i, 0, 1, i).swap(A_.block(j, 0, 1, i));
-  A_.block(j+1, i, n-j-1, 1).swap(A_.block(j+1, j, n-j-1, 1));
-  A_.block(i+1, i, j-i-1, 1).swap(A_.block(j, i+1, 1, j-i-1).transpose());
-  SWAP(A_(i, i), A_(j, j));
-  #undef SWAP
+  MatrixPermutation::SwapRowsAndColumns(i, j);
+  std::swap(x_[i], x_[j]);
 }
 
 //***************************************************************************
 // LCP.
 
 bool SolveLCP_Murty(const Settings &settings,
-                    const MatrixXd &A, const VectorXd &b,
+                    MatrixXd &A, const VectorXd &b,
                     VectorXd *x, VectorXd *w) {
   const int kMaxIterations = 1000000;
   int n = A.rows();
@@ -345,7 +363,7 @@ bool SolveLCP_Murty(const Settings &settings,
 }
 
 bool SolveLCP_BoxMurty(const Settings &settings,
-                       const MatrixXd &A, const VectorXd &b,
+                       MatrixXd &A, const VectorXd &b,
                        const VectorXd &lo, const VectorXd &hi,
                        VectorXd *x, VectorXd *w) {
   const int kMaxIterations = 1000000;
@@ -407,7 +425,7 @@ bool SolveLCP_BoxMurty(const Settings &settings,
 }
 
 bool SolveLCP_BoxSchur(const Settings &settings,
-                       const MatrixXd &A, const VectorXd &b,
+                       MatrixXd &A, const VectorXd &b,
                        const VectorXd &lo, const VectorXd &hi,
                        VectorXd *x, VectorXd *w, int nub = -1) {
   // To solve the linear system
@@ -491,7 +509,7 @@ bool SolveLCP_BoxSchur(const Settings &settings,
 // Drivers.
 
 bool SolveLCP(const Settings &settings,
-              const MatrixXd &A, const VectorXd &b,
+              MatrixXd &A, const VectorXd &b,
               const VectorXd &lo, const VectorXd &hi,
               VectorXd *x, VectorXd *w) {
   if (settings.schur_complement) {
@@ -598,7 +616,7 @@ TEST_FUNCTION(LinearReducer) {
   printf("Success\n");
 }
 
-TEST_FUNCTION(PrincipalPivoting) {
+TEST_FUNCTION(Murty) {
   for (int iteration = 0; iteration < 1000; iteration++) {
     // Create a random positive definite LCP problem.
     MatrixXd A0 = MatrixXd::Random(N,N);
@@ -629,7 +647,8 @@ TEST_FUNCTION(PrincipalPivoting) {
         lo[i] = 0;
         hi[i] = __DBL_MAX__;
       }
-      CHECK(lcp::SolveLCP_BoxMurty(lcp::Settings(), A, b, lo, hi, &x2, &w2));
+      MatrixXd A2 = A;
+      CHECK(lcp::SolveLCP_BoxMurty(lcp::Settings(), A2, b, lo, hi, &x2, &w2));
       CHECK((x-x2).norm() < 1e-10);
       CHECK((w-w2).norm() < 1e-10);
     }
@@ -747,9 +766,6 @@ TEST_FUNCTION(SolveLCP_BoxSchur) {
   MatrixXd A0 = MatrixXd::Random(n, n);
   MatrixXd A = A0 * A0.transpose();
   VectorXd b = VectorXd::Random(n);
-  // Only pass the lower triangle of A to the solver, to ensure that the upper
-  // triangle is not read.
-  MatrixXd Alower = A.triangularView<Eigen::Lower>();
 
   const int M = 1;     // Number of repeats, for more accurate timing
 
@@ -773,8 +789,11 @@ TEST_FUNCTION(SolveLCP_BoxSchur) {
   hi.setConstant(__DBL_MAX__);
   t1 = Now();
   for (int i = 0; i < M; i++) {
+    // Only pass the lower triangle of A to the solver, to ensure that the upper
+    // triangle is not read.
+    MatrixXd Alower = A.triangularView<Eigen::Lower>();
     CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
-                                           Alower, b, lo, hi, &x2, &w2, n));
+                                 Alower, b, lo, hi, &x2, &w2, n));
   }
   t2 = Now();
   error = (x2 - x).norm();
@@ -789,8 +808,9 @@ TEST_FUNCTION(SolveLCP_BoxSchur) {
   VectorXd x3, w3;
   t1 = Now();
   for (int i = 0; i < M; i++) {
+    MatrixXd Alower = A.triangularView<Eigen::Lower>();
     CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
-                                           Alower, b, lo, hi, &x3, &w3, n/2));
+                                 Alower, b, lo, hi, &x3, &w3, n/2));
   }
   t2 = Now();
   error = (x3 - x).norm();
@@ -809,8 +829,9 @@ TEST_FUNCTION(SolveLCP_BoxSchur) {
   VectorXd x4, w4;
   t1 = Now();
   for (int i = 0; i < M; i++) {
+    MatrixXd Alower = A.triangularView<Eigen::Lower>();
     CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
-                                           Alower, b, lo, hi, &x4, &w4));
+                                 Alower, b, lo, hi, &x4, &w4));
   }
   t2 = Now();
   error = (A*x4 - b - w4).norm();
