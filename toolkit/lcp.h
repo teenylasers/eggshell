@@ -26,6 +26,8 @@ using Eigen::MatrixXd;
 
 //***************************************************************************
 // MatrixPermutation.
+// Maintain a permutation of a matrix A, and allow vectors to be permuted and
+// unpermuted according to that permutation.
 
 class MatrixPermutation {
  public:
@@ -39,14 +41,22 @@ class MatrixPermutation {
   void Permute(const VectorXd &in, VectorXd *out) const;
 
   // Unpermute the permuted vector 'in' to get the original vector 'out'.
-  void Unpermute(const VectorXd &in, VectorXd *out,
-                 int start_index = 0, int end_index = 0) const;
+  // Optionally start from the given index.
+  void Unpermute(const VectorXd &in, VectorXd *out, int start_index = 0) const;
+
+  // Return the permuted index for original index i.
+  int PermutedIndexOf(int i) const { return iperm_[i]; }
+
+  // Return the original index for permuted index i.
+  int OriginalIndexOf(int i) const { return perm_[i]; }
 
  protected:
+  MatrixXd &A_;   // Original A, permuted by perm_
+
+ private:
   // perm_[i] is the original index of current index i. iperm_ is the inverse
   // of perm_.
   std::vector<int> perm_, iperm_;
-  MatrixXd &A_;   // Original A, permuted by perm_
 
   DISALLOW_COPY_AND_ASSIGN(MatrixPermutation);
 };

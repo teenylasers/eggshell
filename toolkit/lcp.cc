@@ -179,10 +179,8 @@ void MatrixPermutation::Permute(const VectorXd &in, VectorXd *out) const {
 }
 
 void MatrixPermutation::Unpermute(const VectorXd &in, VectorXd *out,
-                                  int start_index, int end_index) const {
-  if (end_index == 0)
-    end_index = perm_.size();
-  for (int i = 0; i < perm_.size(); i++) {
+                                  int start_index) const {
+  for (int i = start_index; i < perm_.size(); i++) {
     (*out)[perm_[i]] = in[i];
   }
 }
@@ -205,11 +203,11 @@ LinearReducer::~LinearReducer() {
 }
 
 bool LinearReducer::HasIndex(int i) const {
-  return iperm_[i] < index_;    // iperm_ maps original index to current
+  return PermutedIndexOf(i) < index_;
 }
 
 void LinearReducer::AddIndex(int i) {
-  i = iperm_[i];                // iperm_ maps original index to current
+  i = PermutedIndexOf(i);
   if (i >= index_) {
     SwapRowsAndColumns(index_, i);
     index_++;
@@ -219,7 +217,7 @@ void LinearReducer::AddIndex(int i) {
 }
 
 void LinearReducer::RemoveIndex(int i) {
-  i = iperm_[i];                // iperm_ maps original index to current
+  i = PermutedIndexOf(i);
   if (i < index_) {
     SwapCholeskyRows(A_, i, index_, &L_);
     index_--;
@@ -257,9 +255,7 @@ void LinearReducer::SubSolve(const VectorXd &c, VectorXd *x) {
     return;
   } else if (index_ >= n) {     // An easy case, no x values clamped
     x->resize(n);
-    for (int i = 0; i < n; i++) {
-      (*x)[i] = x_[iperm_[i]];
-    }
+    Unpermute(x_, x);
     return;
   }
 
@@ -275,10 +271,10 @@ void LinearReducer::SubSolve(const VectorXd &c, VectorXd *x) {
   // Unpermute.
   x->resize(n);
   for (int i = 0; i < index_; i++) {
-    (*x)[perm_[i]] = x_[i] - newx_head[i];
+    (*x)[OriginalIndexOf(i)] = x_[i] - newx_head[i];
   }
   for (int i = index_; i < n; i++) {
-    (*x)[perm_[i]] = c[perm_[i]];
+    (*x)[OriginalIndexOf(i)] = c[OriginalIndexOf(i)];
   }
 }
 
@@ -317,7 +313,6 @@ void LinearReducer::SwapRowsAndColumns(int i, int j) {
 bool SolveLCP_Murty(const Settings &settings,
                     MatrixXd &A, const VectorXd &b,
                     VectorXd *x, VectorXd *w) {
-  const int kMaxIterations = 1000000;
   int n = A.rows();
   LinearReducer reducer(A, b);
   VectorXd c(n);            // Clamp values, which will always be zero
@@ -325,8 +320,7 @@ bool SolveLCP_Murty(const Settings &settings,
 
   // The reducer index set is the indexes that are nonzero in x. This is
   // initially all indexes.
-  for (int iteration = 0; iteration < kMaxIterations; iteration++) {
-   retry:
+  for (int iteration = 0; iteration < settings.max_iterations; iteration++) {
     // Compute x for this index set.
     reducer.SubSolve(c, x);
 
@@ -356,6 +350,7 @@ bool SolveLCP_Murty(const Settings &settings,
 
     // We have a correct solution.
     return true;
+   retry:;
   }
 
   // We exceeded the maximum number of iterations.
@@ -366,7 +361,6 @@ bool SolveLCP_BoxMurty(const Settings &settings,
                        MatrixXd &A, const VectorXd &b,
                        const VectorXd &lo, const VectorXd &hi,
                        VectorXd *x, VectorXd *w) {
-  const int kMaxIterations = 1000000;
   int n = A.rows();
   LinearReducer reducer(A, b);
 
@@ -374,8 +368,7 @@ bool SolveLCP_BoxMurty(const Settings &settings,
   // initially all indexes.
   VectorXd c(n);      // Clamp vector
   c.setZero();
-  for (int iteration = 0; iteration < kMaxIterations; iteration++) {
-   retry:
+  for (int iteration = 0; iteration < settings.max_iterations; iteration++) {
     // Compute x for this index set.
     reducer.SubSolve(c, x);
 
@@ -418,6 +411,7 @@ bool SolveLCP_BoxMurty(const Settings &settings,
 
     // We have a correct solution.
     return true;
+   retry:;
   }
 
   // We exceeded the maximum number of iterations.
