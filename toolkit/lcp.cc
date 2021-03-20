@@ -193,7 +193,8 @@ LinearReducer::LinearReducer(MatrixXd &A, const VectorXd &b)
   index_ = A.rows();
 
   // Factor A into L_, solve for x_.
-  L_ = A;
+  L_.resize(A.rows(), A.cols());
+  L_.triangularView<Eigen::Lower>() = A.triangularView<Eigen::Lower>();
   Cholesky(&L_);
   x_ = b;
   LLTSolve(L_, L_.rows(), &x_);
@@ -418,9 +419,15 @@ bool SolveLCP_BoxMurty(const Settings &settings,
   return false;
 }
 
+// If 'nub' is given as >= 0 it is the number of unbounded indexes at the start
+// of lo and hi. If nub==-1 then nub will be determined by scanning lo and hi.
+// This ability to control nub is used for testing. The global variable is an
+// output used for testing only.
+static int test_nub_from_SolveLCP_BoxSchur;
+
 bool SolveLCP_BoxSchur(const Settings &settings,
-                       MatrixXd &A, const VectorXd &b,
-                       const VectorXd &lo, const VectorXd &hi,
+                       MatrixXd &A, const VectorXd &b_arg,
+                       const VectorXd &lo_arg, const VectorXd &hi_arg,
                        VectorXd *x, VectorXd *w, int nub = -1) {
   // To solve the linear system
   //   [ Z B' ] [ y ] = [ c ]
@@ -438,22 +445,60 @@ bool SolveLCP_BoxSchur(const Settings &settings,
   // representation of Z. Another advantage is that we can solve for z as an
   // LCP problem.
 
-  // Identify the number of unbounded variables.
   int n = A.rows();
+
+  // Make copies of argument vectors since we might permute them below.
+  VectorXd b(b_arg);
+  VectorXd lo(lo_arg);
+  VectorXd hi(hi_arg);
+
+  // Permute the problem so that the unbounded variables come first. These will
+  // make up the matrix Z.
+  MatrixPermutation permutation(A);
+  bool did_swaps = false;
   if (nub < 0) {
-    nub = 0;
-    for (; nub < n; nub++) {
-      if (lo[nub] > -__DBL_MAX__ || hi[nub] < -__DBL_MAX__) {
-        break;                // This index is bounded
+    nub = 0;        // Known unbounded indexes are [0,nub)
+    int nb = n-1;   // Known bounded indexes are (nb,n]
+    while (true) {
+      // Advance nub as much as possible.
+      for (; nub <= nb; nub++) {
+        if (lo[nub] > -__DBL_MAX__ || hi[nub] < -__DBL_MAX__)
+          break;                // This index is bounded
+      }
+      // Decrease nb as much as possible.
+      for (; nb >= nub; nb--) {
+        if (lo[nb] <= -__DBL_MAX__ && hi[nb] >= -__DBL_MAX__)
+          break;                // This index is unbounded
+      }
+      if (nub > nb) {
+        break;
+      } else {
+        // Swap these indexes so we can make further progress.
+        CHECK(0 <= nub && nub < nb && nb < n);
+        permutation.SwapRowsAndColumns(nub, nb);
+        std::swap(b[nub], b[nb]);
+        std::swap(lo[nub], lo[nb]);
+        std::swap(hi[nub], hi[nb]);
+        did_swaps = true;
       }
     }
   }
+  test_nub_from_SolveLCP_BoxSchur = nub;
+
+  // If this is not actually an LCP problem, just solve it directly here.
   if (nub == n) {
-    // This is not actually an LCP problem, so just solve it directly here.
     *x = A.llt().solve(b);
     w->resize(A.rows());
     w->setZero();
     return true;
+  }
+
+  // If this is entirely an LCP problem, skip the Schur complement.
+  if (nub == 0) {
+    CHECK(!did_swaps);    // So A should be unchanged
+    Settings settings2 = settings;
+    settings2.schur_complement = false;
+    return SolveLCP(settings2, A, b, lo, hi, x, w);
   }
 
   // Form the sub-matrices of the Schur complement. Only refer to the lower
@@ -490,12 +535,15 @@ bool SolveLCP_BoxSchur(const Settings &settings,
   lcp::LLTSolve(L, nub, &y);
 
   // Assemble results.
+  VectorXd x_ret(n), w_ret(n);
+  x_ret.head(nub) = y;
+  x_ret.tail(n - nub) = z;
+  w_ret.head(nub).setZero();
+  w_ret.tail(n - nub) = w2;
   x->resize(n);
-  x->head(nub) = y;
-  x->tail(n - nub) = z;
   w->resize(n);
-  w->head(nub).setZero();
-  w->tail(n - nub) = w2;
+  permutation.Unpermute(x_ret, x);
+  permutation.Unpermute(w_ret, w);
   return true;
 }
 
@@ -506,6 +554,12 @@ bool SolveLCP(const Settings &settings,
               MatrixXd &A, const VectorXd &b,
               const VectorXd &lo, const VectorXd &hi,
               VectorXd *x, VectorXd *w) {
+  CHECK(A.rows() == A.cols());
+  CHECK(A.rows() > 0);
+  CHECK(b.size() == A.rows());
+  CHECK(lo.size() == A.rows());
+  CHECK(hi.size() == A.rows());
+
   if (settings.schur_complement) {
     if (settings.box_lcp) {
       return SolveLCP_BoxSchur(settings, A, b, lo, hi, x, w);
@@ -764,75 +818,118 @@ TEST_FUNCTION(SolveLCP_BoxSchur) {
   const int M = 1;     // Number of repeats, for more accurate timing
 
   // Full solve.
-  double t1 = Now();
   VectorXd x;
-  for (int i = 0; i < M; i++) {
-    MatrixXd L = A;
-    lcp::Cholesky(&L);
-    x = b;
-    lcp::LLTSolve(L, n, &x);
+  {
+    double t1 = Now();
+    for (int i = 0; i < M; i++) {
+      MatrixXd L = A;
+      lcp::Cholesky(&L);
+      x = b;
+      lcp::LLTSolve(L, n, &x);
+    }
+    double t2 = Now();
+    double error = (A*x - b).norm();
+    printf("Full solve,            time = %f, error = %e\n", (t2-t1)/M, error);
+    CHECK(error < 1e-6);
   }
-  double t2 = Now();
-  double error = (A*x - b).norm();
-  printf("Full solve,            time = %f, error = %e\n", (t2-t1)/M, error);
-  CHECK(error < 1e-6);
 
   // Unbounded problem, test nub==n (i.e. just do a direct factor and solve).
-  VectorXd lo(n), hi(n), x2, w2;
-  lo.setConstant(-__DBL_MAX__);
-  hi.setConstant(__DBL_MAX__);
-  t1 = Now();
-  for (int i = 0; i < M; i++) {
-    // Only pass the lower triangle of A to the solver, to ensure that the upper
-    // triangle is not read.
-    MatrixXd Alower = A.triangularView<Eigen::Lower>();
-    CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
-                                 Alower, b, lo, hi, &x2, &w2, n));
-  }
-  t2 = Now();
-  error = (x2 - x).norm();
-  printf("Solve, nub=n,   time = %f, error = %e\n", (t2-t1)/M, error);
-  CHECK(error < 1e-6);
-  CHECK(w2.size() == x2.size());
-  for (int i = 0; i < w2.size(); i++) {
-    CHECK(w2[i] == 0);
+  {
+    VectorXd lo(n), hi(n), x2, w2;
+    lo.setConstant(-__DBL_MAX__);
+    hi.setConstant(__DBL_MAX__);
+    double t1 = Now();
+    for (int i = 0; i < M; i++) {
+      // Only pass the lower triangle of A to the solver, to ensure that the upper
+      // triangle is not read.
+      MatrixXd Alower = A.triangularView<Eigen::Lower>();
+      CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
+                                   Alower, b, lo, hi, &x2, &w2, n));
+    }
+    double t2 = Now();
+    double error = (x2 - x).norm();
+    printf("Solve, nub=n,   time = %f, error = %e\n", (t2-t1)/M, error);
+    CHECK(error < 1e-6);
+    CHECK(w2.size() == x2.size());
+    for (int i = 0; i < w2.size(); i++) {
+      CHECK(w2[i] == 0);
+    }
   }
 
   // Unbounded problem, test schur complement for nub==n/2.
-  VectorXd x3, w3;
-  t1 = Now();
-  for (int i = 0; i < M; i++) {
-    MatrixXd Alower = A.triangularView<Eigen::Lower>();
-    CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
-                                 Alower, b, lo, hi, &x3, &w3, n/2));
-  }
-  t2 = Now();
-  error = (x3 - x).norm();
-  printf("Solve, nub=n/2, time = %f, error = %e\n", (t2-t1)/M, error);
-  CHECK(error < 1e-6);
-  CHECK(w3.size() == x3.size());
-  for (int i = 0; i < w3.size(); i++) {
-    CHECK(w3[i] == 0);
+  {
+    VectorXd lo(n), hi(n), x3, w3;
+    lo.setConstant(-__DBL_MAX__);
+    hi.setConstant(__DBL_MAX__);
+    double t1 = Now();
+    for (int i = 0; i < M; i++) {
+      MatrixXd Alower = A.triangularView<Eigen::Lower>();
+      CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
+                                   Alower, b, lo, hi, &x3, &w3, n/2));
+    }
+    double t2 = Now();
+    double error = (x3 - x).norm();
+    printf("Solve, nub=n/2, time = %f, error = %e\n", (t2-t1)/M, error);
+    CHECK(error < 1e-6);
+    CHECK(w3.size() == x3.size());
+    for (int i = 0; i < w3.size(); i++) {
+      CHECK(w3[i] == 0);
+    }
   }
 
-  // Solve a full box LCP problem, with nub = n/2.
-  for (int i = n/2; i < n; i++) {
-    lo[i] = -RandomDouble() * 10.0;
-    hi[i] = +RandomDouble() * 10.0;
+  // Solve a full box LCP problem, with nub = 0 and n/2.
+  for (int pass = 0; pass < 2; pass++) {
+    VectorXd lo(n), hi(n), x4, w4;
+    lo.setConstant(-__DBL_MAX__);
+    hi.setConstant(__DBL_MAX__);
+    int start = 0, end = n;
+    if (pass == 1) {
+      start = n/4;
+      end = start + n/2;
+    }
+    for (int i = start; i < end; i++) {
+      lo[i] = -RandomDouble() * 10.0;
+      hi[i] = +RandomDouble() * 10.0;
+    }
+    double t1 = Now();
+    for (int i = 0; i < M; i++) {
+      MatrixXd Alower = A.triangularView<Eigen::Lower>();
+      CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
+                                   Alower, b, lo, hi, &x4, &w4));
+    }
+    double t2 = Now();
+    double error = (A*x4 - b - w4).norm();
+    printf("Solve lcp,  time = %f, error = %e\n", (t2-t1)/M, error);
+    CHECK(error < 1e-6);
+    for (int i = 0; i < n; i++) {
+      CHECK(x4[i] >= lo[i] && x4[i] <= hi[i]);
+    }
+    CHECK(lcp::test_nub_from_SolveLCP_BoxSchur == n - (end-start));
   }
-  VectorXd x4, w4;
-  t1 = Now();
-  for (int i = 0; i < M; i++) {
+
+  // Solve a full box LCP problem, with random nub.
+  for (int pass = 0; pass < 100; pass++) {
+    VectorXd lo(n), hi(n), x4, w4;
+    lo.setConstant(-__DBL_MAX__);
+    hi.setConstant(__DBL_MAX__);
+    int nb = 0;
+    for (int i = 0; i < n; i++) {
+      if (RandomInt(2) == 1) {
+        lo[i] = -RandomDouble() * 10.0;
+        hi[i] = +RandomDouble() * 10.0;
+        nb++;
+      }
+    }
     MatrixXd Alower = A.triangularView<Eigen::Lower>();
     CHECK(lcp::SolveLCP_BoxSchur(lcp::Settings(),
                                  Alower, b, lo, hi, &x4, &w4));
-  }
-  t2 = Now();
-  error = (A*x4 - b - w4).norm();
-  printf("Solve lcp,  time = %f, error = %e\n", (t2-t1)/M, error);
-  CHECK(error < 1e-6);
-  for (int i = 0; i < n; i++) {
-    CHECK(x4[i] >= lo[i] && x4[i] <= hi[i]);
+    double error = (A*x4 - b - w4).norm();
+    printf("Solve lcp, nub = %d, error = %e\n", n - nb, error);
+    CHECK(error < 1e-6);
+    for (int i = 0; i < n; i++) {
+      CHECK(x4[i] >= lo[i] && x4[i] <= hi[i]);
+    }
+    CHECK(lcp::test_nub_from_SolveLCP_BoxSchur == n - nb);
   }
 }
 
