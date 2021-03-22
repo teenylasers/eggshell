@@ -6,7 +6,7 @@
 
 #include "collision.h"
 #include "constraints.h"
-#include "util.h"
+#include "utils.h"
 
 class Contact : public Constraint {
  public:
@@ -32,8 +32,9 @@ class Contact : public Constraint {
   void ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const override;
 
   void Draw() const override;
-
   std::string PrintInfo() const override;
+
+  Vector3d GetConstraintPosition() const override;
 
  private:
   const ContactGeometry cg_;

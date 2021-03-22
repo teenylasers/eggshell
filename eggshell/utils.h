@@ -1,5 +1,5 @@
-#ifndef __UTIL_H__
-#define __UTIL_H__
+#ifndef __UTILS_H__
+#define __UTILS_H__
 
 #include <array>
 

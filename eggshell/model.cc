@@ -5,7 +5,7 @@
 #include "ensembles.h"
 #include "glog/logging.h"
 #include "joints.h"
-#include "util.h"
+#include "utils.h"
 
 using Eigen::Matrix3d;
 using Eigen::Matrix4d;
@@ -26,10 +26,10 @@ static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 
 // HangingChain
 // static Chain ch0 = Chain(10, Vector3d(0, 0, 8));
-static Chain ch1 = Chain(10, Vector3d(2, 2, 3));
+static Chain ch1 = Chain(4, Vector3d(2, 2, 1));
 
 // Cairn
-static Cairn cairn(15, {-0.5, 0.5}, {-0.5, 0.5}, {1, 8});
+static Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
 
 void SimulationInitialization() {
   SimulationInitialization_HangingChain();
@@ -73,7 +73,7 @@ bool SimulationStep() {
 
 void SimulationInitialization_Cairn() {
   cairn.Init();
-  // cairn.InitStabilize();
+  cairn.InitStabilize();
 }
 
 bool SimulationStep_Cairn() {
@@ -107,7 +107,7 @@ bool SimulationStep_HangingChain() {
 
   ch1.Draw();
   ch1.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-  // ch1.PostStabilize();
+  //ch1.PostStabilize();
   // VectorXd err = ch1.ComputePositionConstraintError();
   // double err_sq = err.transpose() * err;
   // LOG(INFO) << "ODE step error_sq sum " << err_sq;

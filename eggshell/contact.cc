@@ -6,10 +6,9 @@
 #include "constants.h"
 #include "error.h"
 #include "model.h"
-#include "util.h"
 
 namespace {
-constexpr double kBoxFrictionBound = 100;
+constexpr double kBoxFrictionBound = 1;
 }
 
 VectorXd Contact::ComputeError() const {
@@ -164,6 +163,10 @@ std::string Contact::PrintInfo() const {
     << cg_.position << "\nContact normal = \n"
     << cg_.normal << "\nContact depth = " << cg_.depth;
   return s.str();
+}
+
+Vector3d Contact::GetConstraintPosition() const {
+  return cg_.position;
 }
 
 std::ostream& operator<<(std::ostream* out, const Contact& c) {

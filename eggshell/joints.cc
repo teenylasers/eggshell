@@ -52,3 +52,24 @@ void BallAndSocketJoint::Draw() const {
     DrawPoint(b1_->p() + b1_->R() * c1_);
   }
 }
+
+Vector3d BallAndSocketJoint::GetConstraintPosition() const {
+  Vector3d p0, p1;
+  if (b0_ != nullptr) {
+    p0 = b0_->p() + b0_->R() * c0_;
+  }
+  if (b1_ != nullptr) {
+    p1 = b1_->p() + b1_->R() * c1_;
+  }
+
+  if (b0_ != nullptr && b1_ != nullptr) {
+    return (p0 + p1) / 2;
+  } else if (b0_ != nullptr && b1_ == nullptr) {
+    return p0;
+  } else if (b0_ == nullptr && b1_ != nullptr) {
+    return p1;
+  } else {
+    Panic("b0_ and b1_ are both nullptr.");
+    return Vector3d::Zero();
+  }
+}

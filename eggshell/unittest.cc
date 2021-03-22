@@ -5,7 +5,7 @@
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 #include "model.h"
-#include "util.h"
+#include "utils.h"
 
 DEFINE_bool(verbose, false, "verbose output [false]");
 
