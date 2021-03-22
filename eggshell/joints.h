@@ -46,6 +46,8 @@ class BallAndSocketJoint : public Joint {
   void ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const override;
 
   void Draw() const override;
+
+  Vector3d GetConstraintPosition() const override;
 };
 
 #endif

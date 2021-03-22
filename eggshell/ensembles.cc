@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <string>
 
 #include "constants.h"
@@ -10,13 +11,15 @@
 #include "lcp.h"
 
 namespace {
-constexpr double kCfmCoeff = 10;
-}
+constexpr double kCfmCoeff = 1;
+constexpr double kMinConstraintDistance = 1e-6;
+}  // namespace
 
 void Ensemble::Init() {
   ConstructMassInertiaMatrixInverse();
   InitializeExternalForceTorqueVector();
   CHECK(CheckInitialConditions()) << "Check initial conditions failed.";
+  CheckAndCorrectEnsembleState();
 }
 
 MatrixXd Ensemble::ComputeJ() const {
@@ -181,22 +184,16 @@ VectorXd Ensemble::ComputePositionConstraintError() const {
   return prev_errors;
 }
 
-bool Ensemble::CheckInitialConditions() const {
-  auto error = ComputePositionConstraintError();
-  if (!error.isZero(kAllowNumericalError)) {
-    std::cout << "ERROR: Initial conditions: " << std::endl << error;
-    return false;
-  } else {
-    return true;
-  }
-}
-
 void Ensemble::Draw() const {
   for (const auto& l : components_) {
     l->Draw();
   }
   for (const auto& j : joints_) {
     j->Draw();
+  }
+  // DEBUG ONLY: Draw the contacts for viz
+  for (const auto& ct : contacts_) {
+    ct->Draw();
   }
 }
 
@@ -238,10 +235,169 @@ void Ensemble::InitializeExternalForceTorqueVector() {
   }
 }
 
+bool Ensemble::CheckInitialConditions() const {
+  auto error = ComputePositionConstraintError();
+  if (!error.isZero(kAllowNumericalError)) {
+    std::cout << "ERROR: Initial conditions: " << std::endl << error;
+    return false;
+  } else {
+    return true;
+  }
+}
+
+void Ensemble::CheckAndCorrectEnsembleState() {
+  // 1. Check whether M_inverse_, external_force_torques_ have the correct
+  // dimensions.
+  if (M_inverse_.rows() != M_inverse_.cols() && M_inverse_.rows() != 6 * n_) {
+    std::cout << "num components = " << n_ << ". M_inverse_ size = ("
+              << M_inverse_.rows() << ", " << M_inverse_.cols() << ").\n";
+    Panic("M_inverse_ dimensions are incorrect.");
+  }
+  if (external_force_torque_.size() != 6 * n_) {
+    std::cout << "num components = " << n_ << ". external_force_torque_ size = "
+              << external_force_torque_.size() << std::endl;
+    Panic("external_force_torque_ dimensions are incorrect.");
+  }
+
+  // 2. Check whether there exist constraint pairs that are too close to each
+  // other, which can cause overconstraint singular J. Try to correct if so.
+  ConstructPairwiseJointsMap();
+  ConstructPairwiseContactsMap();
+
+  auto contacts_set_compare = [](int a, int b) { return a > b; };
+  std::set<int, decltype(contacts_set_compare)> contacts_to_delete(
+      contacts_set_compare);
+
+  for (int i = 0; i < components_.size() - 1; ++i) {
+    for (int j = i + 1; j < components_.size(); ++j) {
+      const auto map_key = std::make_tuple(i, j);
+      // Using operator[] here, expect an empty std::vector if map_key does not
+      // exist in the pairwise_joints_ or pairwise_contacts_.
+      auto& pair_joints = pairwise_joints_[map_key];
+      auto& pair_contacts = pairwise_contacts_[map_key];
+
+      // DEBUG ONLY
+      // std::cout << "pair_joints.size = " << pair_joints.size()
+      //           << ", pair_contacts.size = " << pair_contacts.size()
+      //           << std::endl;
+
+      // Check for neighbouring joint constraints. If fails, panic abort.
+      for (auto it1 = pair_joints.begin(); it1 != pair_joints.end(); ++it1) {
+        for (auto it2 = it1 + 1; it2 != pair_joints.end(); ++it2) {
+          if (!CheckConstraintPair(joints_.at(*it1), joints_.at(*it2))) {
+            Panic(
+                "Joint constraints between components %d and %d conflict or "
+                "cause overconstraint.",
+                i, j);
+          }
+        }
+      }
+
+      // Check for a pair of neighbouring joint constraint and contact
+      // constraint. If fails, delete the contact constraint.
+      for (auto it1 = pair_joints.begin(); it1 != pair_joints.end(); ++it1) {
+        for (auto it2 = pair_contacts.begin(); it2 != pair_contacts.end();
+             ++it2) {
+          if (!CheckConstraintPair(joints_.at(*it1), contacts_.at(*it2))) {
+            std::cout << "Components " << i << " and " << j
+                      << ", joint vs contact check.\n";
+            contacts_to_delete.insert(*it2);
+          }
+        }
+      }
+
+      // Check neighbouring contact constraints. If fails, delete one of them.
+      for (auto it1 = pair_contacts.begin(); it1 != pair_contacts.end();
+           ++it1) {
+        for (auto it2 = it1 + 1; it2 != pair_contacts.end(); ++it2) {
+          if (!CheckConstraintPair(contacts_.at(*it1), contacts_.at(*it2))) {
+            std::cout << "Components " << i << " and " << j
+                      << ", contact vs contact check.\n";
+            contacts_to_delete.insert(*it2);
+          }
+        }
+      }
+    }
+  }  // Finish pairwise check of constraints.
+
+  // Erase contacts_to_delete
+  if (!contacts_to_delete.empty()) {
+    std::cout << "contacts_.size() = " << contacts_.size()
+              << ". Contacts to delete are: ";
+    for (const auto c : contacts_to_delete) {
+      std::cout << c << ", ";
+    }
+    std::cout << std::endl;
+  }
+  for (const auto c : contacts_to_delete) {
+    contacts_.erase(contacts_.begin() + c);
+  }
+}
+
+void Ensemble::ConstructPairwiseJointsMap() {
+  // pairwise_joints_ only needs to be constructed once.
+  if (!pairwise_joints_.empty()) {
+    return;
+  }
+
+  for (int i = 0; i < joints_.size(); ++i) {
+    const auto& j = joints_.at(i);
+    auto map_key = j->i0_ < j->i1_ ? std::make_tuple(j->i0_, j->i1_)
+                                   : std::make_tuple(j->i1_, j->i0_);
+    std::vector<int> map_val{i};
+    if (pairwise_joints_.find(map_key) == pairwise_joints_.end()) {
+      pairwise_joints_.emplace(map_key, map_val);
+    } else {
+      pairwise_joints_.at(map_key).push_back(i);
+    }
+  }
+
+  // DEBUG ONLY:
+  // std::cout << "pairwise_joints_.size() = " << pairwise_joints_.size()
+  //           << std::endl;
+}
+
+void Ensemble::ConstructPairwiseContactsMap() {
+  // Always reconstruct pairwise_contacts_, because contacts_ are updated with
+  // every stablization or time step.
+  pairwise_contacts_.clear();
+
+  for (int i = 0; i < contacts_.size(); ++i) {
+    const auto& c = contacts_.at(i);
+    auto map_key = c->i0_ < c->i1_ ? std::make_tuple(c->i0_, c->i1_)
+                                   : std::make_tuple(c->i1_, c->i0_);
+    std::vector<int> map_val{i};
+    if (pairwise_contacts_.find(map_key) == pairwise_contacts_.end()) {
+      pairwise_contacts_.emplace(map_key, map_val);
+    } else {
+      pairwise_contacts_.at(map_key).push_back(i);
+    }
+  }
+
+  // DEBUG ONLY
+  // std::cout << "pairwise_contacts_.size() = " << pairwise_contacts_.size()
+  //           << std::endl;
+}
+
+bool Ensemble::CheckConstraintPair(const std::shared_ptr<Constraint> c1,
+                                   const std::shared_ptr<Constraint> c2) const {
+  Vector3d constraint_position_difference =
+      c1->GetConstraintPosition() - c2->GetConstraintPosition();
+  if (constraint_position_difference.norm() < kMinConstraintDistance) {
+    std::cout << "Found conflict between constraints: distance = "
+              << constraint_position_difference.norm() << "\n"
+              << c1->PrintInfo() << std::endl
+              << c2->PrintInfo() << std::endl;
+    return false;
+  }
+  return true;
+}
+
 void Ensemble::Step(double dt, Integrator g) {
   // Survey current state
   const VectorXd v = GetVelocities();
   UpdateContacts();
+  CheckAndCorrectEnsembleState();
 
   // Time step
   if (g == Integrator::EXPLICIT_EULER) {
@@ -324,9 +480,9 @@ void Ensemble::UpdateContacts() {
   }
 
   // DEBUG ONLY: Draw the contacts for viz
-  for (const auto& ct : contacts_) {
-    ct->Draw();
-  }
+  // for (const auto& ct : contacts_) {
+  //   ct->Draw();
+  // }
 }
 
 VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const {
@@ -366,8 +522,8 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
     const MatrixXd lhs = JMJt + Cfm;
 
     // DEBUG ONLY: Print and visualize systems matrix structure.
-    std::cout << "JMJt \n" << JMJt << std::endl;
-    std::cout << "lhs = JMJt + Cfm \n" << lhs << std::endl;
+    // std::cout << "JMJt \n" << JMJt << std::endl;
+    // std::cout << "lhs = JMJt + Cfm \n" << lhs << std::endl;
 
     // Solve systems equation
     VectorXd lambda(J_rows);
@@ -456,6 +612,7 @@ void Ensemble::InitStabilize() {
     err_sq = err.transpose() * err;
     ++step_counter;
   }
+  CheckAndCorrectEnsembleState();
 
   std::cout << "Pre-stabilization steps count : " << step_counter << std::endl;
   std::cout << "Final err_sq : " << err_sq << std::endl;
@@ -548,13 +705,6 @@ void Chain::SetAnchor() {
   joints_.push_back(joint);
 }
 
-bool Chain::CheckErrorDims(VectorXd error) const {
-  // TODO: hardcoded for all BallAndSocketJoints, can be smarter or delete
-  // after debug because Ensemble::ComputeJointError is correct by
-  // construction?
-  return error.rows() == 3 * joints_.size() && error.cols() == 1;
-}
-
 Cairn::Cairn(int num_rocks, const std::array<double, 2>& x_bound,
              const std::array<double, 2>& y_bound,
              const std::array<double, 2>& z_bound) {
@@ -575,5 +725,3 @@ Cairn::Cairn(int num_rocks, const std::array<double, 2>& x_bound,
     components_.push_back(std::shared_ptr<Body>(new Body(p, v, m, R, w, I)));
   }
 }
-
-bool Cairn::CheckErrorDims(VectorXd) const { return true; }

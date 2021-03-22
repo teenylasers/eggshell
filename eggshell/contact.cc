@@ -165,6 +165,10 @@ std::string Contact::PrintInfo() const {
   return s.str();
 }
 
+Vector3d Contact::GetConstraintPosition() const {
+  return cg_.position;
+}
+
 std::ostream& operator<<(std::ostream* out, const Contact& c) {
   return *out << c.PrintInfo();
 }

@@ -33,6 +33,9 @@ class Constraint {
     return "Constraint.PrintInfo()";
   };
 
+  // Get the global frame constraint position.
+  virtual Vector3d GetConstraintPosition() const = 0;
+
   // The indices for b0_ and b1_ in the components_ list that contains this
   // Constraint.
   int i0_ = -1;

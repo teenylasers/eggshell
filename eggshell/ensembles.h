@@ -4,6 +4,8 @@
 #ifndef __ENSEMBLES_H__
 #define __ENSEMBLES_H__
 
+#include <map>
+#include <tuple>
 #include <vector>
 
 #include "Eigen/Dense"
@@ -29,22 +31,9 @@ class Ensemble {
   // higher x bound in Ax = b+w.
   virtual MatrixXd ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const;
 
-  // Compute the position error.
-  virtual VectorXd ComputePositionConstraintError() const;
-
   // JDot is a sparse matrix, computing JDot then JDot * v is doing a lot of
   // multiplication with zero. Therefore compute JDotV directly.
   virtual VectorXd ComputeJDotV() const;
-
-  // Sanity check the dimensions of ComputeError and ComputeJ results.
-  // TODO: may not need these, ComputeError and ComputeJ concatenations should
-  // be correct by construction.
-  virtual bool CheckErrorDims(VectorXd error) const = 0;
-
-  // Sanity check the ensemble's initial conditions, before any time stepping
-  // has occurred. Specifically, check that position constraint error is no more
-  // than reasonably allowed numerical error.
-  virtual bool CheckInitialConditions() const;
 
   // Advance one time step with step size dt
   enum struct Integrator {
@@ -53,10 +42,6 @@ class Ensemble {
     IMPLICIT_MIDPOINT
   };
   virtual void Step(double dt, Integrator g = Integrator::OPEN_DYNAMICS_ENGINE);
-
-  // Find all contacts between Bodies or between Body and ground, clear and
-  // update contacts_
-  void UpdateContacts();
 
   // When Ensemble is first initialized, check for position errors, correct them
   // if any using StepPositionRelaxation().
@@ -70,11 +55,8 @@ class Ensemble {
   // Render in EggshellView
   virtual void Draw() const;
 
-  // TODO:
-  // Check conservation of energy and impact, is the following even true?
-  //
-  // Check that the rotational kinetic energy is conserved. Linear kinetic
-  // energy changes due to gravity, thus not checked in this function.
+  // Checks conservatio of rotational kinetic energy.
+  // TODO: Not applicable as a real check.
   bool CheckConservationOfEnergy();
 
  protected:
@@ -89,14 +71,53 @@ class Ensemble {
   // Contacts between Bodies or between Body and ground.
   std::vector<std::shared_ptr<Contact>> contacts_;
 
+  // The inverse of mass-inertia matrix
   MatrixXd M_inverse_;
+
+  // The external forces and torques vector
   VectorXd external_force_torque_;
 
  private:
   double total_rotational_ke_ = std::numeric_limits<double>::infinity();
 
+  // Keep pair-wise constraints maps for quick lookup and error checking. Map
+  // keys are std::pair<int, int>, referring to the 2 components' indices in
+  // components_, -1 indicates ground. The first int is always smaller than the
+  // second. Map values are a list of indices that refer to the item in joints_
+  // or contacts_.
+  std::map<std::tuple<int, int>, std::vector<int>> pairwise_joints_;
+  std::map<std::tuple<int, int>, std::vector<int>> pairwise_contacts_;
+
   void ConstructMassInertiaMatrixInverse();
   void InitializeExternalForceTorqueVector();  // Gravity is applied here
+
+  // Sanity check the ensemble's initial conditions, before any time stepping
+  // has occurred. Specifically, check that position constraint error is no more
+  // than reasonably allowed numerical error.
+  virtual bool CheckInitialConditions() const;
+
+  // Check and correct, where possible, the current state of this ensemble. This
+  // is a runtime check between stepping, thus contains different checks from
+  // CheckInitialConditions().
+  // The checks include:
+  //   1. whether M_inverse_ and external_force_torques_ take proper forms.
+  //   2. whether there exist constraints (joints and contacts) that are too
+  //      close to each other, which can cause overconstraint and singular J.
+  virtual void CheckAndCorrectEnsembleState();
+
+  // Helper functions to CheckAndCorrectEnsembleState()
+  void ConstructPairwiseJointsMap();
+  void ConstructPairwiseContactsMap();
+  // Check whether the constraint pair c1 and c2 conflict or overconstraint.
+  bool CheckConstraintPair(const std::shared_ptr<Constraint> c1,
+                           const std::shared_ptr<Constraint> c2) const;
+
+  // Compute the position error.
+  virtual VectorXd ComputePositionConstraintError() const;
+
+  // Find all contacts between Bodies or between Body and ground, clear and
+  // update contacts_
+  void UpdateContacts();
 
   // Create and return the systems v vector, [p_dot_0; w_0; p_dot_1; w_1' ...]
   const VectorXd GetVelocities() const;
@@ -148,7 +169,6 @@ class Ensemble {
 class Chain : public Ensemble {
  public:
   Chain(int num_links, const Vector3d& anchor_position);
-  bool CheckErrorDims(VectorXd error) const override;
 
  private:
   void InitLinks(const Vector3d& anchor_position);
@@ -163,8 +183,6 @@ class Cairn : public Ensemble {
   Cairn(int num_rocks, const std::array<double, 2>& x_bound,
         const std::array<double, 2>& y_bound,
         const std::array<double, 2>& z_bound);
-
-  bool CheckErrorDims(VectorXd error) const override;
 
  private:
   const double max_init_v_ = 1;
