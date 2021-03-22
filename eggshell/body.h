@@ -16,31 +16,34 @@ class Body {
   Body()
       : p_(Vector3d::Zero()),
         v_(Vector3d::Zero()),
-        m_(0.0),
+        m_(1.0),
         R_(Matrix3d::Identity()),
         w_(Vector3d::Zero()),
-        I_(Matrix3d::Identity()) {}
+        I_(Matrix3d::Identity()) {
+    I_ = CalculateInertia(m_);
+  }
   explicit Body(const Vector3d& p, const Matrix3d& R)
       : p_(p),
         v_(Vector3d::Zero()),
         m_(1.0),
         R_(R),
         w_(Vector3d::Zero()),
-        I_(Matrix3d::Identity()) {}
+        I_(Matrix3d::Identity()) {
+    I_ = CalculateInertia(m_);
+  }
   explicit Body(const Vector3d& p, const Vector3d& v, const Matrix3d& R,
                 const Vector3d& w)
-      : p_(p), v_(v), m_(1.0), R_(R), w_(w), I_(Matrix3d::Identity()) {}
+      : p_(p), v_(v), m_(1.0), R_(R), w_(w), I_(Matrix3d::Identity()) {
+    I_ = CalculateInertia(m_);
+  }
   explicit Body(const Vector3d& p, const Vector3d& v, double m,
                 const Matrix3d& R, const Vector3d& w, const Matrix3d& I)
       : p_(p), v_(v), m_(m), R_(R), w_(w), I_(I) {}
   explicit Body(const Vector3d& p, const Vector3d& v, const Quaterniond& q,
                 const Vector3d& w)
-      : p_(p),
-        v_(v),
-        m_(1.0),
-        R_(q.matrix()),
-        w_(w),
-        I_(Matrix3d::Identity()) {}
+      : p_(p), v_(v), m_(1.0), R_(q.matrix()), w_(w), I_(Matrix3d::Identity()) {
+    I_ = CalculateInertia(m_);
+  }
   explicit Body(const Vector3d& p, const Vector3d& v, double m,
                 const Quaterniond& q, const Vector3d& w, const Matrix3d& I)
       : p_(p), v_(v), m_(m), R_(q.matrix()), w_(w), I_(I) {}
@@ -54,8 +57,7 @@ class Body {
   const Matrix3d& I_b() const { return I_; };
   const Matrix3d I_g() const { return R() * I_ * R().transpose(); };
 
-  // TODO: implement different types of Bodies
-  // enum struct BodyType { Box = 0 };
+  enum struct BodyType { Box = 0 };
 
   void SetP(const Vector3d& p) { p_ = p; };
   void SetV(const Vector3d& v) { v_ = v; };
@@ -85,7 +87,12 @@ class Body {
 
   // TODO: move this to a subclass when there are different types of Bodies.
   // TODO: make side lengths settable, and constructible
-  const Vector3d side_lengths_ = {0.3, 0.3, 0.3};
+  const BodyType type_ = BodyType::Box;
+  const Vector3d side_lengths_ = {0.3, 0.3, 0.3};  // x, y, z
+
+  // Calculate the inertia matrix from mass m, BodyType type_, and related body
+  // geometry info.
+  Matrix3d CalculateInertia(double m) const;
 };
 
 #endif
