@@ -80,14 +80,14 @@ bool CheckMurtySolution(const MatrixXd& A, const VectorXd& b, const VectorXd& x,
   const VectorXd lhs = A * x;
   const VectorXd rhs = b + w;
   if ((lhs - rhs).norm() > solution_check_err) {
-    std::cout << "Found solution does not satisfy equation Ax = b+w\n";
-    // std::cout << "lhs = " << lhs << "\n";
-    // std::cout << "rhs = " << rhs << "\n";
-    // std::cout << "S = " << S.transpose() << std::endl;
-    // std::cout << "x = " << x.transpose() << std::endl;
-    // std::cout << "w = " << w.transpose() << std::endl;
-    // std::cout << "lhs - rhs = " << (lhs - rhs).transpose() << std::endl;
-    std::cout << "(lhs - rhs).norm() = " << (lhs - rhs).norm() << std::endl;
+    // std::cout << "Found solution does not satisfy equation Ax = b+w\n";
+    // // std::cout << "lhs = " << lhs << "\n";
+    // // std::cout << "rhs = " << rhs << "\n";
+    // // std::cout << "S = " << S.transpose() << std::endl;
+    // // std::cout << "x = " << x.transpose() << std::endl;
+    // // std::cout << "w = " << w.transpose() << std::endl;
+    // // std::cout << "lhs - rhs = " << (lhs - rhs).transpose() << std::endl;
+    // std::cout << "(lhs - rhs).norm() = " << (lhs - rhs).norm() << std::endl;
     return false;
   }
   return true;
@@ -300,6 +300,17 @@ bool Lcp::MixedConstraintsSolver(const MatrixXd& A, const VectorXd& b,
     Error(
         "MixedConstraintsSolver: MurtyPrincipalPivot exited without reaching a "
         "solution.");
+    std::cout << "MixedConstraintsSolver\n";
+    std::cout << "A dimensions = " << A.rows() << " x " << A.cols()
+              << ", condition number = " << GetConditionNumber(A) << std::endl;
+    std::cout << "A_ii (condition number " << GetConditionNumber(A_ii)
+              << ") = \n"
+              << A_ii << std::endl;
+    std::cout << "A_ie * A_ee.inverse() * A_ei (condition number "
+              << GetConditionNumber(A_ie * A_ee.inverse() * A_ei) << ") = \n"
+              << A_ie * A_ee.inverse() * A_ei << std::endl;
+    std::cout << "lhs (condition number " << GetConditionNumber(lhs) << ") =\n"
+              << lhs << std::endl;
     return false;
   }
 
