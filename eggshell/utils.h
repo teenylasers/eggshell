@@ -45,4 +45,7 @@ Matrix3d AlignVectors(const Vector3d& a, const Vector3d& b);
 // Return the condition number of a matrix
 double GetConditionNumber(const MatrixXd& A);
 
+// Check whether matrix A is singular or rank-deficient.
+bool CheckMatrixCondition(const MatrixXd& A);
+
 #endif

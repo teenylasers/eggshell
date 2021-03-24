@@ -117,6 +117,22 @@ double GetConditionNumber(const Eigen::MatrixXd& A) {
   return cond;
 }
 
+bool CheckMatrixCondition(const MatrixXd& A) {
+  if (A.rows() > A.cols()) {
+    // std::cout << "ERROR: A has " << A.rows() << " rows and " << A.cols()
+    //           << " cols => singular." << std::endl;
+    return false;
+  } else {
+    bool good = GetConditionNumber(A) < kGoodConditionNumber;
+    // if (!good) {
+    //   std::cout << "ERROR: GetConditionNumber(A) [" << GetConditionNumber(A)
+    //             << "] > kGoodConditionNumber [" << kGoodConditionNumber
+    //             << "]\n.";
+    // }
+    return good;
+  }
+}
+
 //***************************************************************************
 // Testing.
 

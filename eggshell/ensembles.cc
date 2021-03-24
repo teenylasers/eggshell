@@ -11,7 +11,7 @@
 #include "lcp.h"
 
 namespace {
-constexpr double kCfmCoeff = 1;
+constexpr double kCfmCoeff = 0.01;
 constexpr double kMinConstraintDistance = 1e-6;
 }  // namespace
 
@@ -82,22 +82,6 @@ MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
   // std::cout << "x_hi =\n" << *x_hi << std::endl;
 
   return J;
-}
-
-bool Ensemble::CheckJ(const MatrixXd& J) const {
-  if (J.rows() > J.cols()) {
-    // std::cout << "ERROR: J has " << J.rows() << " rows and " << J.cols()
-    //           << " cols => singular." << std::endl;
-    return false;
-  } else {
-    bool good = GetConditionNumber(J) < kGoodConditionNumber;
-    // if (!good) {
-    //   std::cout << "ERROR: GetConditionNumber(J) [" << GetConditionNumber(J)
-    //             << "] > kGoodConditionNumber [" << kGoodConditionNumber
-    //             << "]\n.";
-    // }
-    return good;
-  }
 }
 
 VectorXd Ensemble::ComputeJDotV() const {
@@ -299,8 +283,8 @@ void Ensemble::CheckAndCorrectEnsembleState() {
         for (auto it2 = pair_contacts.begin(); it2 != pair_contacts.end();
              ++it2) {
           if (!CheckConstraintPair(joints_.at(*it1), contacts_.at(*it2))) {
-            std::cout << "Components " << i << " and " << j
-                      << ", joint vs contact check.\n";
+            // std::cout << "Components " << i << " and " << j
+            //           << ", joint vs contact check.\n";
             contacts_to_delete.insert(*it2);
           }
         }
@@ -311,8 +295,8 @@ void Ensemble::CheckAndCorrectEnsembleState() {
            ++it1) {
         for (auto it2 = it1 + 1; it2 != pair_contacts.end(); ++it2) {
           if (!CheckConstraintPair(contacts_.at(*it1), contacts_.at(*it2))) {
-            std::cout << "Components " << i << " and " << j
-                      << ", contact vs contact check.\n";
+            // std::cout << "Components " << i << " and " << j
+            //           << ", contact vs contact check.\n";
             contacts_to_delete.insert(*it2);
           }
         }
@@ -321,14 +305,15 @@ void Ensemble::CheckAndCorrectEnsembleState() {
   }  // Finish pairwise check of constraints.
 
   // Erase contacts_to_delete
-  if (!contacts_to_delete.empty()) {
-    std::cout << "contacts_.size() = " << contacts_.size()
-              << ". Contacts to delete are: ";
-    for (const auto c : contacts_to_delete) {
-      std::cout << c << ", ";
-    }
-    std::cout << std::endl;
-  }
+  // DEBUG ONLY:
+  // if (!contacts_to_delete.empty()) {
+  //   std::cout << "contacts_.size() = " << contacts_.size()
+  //             << ". Contacts to delete are: ";
+  //   for (const auto c : contacts_to_delete) {
+  //     std::cout << c << ", ";
+  //   }
+  //   std::cout << std::endl;
+  // }
   for (const auto c : contacts_to_delete) {
     contacts_.erase(contacts_.begin() + c);
   }
@@ -384,10 +369,10 @@ bool Ensemble::CheckConstraintPair(const std::shared_ptr<Constraint> c1,
   Vector3d constraint_position_difference =
       c1->GetConstraintPosition() - c2->GetConstraintPosition();
   if (constraint_position_difference.norm() < kMinConstraintDistance) {
-    std::cout << "Found conflict between constraints: distance = "
-              << constraint_position_difference.norm() << "\n"
-              << c1->PrintInfo() << std::endl
-              << c2->PrintInfo() << std::endl;
+    // std::cout << "Found conflict between constraints: distance = "
+    //           << constraint_position_difference.norm() << "\n"
+    //           << c1->PrintInfo() << std::endl
+    //           << c2->PrintInfo() << std::endl;
     return false;
   }
   return true;
@@ -491,7 +476,8 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs) const {
   if (joints_.empty() && contacts_.empty()) {
     v_dot = M_inverse_ * external_force_torque_;
   } else {
-    CHECK(CheckJ(J));  // J needs to be non-singular for this algorithm to work.
+    // J needs to be non-singular for this algorithm to work.
+    CHECK(CheckMatrixCondition(J));
     const MatrixXd JMJt = J * M_inverse_ * J.transpose();
     const VectorXd lambda = JMJt.ldlt().solve(rhs);
     v_dot = M_inverse_ * (external_force_torque_ + J.transpose() * lambda);
@@ -513,14 +499,17 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
     // C indicates (in)equality constraints.
     // {x_lo, x_hi} set LCP solver x-limits in Ax=b+w.
     const MatrixXd JMJt = J * M_inverse_ * J.transpose();
-    MatrixXd Cfm = MatrixXd::Zero(J_rows, J_rows);
-    // If CheckJ() finds an ill-conditioned J, then apply constraint force
-    // mixing (cfm).
-    if (!CheckJ(J)) {
+    // If CheckMatrixCondition() finds an ill-conditioned systems matrix, then
+    // apply constraint force mixing (cfm).
+    MatrixXd lhs = JMJt;
+    if (!CheckMatrixCondition(JMJt)) {
+      // std::cout << "Condition number of JMJt: before CFM = "
+      //           << GetConditionNumber(JMJt);
+      MatrixXd Cfm = MatrixXd::Zero(J_rows, J_rows);
       Cfm = kCfmCoeff * MatrixXd::Identity(J_rows, J_rows);
+      lhs = lhs + Cfm;
+      // std::cout << ", after CFM = " << GetConditionNumber(lhs) << std::endl;
     }
-    const MatrixXd lhs = JMJt + Cfm;
-
     // DEBUG ONLY: Print and visualize systems matrix structure.
     // std::cout << "JMJt \n" << JMJt << std::endl;
     // std::cout << "lhs = JMJt + Cfm \n" << lhs << std::endl;

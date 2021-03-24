@@ -126,10 +126,6 @@ class Ensemble {
   // frame).
   void UpdateComponentsVelocities(const VectorXd& v);
 
-  // Check whether J is singular or rank-deficient. For now, return false if
-  // definitely singular and need to readdress the problem set-up.
-  bool CheckJ(const MatrixXd& J) const;
-
   // Compute JDotV due to 1. joint constraints, 2. contact constraints
   VectorXd ComputeJDotV_Joints() const;
   VectorXd ComputeJDotV_Contacts() const;
