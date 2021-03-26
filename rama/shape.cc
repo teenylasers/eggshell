@@ -2408,7 +2408,7 @@ int Shape::LuaPort(lua_State *L) {
   //   2: port number
   //   3: real part of S11
   //   4: imaginary part of S11
-  //   5: optional callback function
+  //   5: callback function, or nil if not supplied
   // Some argument checking is already done in __Port__.
   CHECK(lua_gettop(L) == 6);
   EdgeKind edge_kind;
@@ -2476,6 +2476,9 @@ int Shape::LuaABC(lua_State *L) {
   LuaErrorIfNaNOrInfs(L);
   Expecting(L, 2, "ABC");
   lua_pushnumber(L, MAGIC_ABC_PORT);
+  lua_pushnumber(L, 0);   // real part of S11
+  lua_pushnumber(L, 0);   // imaginary part of S11
+  lua_pushnil(L);         // callback function
   return LuaPort(L);
 }
 
