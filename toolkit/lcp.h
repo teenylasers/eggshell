@@ -27,11 +27,15 @@ using Eigen::MatrixXd;
 //***************************************************************************
 // MatrixPermutation.
 // Maintain a permutation of a matrix A, and allow vectors to be permuted and
-// unpermuted according to that permutation.
+// unpermuted according to that permutation. We distinguish between original
+// indexes that apply to the original matrix A, and permuted indexes that apply
+// to the matrix A that we currently have.
 
 class MatrixPermutation {
  public:
   explicit MatrixPermutation(MatrixXd &A);
+
+  int Asize() const { return A_.rows(); }
 
   // Swap rows and columns of A_ and x_. Permuted (not original) indexes i and
   // j are given.
@@ -41,7 +45,7 @@ class MatrixPermutation {
   void Permute(const VectorXd &in, VectorXd *out) const;
 
   // Unpermute the permuted vector 'in' to get the original vector 'out'.
-  // Optionally start from the given index.
+  // Optionally start from the given (permuted) index.
   void Unpermute(const VectorXd &in, VectorXd *out, int start_index = 0) const;
 
   // Return the permuted index for original index i.
@@ -63,20 +67,19 @@ class MatrixPermutation {
 
 //***************************************************************************
 // LinearReducer.
-// Given a matrix A, solve problems involving principal submatrices of A.
-// Only the lower triangle of A is ever accessed. A is permuted in place.
+// This maintains a factorization of a top left submatrix of the matrix A. The
+// factorization is of all (original) indexes that are in the "index set".
+// Allow rows to be swapped in to and out of this factorization. Only the lower
+// triangle of A is ever accessed. A is permuted in place.
 
 class LinearReducer : public MatrixPermutation {
  public:
   LinearReducer(MatrixXd &A, const VectorXd &b);
-  virtual ~LinearReducer();
 
-  int Asize() const { return A_.rows(); }
-
-  // Access the index set.
+  // Is (original, not permuted) index i in the index set?
   bool HasIndex(int i) const;
 
-  // Add or remove indexes from the index set.
+  // Add or remove (original, not permuted) indexes from the index set.
   void AddIndex(int i);
   void RemoveIndex(int i);
 
@@ -89,9 +92,6 @@ class LinearReducer : public MatrixPermutation {
   // Compute b = A*x. The b vector is only filled in for indexes *not* in the
   // index set.
   void MultiplyA(const VectorXd &x, VectorXd *b) const;
-
-  // For debugging, print the internal state to stdout.
-  void DebuggingPrintState() const;
 
  private:
   VectorXd x_;    // Solution of A*x = b, permuted by perm_
@@ -144,7 +144,8 @@ enum Algorithm {
   COTTLE_DANTZIG,
 };
 
-// LCP solver settings.
+// LCP solver settings. Here, "infinity" is taken to be either the maximum
+// representable double (__DBL_MAX__) or the actual infinity value.
 struct Settings {
   // The algorithm to use.
   Algorithm algorithm = MURTY;
@@ -154,12 +155,16 @@ struct Settings {
   bool box_lcp = true;
 
   // Use a Schur complement approach to speed up solutions where large numbers
-  // of unbounded variables are present.
+  // of unbounded variables are present (i.e. lo=-infinity, hi=infinity).
   bool schur_complement = true;
 
   // Maximum number of solver iterations to run before giving up and returning
-  // false.
-  int max_iterations = 1000000000;
+  // false. However it is often not possible to know what a reasonable limit
+  // might be, which is why max_time also exists.
+  int max_iterations = __INT_MAX__;
+
+  // Maximum wall clock time to run before giving up and returning false.
+  double max_time = __DBL_MAX__;
 };
 
 // Solve the LCP problem. Return true on success or false if a solution

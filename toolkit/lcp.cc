@@ -10,6 +10,11 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details.
 
+// References:
+//   [1] Timothy A. Davis and William W. Hager,
+//       "Row modifications of a sparse cholesky factorization"
+//       https://people.engr.tamu.edu/davis/publications_files/Row_modifications_of_a_sparse_Cholesky_factorization.pdf
+
 #include <stdio.h>
 #include <iostream>
 #include <utility>
@@ -21,6 +26,10 @@ using Eigen::MatrixXd;
 using std::vector;
 
 namespace lcp {
+
+inline double sqr(double x) {
+  return x * x;
+}
 
 //***************************************************************************
 // More convenient access to Eigen's LLT Cholesky solver. This provides an
@@ -47,12 +56,18 @@ inline void LSolve(const MatrixXd &L, int n, VectorXd *x_and_b) {
   L.block(0, 0, n, n).triangularView<Eigen::Lower>().solveInPlace(*x_and_b);
 }
 
+// Solve in place: L'*x = b, regarding just the top left n*n block of L. Only
+// the lower triangle of L is read.
+inline void LTSolve(const MatrixXd &L, int n, VectorXd *x_and_b) {
+  L.block(0, 0, n, n).adjoint().triangularView<Eigen::Upper>()
+    .solveInPlace(*x_and_b);
+}
+
 // Solve L*L'*x = b, regarding just the top left n*n block of L. Only the lower
 // triangle of L is read.
 inline void LLTSolve(const MatrixXd &L, int n, VectorXd *x_and_b) {
-  L.block(0, 0, n, n).triangularView<Eigen::Lower>().solveInPlace(*x_and_b);
-  L.block(0, 0, n, n).adjoint().triangularView<Eigen::Upper>()
-   .solveInPlace(*x_and_b);
+  LSolve(L, n, x_and_b);
+  LTSolve(L, n, x_and_b);
 }
 
 // Perform an in-place rank update on a block(i,i,p,p) of an already-factored
@@ -93,6 +108,13 @@ static void AddCholeskyRow(const MatrixXd &A, int n, MatrixXd *L) {
 // accessed.
 
 static void SwapCholeskyRows(const MatrixXd &A, int i, int n, MatrixXd *L) {
+  // Implementation note: It is possible to delete a row/column of a Cholesky
+  // factorization with a single rank 1 update (e.g. [1]). Here we use a rank 2
+  // update. What gives? With the rank 1 deletion we would have to shuffle
+  // memory for A and L to fill in the gap left behind. The rank 2 update swaps
+  // indexes i and n-1, requiring much less data motion. Experiments show that
+  // the rank 2 approach is faster.
+
   if (n <= 1 || i == n-1) {
     return;
   }
@@ -198,9 +220,6 @@ LinearReducer::LinearReducer(MatrixXd &A, const VectorXd &b)
   Cholesky(&L_);
   x_ = b;
   LLTSolve(L_, L_.rows(), &x_);
-}
-
-LinearReducer::~LinearReducer() {
 }
 
 bool LinearReducer::HasIndex(int i) const {
@@ -419,6 +438,186 @@ bool SolveLCP_BoxMurty(const Settings &settings,
   return false;
 }
 
+bool SolveLCP_BoxDantzig(const Settings &settings,
+                         MatrixXd &A, const VectorXd &b,
+                         const VectorXd &lo_arg, const VectorXd &hi_arg,
+                         VectorXd *x_arg, VectorXd *w_arg) {
+  // The restrictions: lo <= 0, hi >= 0, lo < hi make this algorithm a bit
+  // simpler. We need lo < hi so that we can always tell whether x is
+  // clamped low or high by looking at its value.
+
+  // Current partial solution x and w.
+  int n = A.rows();
+  VectorXd x(n);
+  VectorXd w(n);
+  x.setZero();            // Not necessary, but it helps debugging
+  w.setZero();
+  VectorXd lo(lo_arg);    // Make a copy of lo, hi, since we permute them
+  VectorXd hi(hi_arg);
+
+  // Permute A as we go.
+  MatrixPermutation Aperm(A);
+
+  // The factorization of Aperm that we build as we go.
+  MatrixXd L(n, n);
+
+  // 'index' is the size of the top left matrix in A that is currently
+  // factorized into L. Indexes 0..index-1 are where w=0 and lo < x < hi.
+  // Indexes index..i-1 are where w can take any value and x is either lo or
+  // hi.
+  int index = 0;
+
+  for (int i = 0; i < n; i++) {
+    // Thus far we have not even been computing the w values for indexes >= i,
+    // so compute w[i] and x[i] now.
+    w[i] = A.row(i).head(i).dot(x.head(i)) - b[i];
+    x[i] = 0;
+
+    // Check if LCP conditions for index i are already satisfied.
+    if (w[i] == 0) {
+      // Degenerate case.
+      continue;
+    } else if (lo[i] == 0 & w[i] >= 0) {
+      continue;   // Because x is already at the lo value
+    } else if (hi[i] == 0 & w[i] <= 0) {
+      continue;   // Because x is already at the hi value
+    }
+
+    // Find the direction to push on x[i]: delta_xS = -dir*inv(ASS)*AiS
+    double dir = (w[i] <= 0) ? 1 : -1;
+    VectorXd delta_xS = -dir * A.block(i, 0, 1, index).transpose();
+    LLTSolve(L, index, &delta_xS);
+    double delta_xi = dir;
+
+    while (true) {
+      // Push x[i] and w[i] to hit one of the three lines.
+      // Calculate delta_w = A*delta_x, except that we don't need to calculate
+      // the parts of delta_w that are going to be zero anyway.
+      VectorXd delta_wNS = A.block(index, 0, i-index, index) * delta_xS +
+                           A.block(i, index, 1, i-index).transpose() * dir;
+      double delta_wi = A.row(i).head(index).dot(delta_xS) + A(i, i) * dir;
+
+      // Find the largest step we can take for index i.
+      double best_alpha = -w[i] / delta_wi;       // Steps to w[i] = 0
+      int best_index = i;
+      bool index_i_into_set = true;
+      double index_i_limit = (dir > 0) ? hi[i] : lo[i];
+      {
+        double alpha = (index_i_limit - x[i]) / delta_xi;
+        if (alpha > 0 && alpha < best_alpha) {
+          best_alpha = alpha;
+          best_index = i;
+          index_i_into_set = false;
+        }
+      }
+
+      // Find the largest step we can take for indexes in the set.
+      VectorXd limit(index);
+      for (int j = 0; j < index; j++) {
+        // For this index we could have stepped to x=lo or x=hi in a previous
+        // iteration (i.e. limit-x==0), so we should be careful not to take a
+        // zero size spurious step (the alpha > 0 requirement).
+        limit[j] = (delta_xS[j] > 0) ? hi[j] : lo[j];
+        double alpha = (limit[j] - x[j]) / delta_xS[j];
+        if (alpha > 0 && alpha < best_alpha) {
+          best_alpha = alpha;
+          best_index = j;
+        }
+      }
+
+      // Find the largest step we can take for indexes not in the set.
+      for (int j = index; j < i; j++) {
+        // For this index we could have stepped to w=0 in a previous iteration,
+        // so we should be careful not to take the spurious step w=0 --> w=0
+        // (the alpha > 0 requirement).
+        double alpha = -w[j] / delta_wNS[j-index];
+        if (alpha > 0 && alpha < best_alpha) {
+          best_alpha = alpha;
+          best_index = j;
+        }
+      }
+      CHECK(best_index >= 0);
+      CHECK(best_alpha >= 0);
+
+      // Do the step. Only modify the x,w values that are allowed to change.
+      x.head(index) += best_alpha * delta_xS;
+      x[i] += best_alpha * delta_xi;
+      w.segment(index, i-index) += best_alpha * delta_wNS;
+      w[i] += best_alpha * delta_wi;
+
+      // Modify the factorization.
+      index_i_into_set = (best_index == i && index_i_into_set);
+      if (best_index < index) {
+        x[best_index] = limit[best_index];
+        // Swap best_index out of the set. Don't swap w because those are 0.
+        SwapCholeskyRows(A, best_index, index, &L);
+        Aperm.SwapRowsAndColumns(index-1, best_index);
+        std::swap(x [index-1], x [best_index]);
+        std::swap(lo[index-1], lo[best_index]);
+        std::swap(hi[index-1], hi[best_index]);
+        index--;
+
+        // Recompute delta_xS = -dir*inv(ASS)*AiS
+        // Note that dir is unchanged because the sign of w[i] is still the
+        // same because the step can not push w[i] across zero.
+        // TODO: There is a small optimization to take here. L generally only
+        // changes at the bottom/right, so in LLTSolve() where we solve L y = b
+        // then L' x = y, if we already have y then we can update only the
+        // bottom part of it and save some work. This requires us to save the y
+        // values though.
+        delta_xS = -dir * A.block(i, 0, 1, index).transpose();  // -dir * AiS
+        LLTSolve(L, index, &delta_xS);
+      }
+      else if (best_index < i || index_i_into_set) {
+        w[index_i_into_set ? i : best_index] = 0;
+        // Swap best_index into the set.
+        Aperm.SwapRowsAndColumns(index, best_index);
+        std::swap(x [index], x [best_index]);
+        std::swap(w [index], w [best_index]);
+        std::swap(lo[index], lo[best_index]);
+        std::swap(hi[index], hi[best_index]);
+        AddCholeskyRow(A, index + 1, &L);
+
+        // Recompute delta_xS = -dir*inv(ASS)*AiS.
+        // We can do this with a single LTSolve and save half the work compared
+        // to the original computation of delta_xS. This is based on the fact
+        // that if we add a row/column to an A x = b problem,
+        //   [ A  a ] [ x1 ] = [ L  0 ] [ L' l ] [ x1 ] = [ b1 ]
+        //   [ a' c ] [ x2 ] = [ l' e ] [ 0  e ] [ x2 ]   [ b2 ]
+        // and we know oldx1 = inv(A) b1, the x1,x2 can be computed from
+        //   x2 = (b2 - a' oldx1) / e^2
+        //   x1 = oldx1 - inv(L') l x2
+        if (best_index != i) {
+          // If best_index == i we're done anyway so no need to do this update.
+          double value =  // New value to append to delta_xS
+              (-dir*A(i,index) - A.row(index).head(index).dot(delta_xS)) /
+              sqr(L(index, index));
+          delta_xS.conservativeResize(index + 1);
+          delta_xS[index] = value;
+          VectorXd v = L.block(index, 0, 1, index).transpose();
+          LTSolve(L, index, &v);
+          delta_xS.head(index) -= value * v;
+        }
+        index++;
+      } else {
+        x[i] = index_i_limit;
+      }
+      CHECK(index >= 0 && index <= A.rows());
+
+      // See if we're done for index i.
+      if (best_index == i) {
+        break;
+      }
+    }
+  }
+
+  x_arg->resize(n);
+  w_arg->resize(n);
+  Aperm.Unpermute(x, x_arg);
+  Aperm.Unpermute(w, w_arg);
+  return true;
+}
+
 // If 'nub' is given as >= 0 it is the number of unbounded indexes at the start
 // of lo and hi. If nub==-1 then nub will be determined by scanning lo and hi.
 // This ability to control nub is used for testing. The global variable is an
@@ -573,6 +772,12 @@ bool SolveLCP(const Settings &settings,
       return SolveLCP_BoxMurty(settings, A, b, lo, hi, x, w);
     } else {
       return SolveLCP_Murty(settings, A, b, x, w);
+    }
+  } else if (settings.algorithm == COTTLE_DANTZIG) {
+    if (settings.box_lcp) {
+      return SolveLCP_BoxDantzig(settings, A, b, lo, hi, x, w);
+    } else {
+      Panic("Cottle Dantzig solver only available for box LCP");
     }
   } else {
     Panic("Unknown LCP solver selection");
@@ -737,6 +942,65 @@ TEST_FUNCTION(Murty) {
   printf("Success\n");
 }
 
+TEST_FUNCTION(Dantzig) {
+  for (int iteration = 0; iteration < 1000; iteration++) {
+    // Create a random positive definite LCP problem.
+    MatrixXd A0 = MatrixXd::Random(N,N);
+    MatrixXd A = A0*A0.transpose();
+    A += MatrixXd::Identity(N, N) * 0.001;   // Stabilize condition number
+    VectorXd b = VectorXd::Random(N,1);
+
+    {
+      VectorXd x, w, lo(N), hi(N);
+
+      // Solve a box LCP problem with random lo and hi vectors. Only pass in
+      // the lower triangle of A, to ensure that the upper triangle is not
+      // read.
+
+      // Test problem variants.
+      double lo_range = 10;
+      double hi_range = 10;
+      switch (iteration % 6) {
+        case 0: break;
+        case 1: lo_range *= 10;  hi_range *= 10;  break;
+        case 2: lo_range = 1e99; hi_range = 1e99; break;
+        case 3: lo_range *= 0.1; hi_range *= 0.1; break;
+        case 4: lo_range = 0; break;
+        case 5: hi_range = 0; break;
+      }
+
+      for (int i = 0; i < N; i++) {
+        lo[i] = -RandomDouble() * lo_range;
+        hi[i] = +RandomDouble() * hi_range;
+        // Occasionally make lo or hi equal to zero (but avoid the case
+        // lo=hi=0).
+        int r = RandomInt(100);
+        if (r == 0) {
+          if (hi[i] != 0)
+            lo[i] = 0;
+        } else if (r == 1) {
+          if (lo[i] != 0)
+            hi[i] = 0;
+        }
+      }
+
+      MatrixXd Alower = A.triangularView<Eigen::Lower>();
+      CHECK(lcp::SolveLCP_BoxDantzig(lcp::Settings(), Alower, b, lo, hi, &x, &w));
+
+      // Check the solution.
+      for (int i = 0; i < N; i++) {
+        CHECK( ((x[i] >= lo[i] && x[i] <= hi[i]) && w[i] == 0) ||
+               (x[i] == lo[i] && w[i] >= 0) ||
+               (x[i] == hi[i] && w[i] <= 0))
+      }
+      double error = (A*x - b - w).norm();
+      printf("Error = %e\n", error);
+      CHECK(error < 1e-6);
+    }
+  }
+  printf("Success\n");
+}
+
 TEST_FUNCTION(Cholesky) {
   MatrixXd A0 = MatrixXd::Random(N,N);
   MatrixXd A = A0 * A0.transpose();
@@ -752,8 +1016,10 @@ TEST_FUNCTION(Cholesky) {
 TEST_FUNCTION(LSolve) {
   for (int n = 1; n < N; n++) {
     // Form a triangular L and right hand side b
-    MatrixXd L0 = MatrixXd::Random(N, N);
-    MatrixXd L = L0.triangularView<Eigen::Lower>();
+    MatrixXd A0 = MatrixXd::Random(N,N);
+    MatrixXd A = A0 * A0.transpose();
+    MatrixXd L = A.triangularView<Eigen::Lower>();
+    lcp::Cholesky(&L);
     VectorXd b = MatrixXd::Random(n, 1);
     VectorXd x = b;
     lcp::LSolve(L, n, &x);
