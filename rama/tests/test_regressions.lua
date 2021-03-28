@@ -157,6 +157,7 @@ Piece 2 has 4 vertices, color=0xffff00, epsilon=2+0 i
   Vertex 2 = 19.2632698069792, 20 (kind=4,5, dist=1,0)
   Vertex 3 = 15.7367301930208, 0 (kind=6,7, dist=0,1)
   Vertex 4 = 35, -0.100000000093132 (kind=3,7, dist=1,0)
+No callbacks on ports
 ]]
   output = ''
   oldprint = print

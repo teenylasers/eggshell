@@ -1136,6 +1136,8 @@ a vector).
   @* @c{complex.exp(a)}
   @| Math functions on complex numbers or vectors, similar to the regular
      functions in the Lua math library.
+  @* @c{complex.IsComplex(a)} @| True if @c{a} is a complex number, false
+     otherwise. The second return value is true if this is a complex vector.
 }
 
 Complex valued vectors in Rama are a @c{Complex} object where the real and
@@ -1592,10 +1594,13 @@ functions:
   @| Given a selection table @c{sel_table} specifying one or more shape edges
      in @c{s}, mark all those edges as an absorbing boundary condition (an
      ``ABC'').
-  @* @c{s:Port(sel_table,n)}
+  @* @c{s:Port(sel_table,n,@m{S_{11}})}
   @| Given a selection table @c{sel_table} specifying one or more shape edges
      in @c{s}, mark all those edges as belonging to port @c{n}, where
      @c{n}@m{\ge 1}.
+     If @m{S_{11}} is given it is the (potentially complex) reflection
+     coefficient for power being absorbed by the port.
+     If @m{S_{11}} is not given the default of 0 is used.
   @* @c{s:Port(sel_table,n,@_@~@~function(d,x,y)@_@~@~@~@~return @m{\alpha},@m{\beta}@_@~@~end)}
   @| Similar to the @c{Port()} function above, but also use a function that is
      given a vector @c{d} of edge distances, corresponding vectors @c{x} and
@@ -2172,4 +2177,8 @@ Here is what is added in each new version.
 @* Add the @c{weak_default} argument to @c{Parameter}.
 @* Add the "Repeated Levenberg-Marquardt" optimizer method.
 @* Upgraded to Qt 5.15.
+@* Allow @m{S_{11}} to be specified for ports.
+@* Added @c{complex.IsComplex(a)}.
+@* Shape pieces from @c{s(i)} now copy shape callbacks and other auxiliary
+   information too.
 }

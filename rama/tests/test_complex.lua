@@ -23,6 +23,7 @@ local function IsComplex(a)
   else
     error('Bad fn field')
   end
+  assert(complex.IsComplex(a))    -- Partial test of complex.IsComplex
   return a
 end
 
@@ -56,6 +57,17 @@ end
 
 function TestComplex()
   print 'Test complex number (and vector) functionality in lua:'
+
+  -- Test complex.IsComplex
+  do
+    local ok,isvec = complex.IsComplex(Complex(1, 2))
+    assert(ok and not isvec)
+    ok,isvec = complex.IsComplex(Complex(vec.New(1,2), vec.New(3,4)))
+    assert(ok and isvec)
+    assert(not complex.IsComplex(1))
+    assert(not complex.IsComplex('1'))
+    assert(not complex.IsComplex({1, 2, fn=function() end}))
+  end
 
   -- Complex number scalar tests.
   a = IsComplex(Complex(3, 4))

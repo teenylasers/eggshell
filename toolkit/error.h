@@ -62,7 +62,7 @@ struct qtErrorHandler : public ErrorHandler {
 // CHECK is like assert(), but always runs regardless of debug settings.
 #ifndef CHECK
 #define CHECK_MSG(cond, msg) if (!(cond)) \
-  { Panic("Check failed: %s: " #cond ", at %s:%d", (msg), __FILE__, __LINE__); }
+  { Panic("Check failed: %s: %s, at %s:%d", (msg), #cond, __FILE__, __LINE__); }
 #define CHECK(cond) CHECK_MSG(cond, "")
 #endif
 

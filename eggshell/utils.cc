@@ -140,10 +140,7 @@ double GetMatrixSparsity(const MatrixXd& A) {
 
 double GetMatrixBlockSparsity(const MatrixXd& A, int block_width) {
   CHECK(block_width <= A.cols());
-  // TODO: CHECK(a % b) after upstream fix.
-  if (A.cols() % block_width != 0) {
-    Panic("A.cols() is not a multiple of block_width\n");
-  }
+  CHECK(A.cols() % block_width == 0);
   const int num_blocks = A.rows() * (A.cols() / block_width);
   int num_zero_blocks = 0;
   for (int i = 0; i < A.rows(); ++i) {

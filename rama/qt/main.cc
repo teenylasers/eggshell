@@ -69,12 +69,17 @@ int main(int argc, char *argv[]) {
   // test() function in that file then exit.
   MainWindow w;
   w.SetCommandLineArguments(argc, argv);  // Used for -key=flag arguments
+  bool test_flag = false;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-test") == 0) {
       w.ToggleRunTestAfterSolve();
       w.ScriptTestMode();
+      test_flag = true;
       break;
     }
+  }
+  if (!test_flag) {
+    w.AsynchronouslySeeIfNewerVersionAvailable();
   }
   bool file_loaded = false;
   for (int i = 1; i < argc; i++) {
