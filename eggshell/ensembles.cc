@@ -513,6 +513,7 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
     // DEBUG ONLY: Print and visualize systems matrix structure.
     // std::cout << "JMJt \n" << JMJt << std::endl;
     // std::cout << "lhs = JMJt + Cfm \n" << lhs << std::endl;
+    // std::cout << "JMJt sparsity = " << GetMatrixSparsity(lhs) << std::endl;
 
     // Solve systems equation
     VectorXd lambda(J_rows);

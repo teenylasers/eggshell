@@ -48,4 +48,11 @@ double GetConditionNumber(const MatrixXd& A);
 // Check whether matrix A is singular or rank-deficient.
 bool CheckMatrixCondition(const MatrixXd& A);
 
+// Return matrix sparsity, the proportion of the elements that are zero.
+double GetMatrixSparsity(const MatrixXd& A);
+
+// Return matrix block sparsity, the proportion of N x M blocks that are all
+// zero, where N is any integer, M is block width (3 or 6).
+double GetMatrixBlockSparsity(const MatrixXd& A, int block_width = 6);
+
 #endif
