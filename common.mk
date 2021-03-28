@@ -180,7 +180,13 @@ ifeq ($(PLATFORM), osx)
 endif
 
 ifeq ($(OPTIMIZE), 1)
+  # The -march=native flag is needed to unlock all vectorized instruction sets,
+  # and e.g. makes the Rama factor step about 40% faster. Take care with this
+  # flag though: it changes the ABI on some platforms and can cause hard to
+  # find bugs.
   EIGEN_FLAGS = -DEIGEN_NO_DEBUG
+  CFLAGS += -march=native
+  FFLAGS += -march=native
 endif
 
 # -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int reduces sparse matrix memory usage in
@@ -195,8 +201,19 @@ endif
 # use.
 EIGEN_FLAGS += -DEIGEN_DEFAULT_DENSE_INDEX_TYPE=int
 
-# Turn off some compiler warnings for Eigen.
 ifeq ($(PLATFORM), osx)
+  # Eigen can connect to the Apple-provided Accelerate framework, which has
+	# a fast implementation of dense matrix multiply, factorizations, etc.
+	# This has no effect on sparse matrix operations.
+	#   * EIGEN_USE_BLAS *sometimes* makes things much faster, but it also
+	#     sometimes slows things down. YMMV.
+	#   * EIGEN_USE_LAPACKE seems to make dense factorization *much* slower on
+	#     the mac, so we never use it.
+	# Disabled for now:
+	#   EIGEN_FLAGS += -DEIGEN_USE_BLAS
+	#   LDFLAGS += -framework Accelerate
+
+	# Turn off some Eigen compiler warnings.
   EIGEN_FLAGS += -Wno-int-in-bool-context
 endif
 

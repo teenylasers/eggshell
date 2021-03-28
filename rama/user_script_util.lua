@@ -180,6 +180,67 @@ function __Paint__(s, q, color, epsilon, sxx, syy, sxy, excitation, dummy)
   end
 end
 
+-- Return the length of a port given the arguments to a port callback function.
+local function PortLength(d, x, y)
+  local mind,minx,miny,maxd,maxx,maxy
+  mind = 1e99
+  maxd = -1e99
+  for i = 1,#d do
+    if d[i] < mind then
+      mind = d[i]
+      minx = x[i]
+      miny = y[i]
+    end
+    if d[i] > maxd then
+      maxd = d[i]
+      maxx = x[i]
+      maxy = y[i]
+    end
+  end
+  return math.sqrt((maxx-minx)^2 + (maxy-miny)^2)
+end
+
+-- This is the function called by s:Port(). It does some parameter checks and
+-- transformations then calls s:RawPort().
+
+function __Port__(s, sel_table, n, s11_or_fn, dummy)
+  assert(sel_table and n, "At least two arguments must be given to Shape:Port().")
+  assert(not dummy, "Too many arguments given to Shape:Port().")
+  local arg1, arg2, arg3 = 0, 0, nil
+  if s11_or_fn then
+    local function PortFn(s11)
+      return function(d, x, y)    -- d is port distance 0..1
+        local alpha = Complex(0, 1) * (1 - s11) / (1 + s11)
+        if config.type == 'Ez' then
+          local port_length = PortLength(d, x, y)
+          local sqrt_arg = 1 - math.pi^2 / (util.K0() * port_length)^2
+          if sqrt_arg < 0 then
+            -- The port is too narrow to support a travelling wave.
+            alpha = alpha * Complex(0, -1) * math.sqrt(-sqrt_arg)
+          else
+            alpha = alpha * math.sqrt(sqrt_arg)
+          end
+        end
+        return alpha + d*0, d*0   -- multiplied by k before being used
+      end
+    end
+    local complex, isvec = complex.IsComplex(s11_or_fn)
+    if type(s11_or_fn) == 'number' then
+      arg1 = s11_or_fn
+      arg3 = PortFn(s11_or_fn)
+    elseif complex and not isvec then
+      arg1 = s11_or_fn.re
+      arg2 = s11_or_fn.im
+      arg3 = PortFn(s11_or_fn)
+    elseif type(s11_or_fn) == 'function' then
+      arg3 = s11_or_fn
+    else
+      error("Shape:Port() third argument must be an S11 number, S11 complex number, or function")
+    end
+  end
+  s:RawPort(sel_table, n, arg1, arg2, arg3)
+end
+
 -- Create a table that returns a zero for every index. This is sometimes useful
 -- as arguments to config.optimize().
 __ZeroTable__ = setmetatable({}, {__index = function(T,k) return 0 end,
@@ -354,6 +415,17 @@ complex = {
     local a,dummy,fn = CastComplexArguments(a)
     local e = fn.exp(a.re)
     return setmetatable({e*fn.cos(a.im), e*fn.sin(a.im), fn=fn}, __complex_metatable__)
+  end,
+  IsComplex = function(a)
+    if getmetatable(a) ~= __complex_metatable__ then return false end
+    if rawget(a, 'fn') == math then
+      return type(rawget(a, 1)) == 'number' and type(rawget(a, 2)) == 'number',
+             false
+    elseif rawget(a, 'fn') == vec then
+      return vec.IsVector(rawget(a, 1)) and vec.IsVector(rawget(a, 2)) and
+             #rawget(a, 1) == #rawget(a, 2), true
+    end
+    return false
   end,
 }
 
@@ -620,6 +692,7 @@ util.Dump = function(s)
            j, v.x, v.y, v.kind0, v.kind1, v.dist0, v.dist1))
     end
   end
+  print(s.callbacks)
 end
 
 util.LoadSTL = function(filename)

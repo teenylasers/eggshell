@@ -1,7 +1,7 @@
 
 all: libarpack.a
 
-OPTIMIZE:=0
+OPTIMIZE := 1
 include ../../common.mk
 
 # Note that we can reduce the number of LAPACK source files as Eigen implements
@@ -50,7 +50,7 @@ FORTRAN_SRC = \
 # Add -fcheck=all to the command line here to enable bounds checking and other
 # things.
 libarpack.a: clean util.o
-	$(FORTRAN_COMPILER) -c -O2 $(FORTRAN_SRC)
+	$(FORTRAN_COMPILER) -c -O2 $(FFLAGS) $(FORTRAN_SRC)
 	ar rcv $@ *.o
 	rm -f *.o
 

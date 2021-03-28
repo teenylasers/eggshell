@@ -70,7 +70,7 @@ class Mesh {
   vector<RPoint> points_;
   vector<Triangle> triangles_;
   vector<Material> materials_;          // Copies of shape piece materials
-  std::map<int, LuaCallback> port_callbacks_;  // Copied from shape
+  std::map<int, Shape::CallbackInfo> port_callbacks_;  // Copied from shape
   double cd_width_=0, cd_height_=0;     // CD dimensions (in config units)
   friend class BoundaryIterator;
   // Optional, material parameters at each point (size = 0 or points_.size()).
