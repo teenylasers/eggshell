@@ -1,5 +1,6 @@
 #include "utils.h"
 
+#include <cmath>
 #include <iostream>
 
 #include "constants.h"
@@ -133,6 +134,29 @@ bool CheckMatrixCondition(const MatrixXd& A) {
   }
 }
 
+double GetMatrixSparsity(const MatrixXd& A) {
+  return (A.array() == 0).count() * 1.0 / A.rows() / A.cols();
+}
+
+double GetMatrixBlockSparsity(const MatrixXd& A, int block_width) {
+  CHECK(block_width <= A.cols());
+  // TODO: CHECK(a % b) after upstream fix.
+  if (A.cols() % block_width != 0) {
+    Panic("A.cols() is not a multiple of block_width\n");
+  }
+  const int num_blocks = A.rows() * (A.cols() / block_width);
+  int num_zero_blocks = 0;
+  for (int i = 0; i < A.rows(); ++i) {
+    for (int j = 0; j < A.cols() / block_width; ++j) {
+      if ((A.block(i, j * block_width, 1, block_width).array() != 0).count() ==
+          0) {
+        ++num_zero_blocks;
+      }
+    }
+  }
+  return num_zero_blocks * 1.0 / num_blocks;
+}
+
 //***************************************************************************
 // Testing.
 
@@ -146,7 +170,7 @@ constexpr bool kVerbose = false;
 constexpr int kNumTestInsts = 10;  // num instances to run in each test
 
 TEST_FUNCTION(CrossMat) {
-  for (int i = 0; i < kNumTestInsts; i++) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
     Vector3d v = Vector3d::Random();
     Vector3d w = Vector3d::Random();
     Matrix3d vbar = CrossMat(v);
@@ -163,7 +187,7 @@ TEST_FUNCTION(CrossMat) {
 }
 
 TEST_FUNCTION(RandomRotationTest_DefaultOrthonormal) {
-  for (int i = 0; i < kNumTestInsts; i++) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
     auto R = RandomRotation();
     if (kVerbose) {
       std::cout << "--- Test " << i << " ---";
@@ -175,7 +199,7 @@ TEST_FUNCTION(RandomRotationTest_DefaultOrthonormal) {
 
 TEST_FUNCTION(RandomRotationTest_DefaultRandom) {
   Matrix3d prev_R = Matrix3d::Zero();
-  for (int i = 0; i < kNumTestInsts; i++) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
     auto R = RandomRotation();
     if (kVerbose) {
       std::cout << "\n--- Test " << i << " ---";
@@ -188,7 +212,7 @@ TEST_FUNCTION(RandomRotationTest_DefaultRandom) {
 
 TEST_FUNCTION(RandomRotationTest_Quaternion) {
   Matrix3d prev_R = Matrix3d::Zero();
-  for (int i = 0; i < kNumTestInsts; i++) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
     auto R = RandomRotationViaQuaternion();
     if (kVerbose) {
       std::cout << "\n--- Test " << i << " ---";
@@ -202,7 +226,7 @@ TEST_FUNCTION(RandomRotationTest_Quaternion) {
 
 TEST_FUNCTION(RandomRotationTest_GramSchmidt) {
   Matrix3d prev_R = Matrix3d::Zero();
-  for (int i = 0; i < kNumTestInsts; i++) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
     auto R = RandomRotationViaGramSchmidt();
     if (kVerbose) {
       std::cout << "\n--- Test " << i << " ---";
@@ -215,7 +239,7 @@ TEST_FUNCTION(RandomRotationTest_GramSchmidt) {
 }
 
 TEST_FUNCTION(AlignVectors) {
-  for (int i = 0; i < kNumTestInsts; i++) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
     Vector3d a = Vector3d::Random();
     Vector3d b = Vector3d::Random();
     Matrix3d R = AlignVectors(a, b);
@@ -229,6 +253,50 @@ TEST_FUNCTION(AlignVectors) {
                 << (R * b).dot(a.normalized()) << "\n";
     }
     CHECK(b.normalized().dot(R * a) - a.norm() < kAllowNumericalError);
+  }
+}
+
+TEST_FUNCTION(GetMatrixSparsity) {
+  const int A_rows = 16;
+  const int A_cols = 60;
+  for (int i = 0; i < kNumTestInsts; ++i) {
+    const MatrixXd A = MatrixXd::Random(A_rows, A_cols);
+    const Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> B =
+        MatrixXd::Random(A_rows, A_cols).array() < 0;
+    const MatrixXd test_matrix = A.cwiseProduct(B.cast<double>());
+    const double sparsity = 1 - B.count() * 1.0 / A_rows / A_cols;
+    CHECK(abs(GetMatrixSparsity(test_matrix) - sparsity) <=
+          kAllowNumericalError);
+  }
+}
+
+TEST_FUNCTION(GetMatrixBlockSparsity) {
+  const int A_rows = 16;
+  const int A_cols = 60;
+
+  auto check_block_sparsity = [&](int block_width) {
+    MatrixXd A = MatrixXd::Random(A_rows, A_cols);
+    const Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> B =
+        MatrixXd::Random(A_rows, A_cols / block_width).array() < 0;
+    // Set blocks of A to zero using boolean matrix B.
+    const MatrixXd zero_block = MatrixXd::Zero(1, block_width);
+    for (int i = 0; i < A_rows; ++i) {
+      for (int j = 0; j < A_cols / block_width; ++j) {
+        if (!B(i, j)) {
+          A.block(i, j * block_width, 1, block_width) << zero_block;
+        }
+      }
+    }
+    // Check block sparsity calculation
+    const double sparsity =
+        1 - B.count() * 1.0 / (A_rows * A_cols / block_width);
+    CHECK(abs(GetMatrixBlockSparsity(A, block_width) - sparsity) <=
+          kAllowNumericalError);
+  };
+
+  for (int i = 0; i < kNumTestInsts; ++i) {
+    check_block_sparsity(/*block_width=*/3);
+    check_block_sparsity(/*block_width=*/6);
   }
 }
 
