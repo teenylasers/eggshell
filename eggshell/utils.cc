@@ -154,6 +154,43 @@ double GetMatrixBlockSparsity(const MatrixXd& A, int block_width) {
   return num_zero_blocks * 1.0 / num_blocks;
 }
 
+VectorXd MatrixSolveDiagonal(const MatrixXd& D, const VectorXd& rhs) {
+  CHECK(D.rows() == D.cols());
+  CHECK_MSG(D.diagonal().prod() != 0, "det(D)==0, D is not invertible.");
+  VectorXd x = 1.0 / D.diagonal().array() * rhs.array();
+  return x;
+}
+
+VectorXd MatrixSolveLowerTriangle(const MatrixXd& L, const VectorXd& rhs) {
+  CHECK(L.rows() == L.cols() && L.rows() == rhs.size());
+  CHECK_MSG(L.diagonal().prod() != 0, "L is not invertible.");
+  const int dim = rhs.size();
+  VectorXd x = VectorXd::Zero(dim);
+  for (int i = 0; i < dim; ++i) {
+    double substitutions = 0;
+    for (int j = 0; j < i; ++j) {
+      substitutions += L(i, j) * x(j);
+    }
+    x(i) = (rhs(i) - substitutions) / L(i, i);
+  }
+  return x;
+}
+
+VectorXd MatrixSolveUpperTriangle(const MatrixXd& U, const VectorXd& rhs) {
+  CHECK(U.rows() == U.cols() && U.rows() == rhs.size());
+  CHECK_MSG(U.diagonal().prod() != 0, "U is not invertible.");
+  const int dim = rhs.size();
+  VectorXd x = VectorXd::Zero(dim);
+  for (int i = dim - 1; i >= 0; --i) {
+    double substitutions = 0;
+    for (int j = i + 1; j < dim; ++j) {
+      substitutions += U(i, j) * x(j);
+    }
+    x(i) = (rhs(i) - substitutions) / U(i, i);
+  }
+  return x;
+}
+
 //***************************************************************************
 // Testing.
 
@@ -294,6 +331,63 @@ TEST_FUNCTION(GetMatrixBlockSparsity) {
   for (int i = 0; i < kNumTestInsts; ++i) {
     check_block_sparsity(/*block_width=*/3);
     check_block_sparsity(/*block_width=*/6);
+  }
+}
+
+TEST_FUNCTION(MatrixSolveDiagonal) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
+    // Randomly generate a matrix with dimension between 3 and 100.
+    int dim = rand() % 98 + 3;
+    // Construct a random diagonal matrix
+    MatrixXd A = MatrixXd::Zero(dim, dim);
+    A.diagonal() = VectorXd::Random(dim);
+    // rhs
+    const VectorXd b = VectorXd::Random(dim);
+    // Solve
+    auto x = MatrixSolveDiagonal(A, b);
+    CHECK((A * x - b).norm() < kAllowNumericalError);
+  }
+}
+
+TEST_FUNCTION(MatrixSolveLowerTriangle) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
+    // Randomly generate a matrix with dimension between 3 and 100.
+    int dim = rand() % 98 + 3;
+    // Construct a well-conditioned lower triangle matrix
+    MatrixXd A = MatrixXd::Random(dim, dim).triangularView<Eigen::Lower>();
+    if (GetConditionNumber(A) > kGoodConditionNumber) {
+      --i;
+      continue;
+    }
+    const VectorXd b = VectorXd::Random(dim);
+    auto x = MatrixSolveLowerTriangle(A, b);
+    if ((A * x - b).norm() > kAllowNumericalError) {
+      std::cout << "Condition number of A = " << GetConditionNumber(A)
+                << std::endl;
+      std::cout << "(Ax-b).norm() = " << (A * x - b).norm() << std::endl;
+    }
+    CHECK((A * x - b).norm() < kAllowNumericalError);
+  }
+}
+
+TEST_FUNCTION(MatrixSolveUpperTriangle) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
+    // Randomly generate a matrix with dimension between 3 and 100.
+    int dim = rand() % 98 + 3;
+    // Construct a well-conditioned upper triangle matrix
+    MatrixXd A = MatrixXd::Random(dim, dim).triangularView<Eigen::Upper>();
+    if (GetConditionNumber(A) > kGoodConditionNumber) {
+      --i;
+      continue;
+    }
+    const VectorXd b = VectorXd::Random(dim);
+    auto x = MatrixSolveUpperTriangle(A, b);
+    if ((A * x - b).norm() > kAllowNumericalError) {
+      std::cout << "Condition number of A = " << GetConditionNumber(A)
+                << std::endl;
+      std::cout << "(Ax-b).norm() = " << (A * x - b).norm() << std::endl;
+    }
+    CHECK((A * x - b).norm() < kAllowNumericalError);
   }
 }
 

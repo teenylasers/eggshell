@@ -55,4 +55,9 @@ double GetMatrixSparsity(const MatrixXd& A);
 // zero, where N is any integer, M is block width (3 or 6).
 double GetMatrixBlockSparsity(const MatrixXd& A, int block_width = 6);
 
+// Solve Ax=b for special matrices
+VectorXd MatrixSolveDiagonal(const MatrixXd& D, const VectorXd& rhs);
+VectorXd MatrixSolveLowerTriangle(const MatrixXd& L, const VectorXd& rhs);
+VectorXd MatrixSolveUpperTriangle(const MatrixXd& U, const VectorXd& rhs);
+
 #endif
