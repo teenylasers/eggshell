@@ -11,7 +11,7 @@ namespace {
 //  - forward impl: M = (1/omega) * D + U, N = (1/omega - 1) * D + U.
 //  - backward impl: M = (1/omega) * D + L, N = (1/omega - 1) * D + L.
 // kSOR = 1/omega.
-constexpr double omega = 1;  // 0 < omega < 2 for convergence.
+constexpr double omega = 1.5;  // 0 < omega < 2 for convergence.
 constexpr double kSOR = 1 / omega;
 
 // Default number of iterations, if none specified by the user.
@@ -56,7 +56,7 @@ VectorXd BaseIteration(const MatrixXd& A, const VectorXd& b,
       // Using backward SOR.
       M = A.triangularView<Eigen::Upper>();
       M.diagonal() = kSOR * A.diagonal();
-      N = A.triangularView<Eigen::Lower>();
+      N = -1 * MatrixXd(A.triangularView<Eigen::Lower>());
       N.diagonal() = (kSOR - 1) * A.diagonal();
       matrix_solve = &MatrixSolveUpperTriangle;
       break;
@@ -170,6 +170,22 @@ TEST_FUNCTION(SORIteration_diagonalDominant) {
     // Randomly generate matrix dimension, between 3 and 50.
     const int dim = rand() % 48 + 3;
     const MatrixXd A = GenerateDiagonalDominantMatrix(dim);
+    const VectorXd b = VectorXd::Random(dim);
+    auto x = sparse::SORIteration(A, b);
+    if ((A * x - b).norm() > kAllowNumericalError) {
+      std::cout << "Condition number of A = " << GetConditionNumber(A)
+                << ", (Ax-b).norm() = " << (A * x - b).norm() << std::endl;
+    }
+    CHECK((A * x - b).norm() < kAllowNumericalError);
+  }
+}
+
+TEST_FUNCTION(SORIteration_spd) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
+    // Randomly generate matrix dimension, between 3 and 50.
+    const int dim = rand() % 48 + 3;
+    const MatrixXd A =
+        GenerateSPDMatrix(dim) + MatrixXd::Identity(dim, dim) * 2.0;
     const VectorXd b = VectorXd::Random(dim);
     auto x = sparse::SORIteration(A, b);
     if ((A * x - b).norm() > kAllowNumericalError) {
