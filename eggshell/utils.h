@@ -39,11 +39,20 @@ Matrix3d RandomRotationViaGramSchmidt();
 
 Matrix3d GramSchmidt(const Matrix3d& m);
 
+// Randomly generate a well-conditioned SPD matrix.
+MatrixXd GenerateSPDMatrix(int dimension);
+
+// Randomly generate a well-conditioned diagonal-dominant matrix.
+MatrixXd GenerateDiagonalDominantMatrix(int dimension);
+
 // Return the rotation matrix that aligns vector a to vector b
 Matrix3d AlignVectors(const Vector3d& a, const Vector3d& b);
 
 // Return the condition number of a matrix
 double GetConditionNumber(const MatrixXd& A);
+
+// Return the spectral radius of a matrix
+double GetSpectralRadius(const MatrixXd& A);
 
 // Check whether matrix A is singular or rank-deficient.
 bool CheckMatrixCondition(const MatrixXd& A);
@@ -54,6 +63,9 @@ double GetMatrixSparsity(const MatrixXd& A);
 // Return matrix block sparsity, the proportion of N x M blocks that are all
 // zero, where N is any integer, M is block width (3 or 6).
 double GetMatrixBlockSparsity(const MatrixXd& A, int block_width = 6);
+
+// Invert special matrices
+MatrixXd InvertDiagonalMatrix(const MatrixXd& D);
 
 // Solve Ax=b for special matrices
 VectorXd MatrixSolveDiagonal(const MatrixXd& D, const VectorXd& rhs);

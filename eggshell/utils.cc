@@ -88,6 +88,36 @@ Quaterniond WtoQ(const Vector3d& w, double dt) {
   return q;
 }
 
+MatrixXd GenerateSPDMatrix(int dimension) {
+  auto gen_matrix = [&]() {
+    const MatrixXd m = MatrixXd::Random(dimension, dimension);
+    const MatrixXd A = m.transpose() * m;
+    return A;
+  };
+
+  MatrixXd M = gen_matrix();
+  while (GetConditionNumber(M) > kGoodConditionNumber) {
+    M = gen_matrix();
+  }
+  return M;
+}
+
+MatrixXd GenerateDiagonalDominantMatrix(int dimension) {
+  auto gen_matrix = [&]() {
+    MatrixXd A = MatrixXd::Random(dimension, dimension);
+    double scale_diagonal =
+        A.array().abs().maxCoeff() / A.array().abs().minCoeff();
+    A.diagonal() = A.diagonal().array() * (scale_diagonal);
+    return A;
+  };
+
+  MatrixXd M = gen_matrix();
+  while (GetConditionNumber(M) > kGoodConditionNumber) {
+    M = gen_matrix();
+  }
+  return M;
+}
+
 Matrix3d AlignVectors(const Vector3d& a, const Vector3d& b) {
   Quaterniond q = Quaterniond::FromTwoVectors(a, b);
   Matrix3d R = q.toRotationMatrix();
@@ -116,6 +146,14 @@ double GetConditionNumber(const Eigen::MatrixXd& A) {
   double cond = svd.singularValues()(0) /
                 svd.singularValues()(svd.singularValues().size() - 1);
   return cond;
+}
+
+double GetSpectralRadius(const Eigen::MatrixXd& A) {
+  Eigen::EigenSolver<Eigen::MatrixXd> es(A);
+  auto lambda = es.eigenvalues();
+  auto lambda_sqr = lambda.array() * lambda.array();
+  double radius = sqrt(lambda_sqr.real().maxCoeff());
+  return radius;
 }
 
 bool CheckMatrixCondition(const MatrixXd& A) {
@@ -152,6 +190,14 @@ double GetMatrixBlockSparsity(const MatrixXd& A, int block_width) {
     }
   }
   return num_zero_blocks * 1.0 / num_blocks;
+}
+
+MatrixXd InvertDiagonalMatrix(const MatrixXd& D) {
+  CHECK(D.rows() == D.cols());
+  CHECK_MSG(D.diagonal().prod() != 0, "det(D)==0, D is not invertible.");
+  MatrixXd inv_D = MatrixXd::Zero(D.rows(), D.cols());
+  inv_D.diagonal() = 1.0 / D.diagonal().array();
+  return inv_D;
 }
 
 VectorXd MatrixSolveDiagonal(const MatrixXd& D, const VectorXd& rhs) {
@@ -331,6 +377,18 @@ TEST_FUNCTION(GetMatrixBlockSparsity) {
   for (int i = 0; i < kNumTestInsts; ++i) {
     check_block_sparsity(/*block_width=*/3);
     check_block_sparsity(/*block_width=*/6);
+  }
+}
+
+TEST_FUNCTION(InvertDiagonalMatrix) {
+  for (int i = 0; i < kNumTestInsts; ++i) {
+    // Randomly generate a matrix with dimension between 3 and 100.
+    int dim = rand() % 98 + 3;
+    // Construct a random diagonal matrix
+    MatrixXd A = MatrixXd::Zero(dim, dim);
+    A.diagonal() = VectorXd::Random(dim);
+    CHECK((A * InvertDiagonalMatrix(A) - MatrixXd::Identity(dim, dim)).norm() <
+          kAllowNumericalError);
   }
 }
 
