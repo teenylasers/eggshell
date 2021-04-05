@@ -78,8 +78,8 @@ VectorXd BaseIteration(const MatrixXd& A, const VectorXd& b,
     VectorXd rhs = N * x + b;
     x = matrix_solve(M, rhs);
     double new_err = (A * x - b).norm();
-    // std::cout << "Step " << i << ": (Ax-b).norm() = " << new_err <<
-    // std::endl; CHECK_MSG(new_err < err,
+    // std::cout << "Step " << i << ": (Ax-b).norm() = " << new_err << std::endl;
+    // CHECK_MSG(new_err < err,
     //           "Error increased with this iteration, divergent trend.");
     err = new_err;
     ++i;
@@ -168,16 +168,8 @@ TEST_FUNCTION(GaussSeidelIteration_spd) {
 TEST_FUNCTION(SORIteration_diagonalDominant) {
   for (int i = 0; i < kNumTestInsts; ++i) {
     // Randomly generate matrix dimension, between 3 and 50.
-    const int dim = rand() % 98 + 3;
-    // Generate a well-conditioned diagonal-dominant matrix A.
-    MatrixXd A = MatrixXd::Random(dim, dim);
-    double scale_diagonal =
-        A.array().abs().maxCoeff() / A.array().abs().minCoeff() * 2;
-    A.diagonal() = A.diagonal().array() * (scale_diagonal);
-    if (GetConditionNumber(A) > kGoodConditionNumber) {
-      --i;
-      continue;
-    }
+    const int dim = rand() % 48 + 3;
+    const MatrixXd A = GenerateDiagonalDominantMatrix(dim);
     const VectorXd b = VectorXd::Random(dim);
     auto x = sparse::SORIteration(A, b);
     if ((A * x - b).norm() > kAllowNumericalError) {

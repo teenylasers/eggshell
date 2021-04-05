@@ -150,9 +150,7 @@ double GetConditionNumber(const Eigen::MatrixXd& A) {
 
 double GetSpectralRadius(const Eigen::MatrixXd& A) {
   Eigen::EigenSolver<Eigen::MatrixXd> es(A);
-  auto lambda = es.eigenvalues();
-  auto lambda_sqr = lambda.array() * lambda.array();
-  double radius = sqrt(lambda_sqr.real().maxCoeff());
+  double radius = es.eigenvalues().cwiseAbs().maxCoeff();
   return radius;
 }
 
