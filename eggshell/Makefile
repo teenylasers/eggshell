@@ -51,6 +51,7 @@ OBJ = body.o \
       joints.o \
 			lcp.o \
       model.o \
+			sparse_iterations.o	\
       utils.o \
       collision.o \
       toolkit/error.o \
@@ -173,6 +174,7 @@ TESTS = toolkit/testing.o \
   toolkit/random.o \
 	toolkit/error.o \
 	lcp.o \
+	sparse_iterations.o \
 	utils.o
 
 # TODO: fix

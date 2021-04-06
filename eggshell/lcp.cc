@@ -450,15 +450,9 @@ void Lcp::UpdateSubvector(VectorXd& v, const ArrayXb& ind, double d) {
 #include <stdio.h>
 
 #include "testing.h"
+#include "utils.h"
 
 namespace {
-
-MatrixXd GenerateRandomSpdMatrix(const int dim) {
-  // Random() generates coefficients in the range [-1:1]. Add 1 to make
-  // positive.
-  MatrixXd m = MatrixXd::Random(dim, dim) + MatrixXd::Ones(dim, dim);
-  return m.transpose() * m;
-}
 
 TEST_FUNCTION(SelectSubmatrix) {
   // Test case
@@ -633,7 +627,7 @@ TEST_FUNCTION(MurtyPrincipalPivot_NoBounds) {
   VectorXd zeros = VectorXd::Zero(matrix_size);
   int success_count = 0, trivial_count = 0;
   for (int i = 0; i < num_tests; ++i) {
-    const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
+    const MatrixXd A = GenerateSPDMatrix(matrix_size);
     const VectorXd b = VectorXd::Random(matrix_size);
     if (Lcp::MurtyPrincipalPivot(A, b, x, w)) {
       ++success_count;
@@ -657,7 +651,7 @@ TEST_FUNCTION(MurtyPrincipalPivot_WithBounds) {
   VectorXd zeros = VectorXd::Zero(matrix_size);
   int success_count = 0, trivial_count = 0;
   for (int i = 0; i < num_tests; ++i) {
-    const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
+    const MatrixXd A = GenerateSPDMatrix(matrix_size);
     const VectorXd b = VectorXd::Random(matrix_size);
     const MatrixXd x_lim = MatrixXd::Random(2, 1) + MatrixXd::Ones(2, 1);
     const double x_lo = -1 * x_lim(0, 0);
@@ -687,7 +681,7 @@ TEST_FUNCTION(MixedConstraintsSolver_NoBounds) {
   VectorXd zeros = VectorXd::Zero(matrix_size);
   int success_count = 0, trivial_count = 0;
   for (int i = 0; i < num_tests; ++i) {
-    const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
+    const MatrixXd A = GenerateSPDMatrix(matrix_size);
     const VectorXd b = VectorXd::Random(matrix_size);
     const ArrayXb C = ArrayXb::Random(matrix_size);
     if (Lcp::MixedConstraintsSolver(A, b, C, x_lo, x_hi, x, w)) {
@@ -714,7 +708,7 @@ TEST_FUNCTION(MixedConstraintsSolver_WithBounds) {
   VectorXd zeros = VectorXd::Zero(matrix_size);
   int success_count = 0, trivial_count = 0;
   for (int i = 0; i < num_tests; ++i) {
-    const MatrixXd A = GenerateRandomSpdMatrix(matrix_size);
+    const MatrixXd A = GenerateSPDMatrix(matrix_size);
     const VectorXd b = VectorXd::Random(matrix_size);
     const ArrayXb C = ArrayXb::Random(matrix_size);
     if (Lcp::MixedConstraintsSolver(A, b, C, x_lo, x_hi, x, w)) {
