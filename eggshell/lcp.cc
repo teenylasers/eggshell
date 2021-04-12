@@ -315,7 +315,7 @@ bool Lcp::MixedConstraintsSolver(const MatrixXd& A, const VectorXd& b,
   }
 
   // Solve for x_e
-  VectorXd x_e = A_ee.inverse() * (b_e - A_ei * x_i);
+  VectorXd x_e = A_ee.ldlt().solve(b_e - A_ei * x_i);
 
   // Construct and return x and w
   VectorXd res_x =

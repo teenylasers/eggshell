@@ -3,11 +3,11 @@
 #ifndef __CONSTRAINTS_H__
 #define __CONSTRAINTS_H__
 
+#include <iostream>
 #include <memory>
 
 #include "Eigen/Dense"
 #include "body.h"
-#include "glog/logging.h"
 #include "model.h"
 #include "utils.h"
 
@@ -25,11 +25,11 @@ class Constraint {
   virtual void ComputeJDot(MatrixXd* Jdot_b0, MatrixXd* Jdot_b1) const = 0;
 
   // Visualize the joint implementation in EggshellView.
-  virtual void Draw() const { LOG(ERROR) << "Constraint.Draw()"; };
+  virtual void Draw() const { Panic("Constraint.Draw() not implemented"); };
 
   // Return a string description of this constraint.
   virtual std::string PrintInfo() const {
-    LOG(ERROR) << "Constraint.PrintInfo()";
+    std::cout << "ERROR: Constraint.PrintInfo() not implemented.\n";
     return "Constraint.PrintInfo()";
   };
 
