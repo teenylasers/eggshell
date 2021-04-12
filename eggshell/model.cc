@@ -3,7 +3,6 @@
 #include "collision.h"
 #include "constants.h"
 #include "ensembles.h"
-#include "glog/logging.h"
 #include "joints.h"
 #include "utils.h"
 
@@ -26,7 +25,7 @@ static Body b2(Vector3d(3, 0, 3), Vector3d::Zero(), Matrix3d::Identity(), w0);
 
 // HangingChain
 // static Chain ch0 = Chain(10, Vector3d(0, 0, 8));
-static Chain ch1 = Chain(4, Vector3d(2, 2, 1));
+static Chain ch1 = Chain(10, Vector3d(2, 2, 1));
 
 // Cairn
 static Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
