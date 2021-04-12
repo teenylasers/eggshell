@@ -15,6 +15,12 @@
 #include "joints.h"
 #include "utils.h"
 
+// Use shared_ptr because Body and Constraint are abstract base classes.
+typedef std::vector<std::shared_ptr<Body>> ComponentsList;
+typedef std::vector<std::shared_ptr<Joint>> JointsList;
+typedef std::vector<std::shared_ptr<Contact>> ContactsList;
+typedef std::vector<std::shared_ptr<Constraint>> ConstraintsList;
+
 // Base class.
 class Ensemble {
  public:
@@ -59,17 +65,22 @@ class Ensemble {
   // TODO: Not applicable as a real check.
   bool CheckConservationOfEnergy();
 
+  const MatrixXd& M_inverse() const { return M_inverse_; };
+  const ConstraintsList constraints() const {
+    return CombineConstraintsLists();
+  }
+
  protected:
   // Number of Bodies that make up this ensemble
   int n_;
 
   // The Bodies that make up this ensemble. Use shared_ptr because Body is the
   // abstract base class.
-  std::vector<std::shared_ptr<Body>> components_;
+  ComponentsList components_;
   // Joints between Bodies or anchor to global frame.
-  std::vector<std::shared_ptr<Joint>> joints_;
+  JointsList joints_;
   // Contacts between Bodies or between Body and ground.
-  std::vector<std::shared_ptr<Contact>> contacts_;
+  ContactsList contacts_;
 
   // The inverse of mass-inertia matrix
   MatrixXd M_inverse_;
@@ -95,6 +106,9 @@ class Ensemble {
   // has occurred. Specifically, check that position constraint error is no more
   // than reasonably allowed numerical error.
   virtual bool CheckInitialConditions() const;
+
+  // Combine JointsList and ContactsList into a single ConstraintsList
+  ConstraintsList CombineConstraintsLists() const;
 
   // Check and correct, where possible, the current state of this ensemble. This
   // is a runtime check between stepping, thus contains different checks from
