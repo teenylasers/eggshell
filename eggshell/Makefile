@@ -173,6 +173,12 @@ $(APP): $(OBJ)
 TESTS = toolkit/testing.o \
   toolkit/random.o \
 	toolkit/error.o \
+	body.o \
+	collision.o \
+	contact.o \
+	eggshell_view.o \
+	ensembles.o \
+	joints.o \
 	lcp.o \
 	sparse_iterations.o \
 	utils.o

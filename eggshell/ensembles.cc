@@ -13,12 +13,18 @@
 namespace {
 constexpr double kCfmCoeff = 0.01;
 constexpr double kMinConstraintDistance = 1e-6;
+
+// Flag to choose between dense or sparse implementation.
+// TODO:
+// use for performance comparison before deciding how to choose dense vs
+// sparse solver at runtime.
+constexpr bool kSparseImplementation = false;
 }  // namespace
 
 void Ensemble::Init() {
   ConstructMassInertiaMatrixInverse();
   InitializeExternalForceTorqueVector();
-  CHECK(CheckInitialConditions()) << "Check initial conditions failed.";
+  CHECK_MSG(CheckInitialConditions(), "Check initial conditions failed.");
   CheckAndCorrectEnsembleState();
 }
 
@@ -30,11 +36,7 @@ MatrixXd Ensemble::ComputeJ() const {
 }
 
 MatrixXd Ensemble::ComputeJ(ArrayXb* C, VectorXd* x_lo, VectorXd* x_hi) const {
-  // TODO: check with russ
-  std::vector<std::shared_ptr<Constraint>> constraints;
-  constraints.insert(constraints.end(), joints_.begin(), joints_.end());
-  constraints.insert(constraints.end(), contacts_.begin(), contacts_.end());
-
+  ConstraintsList constraints = CombineConstraintsLists();
   MatrixXd J;
 
   for (int i = 0; i < constraints.size(); ++i) {
@@ -229,6 +231,13 @@ bool Ensemble::CheckInitialConditions() const {
   }
 }
 
+ConstraintsList Ensemble::CombineConstraintsLists() const {
+  ConstraintsList constraints;
+  constraints.insert(constraints.end(), joints_.begin(), joints_.end());
+  constraints.insert(constraints.end(), contacts_.begin(), contacts_.end());
+  return constraints;
+}
+
 void Ensemble::CheckAndCorrectEnsembleState() {
   // 1. Check whether M_inverse_, external_force_torques_ have the correct
   // dimensions.
@@ -386,9 +395,9 @@ void Ensemble::Step(double dt, Integrator g) {
 
   // Time step
   if (g == Integrator::EXPLICIT_EULER) {
-    CHECK(contacts_.empty())
-        << "Cannot use explicit Euler integrator when contact constraints "
-           "are present.";
+    CHECK_MSG(contacts_.empty(),
+              "Cannot use explicit Euler integrator when contact constraints "
+              "are present.");
     StepVelocities_ExplicitEuler(dt, v);
     StepPositions_ExplicitEuler(dt, v);
   } else if (g == Integrator::IMPLICIT_MIDPOINT) {
@@ -529,13 +538,16 @@ VectorXd Ensemble::ComputeVDot(const MatrixXd& J, const VectorXd& rhs,
 }
 
 VectorXd Ensemble::StepVelocities_ExplicitEuler(double dt, const VectorXd& v) {
-  MatrixXd J = ComputeJ();
-  MatrixXd JdotV = ComputeJDotV();
-  VectorXd rhs = -J * M_inverse_ * external_force_torque_ - JdotV;
-  VectorXd v_dot = ComputeVDot(J, rhs);
-  VectorXd v_new = v + dt * v_dot;
-  UpdateComponentsVelocities(v_new);
-  return v_new;
+  if (kSparseImplementation) {
+  } else {
+    MatrixXd J = ComputeJ();
+    MatrixXd JdotV = ComputeJDotV();
+    VectorXd rhs = -J * M_inverse_ * external_force_torque_ - JdotV;
+    VectorXd v_dot = ComputeVDot(J, rhs);
+    VectorXd v_new = v + dt * v_dot;
+    UpdateComponentsVelocities(v_new);
+    return v_new;
+  }
 }
 
 void Ensemble::StepPositions_ExplicitEuler(double dt, const VectorXd& v) {
@@ -647,8 +659,7 @@ void Ensemble::StepPostStabilization(double dt, double step_scale) {
 VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) const {
   const MatrixXd J = ComputeJ();
   const VectorXd err = ComputePositionConstraintError();
-  CHECK(J.rows() == err.rows()) << "(J.rows() = " << J.rows()
-                                << ") != (err.rows() = " << err.rows() << ")";
+  CHECK(J.rows() == err.rows());
   VectorXd velocity_correction =
       -1.0 * step_scale * J.transpose() * (J * J.transpose()).ldlt().solve(err);
   return velocity_correction;
@@ -656,8 +667,7 @@ VectorXd Ensemble::CalculateVelocityRelaxation(double step_scale) const {
 
 Chain::Chain(int num_links, const Vector3d& anchor_position) {
   // TODO: set max allowed n_
-  CHECK(num_links > 0) << "Cannot create a Chain with " << num_links
-                       << " links, must be > 0.";
+  CHECK(num_links > 0);
   n_ = num_links;
 
   InitLinks(anchor_position);
