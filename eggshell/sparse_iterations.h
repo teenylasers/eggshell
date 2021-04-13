@@ -25,19 +25,6 @@ VectorXd JacobiIteration(const ConstraintsList& constraints,
 VectorXd GaussSeidelIteration(const ConstraintsList& constraints,
                               const MatrixXd& M_inverse, const VectorXd& rhs);
 
-//*************  Helper functions to iterative methods. *************//
-
-// Calculate the strictly lower triangle times x
-VectorXd CalculateBlockLx(const ConstraintsList& constraints,
-                          const MatrixXd& M_inverse, const VectorXd& x);
-
-// Calculate the strictly upper triangle times x
-VectorXd CalculateBlockUx(const ConstraintsList& constraints,
-                          const MatrixXd& M_inverse, const VectorXd& x);
-
-// Calculate the diagonal times x
-VectorXd CalculateBlockDx(const ConstraintsList& constraints,
-                          const MatrixXd& M_inverse, const VectorXd& x);
 }  // namespace sparse
 
 #endif

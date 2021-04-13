@@ -67,9 +67,4 @@ double GetMatrixBlockSparsity(const MatrixXd& A, int block_width = 6);
 // Invert special matrices
 MatrixXd InvertDiagonalMatrix(const MatrixXd& D);
 
-// Solve Ax=b for special matrices
-VectorXd MatrixSolveDiagonal(const MatrixXd& D, const VectorXd& rhs);
-VectorXd MatrixSolveLowerTriangle(const MatrixXd& L, const VectorXd& rhs);
-VectorXd MatrixSolveUpperTriangle(const MatrixXd& U, const VectorXd& rhs);
-
 #endif
