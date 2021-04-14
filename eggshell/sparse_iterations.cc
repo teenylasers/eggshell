@@ -16,7 +16,7 @@ constexpr double omega = 1.5;  // 0 < omega < 2 for convergence.
 constexpr double kSOR = 1 / omega;
 
 // Default number of iterations, if none specified by the user.
-constexpr int kNumIterations = 1000;
+constexpr int kNumIterations = 500;
 
 enum struct IterationType {
   JACOBI,
@@ -37,9 +37,6 @@ VectorXd BaseIteration(const MatrixXd& A, const VectorXd& b,
   // Function pointer to the matrix solver, depending on whether the matrix
   // structure is diagonal, lower, or upper triangular.
   VectorXd (*matrix_solver)(const MatrixXd&, const VectorXd&);
-
-  // x0 to start the iterations
-  VectorXd x = VectorXd::Random(dim);
 
   switch (type) {
     case IterationType::JACOBI:
@@ -70,6 +67,9 @@ VectorXd BaseIteration(const MatrixXd& A, const VectorXd& b,
   const double rho = GetSpectralRadius(M.inverse() * N);
   std::cout << "INFO: spectral radius of M^(-1)*N = " << rho << std::endl;
   CHECK(rho < 1);
+
+  // x0 to start the iterations
+  VectorXd x = VectorXd::Random(dim);
 
   // Carry out iterations to find x.
   int i = 0;
@@ -112,27 +112,27 @@ VectorXd BaseIteration(const ConstraintsList& constraints,
   //  2. VectorXd& x(i)
   VectorXd (*get_Nx)(const ConstraintsList&, const MatrixXd&, const VectorXd&);
 
-  // x0 to start the iterations
-  VectorXd x = VectorXd::Random(rhs.size());
-
   // Set Mx_solver and get_Nx for each iteration type.
   switch (type) {
     case IterationType::JACOBI:
-      Mx_solver = &sparse::MatrixSolveBlockDiagonal;
       get_Nx = &sparse::CalculateBlockLxPlusUx;
+      Mx_solver = &sparse::MatrixSolveBlockDiagonal;
       break;
     case IterationType::GAUSS_SEIDEL:
-      Mx_solver = &sparse::MatrixSolveBlockLowerTriangle;
       get_Nx = &sparse::CalculateBlockUx;
+      Mx_solver = &sparse::MatrixSolveBlockLowerTriangle;
       break;
     case IterationType::SOR:
       // TODO: need more utils functions to handle kSOR.
-      // Mx_solver = &sparse::MatrixSolveBlockUpperTriangle;
       // get_Nx = &sparse::CalculateBlockLx;
+      // Mx_solver = &sparse::MatrixSolveBlockUpperTriangle;
       break;
     default:
       Panic("Unknown iteration type %d.", type);
   }
+
+  // x0 to start the iterations
+  VectorXd x = VectorXd::Random(rhs.size());
 
   // Carry out iterations to find x.
   int i = 0;
@@ -141,11 +141,12 @@ VectorXd BaseIteration(const ConstraintsList& constraints,
   // std::cout << "Step -1: (Ax-b).norm() = " << err << std::endl;
   while (err > kAllowNumericalError && i < kNumIterations) {
     // iteration_rhs = Nx(i) + b = get_Nx() + rhs.
-    VectorXd iteration_rhs = get_Nx(constraints, M_inverse, x) + rhs;
+    VectorXd iteration_rhs = -1 * get_Nx(constraints, M_inverse, x) + rhs;
     x = Mx_solver(constraints, M_inverse, iteration_rhs);
     double new_err =
         (sparse::CalculateBlockJMJtX(constraints, M_inverse, x) - rhs).norm();
-    std::cout << "Step " << i << ": (Ax-b).norm() = " << new_err << std::endl;
+    // std::cout << "Step " << i << ": (Ax-b).norm() = " << new_err <<
+    // std::endl;
     // CHECK_MSG(new_err < err,
     //           "Error increased with this iteration, divergent trend.");
     err = new_err;
@@ -194,6 +195,9 @@ namespace {
 
 // Number of instances to run in each TEST_FUNCTION.
 constexpr int kNumTestInsts = 10;
+
+// Number of eggshell simulation steps to run in each relevant TEST_FUNCTION.
+constexpr int kNumSimSteps = 20;
 
 TEST_FUNCTION(JacobiIteration) {
   for (int i = 0; i < kNumTestInsts; ++i) {
@@ -273,6 +277,74 @@ TEST_FUNCTION(SORIteration_spd) {
                 << ", (Ax-b).norm() = " << (A * x - b).norm() << std::endl;
     }
     CHECK((A * x - b).norm() < kAllowNumericalError);
+  }
+}
+
+TEST_FUNCTION(JacobiIteration_ensemble) {
+  auto check_jacobi = [](const Ensemble& en) {
+    const MatrixXd J = en.ComputeJ();
+    const MatrixXd M = en.M_inverse();
+
+    // Use a randomly generated rhs
+    const VectorXd rhs = VectorXd::Random(J.rows());
+
+    // Solve (JMJt * x = rhs) using Gause-Seidel iteration
+    const VectorXd x =
+        sparse::JacobiIteration(en.constraints(), en.M_inverse(), rhs);
+
+    // Check x
+    return (J * M * J.transpose() * x - rhs).norm() < kAllowNumericalError;
+  };
+
+  Chain chain(4, Vector3d(0, 0, 2));
+  chain.Init();
+  CHECK(check_jacobi(chain));
+  for (int i = 0; i < kNumSimSteps; ++i) {
+    chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+    CHECK(check_jacobi(chain));
+  }
+
+  Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
+  cairn.Init();
+  cairn.InitStabilize();
+  CHECK(check_jacobi(cairn));
+  for (int i = 0; i < kNumSimSteps; ++i) {
+    cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+    CHECK(check_jacobi(cairn));
+  }
+}
+
+TEST_FUNCTION(GaussSeidelIteration_ensemble) {
+  auto check_gauss_seidel = [](const Ensemble& en) {
+    const MatrixXd J = en.ComputeJ();
+    const MatrixXd M = en.M_inverse();
+
+    // Use a randomly generated rhs
+    const VectorXd rhs = VectorXd::Random(J.rows());
+
+    // Solve (JMJt * x = rhs) using Gause-Seidel iteration
+    const VectorXd x =
+        sparse::GaussSeidelIteration(en.constraints(), en.M_inverse(), rhs);
+
+    // Check x
+    return (J * M * J.transpose() * x - rhs).norm() < kAllowNumericalError;
+  };
+
+  Chain chain(4, Vector3d(0, 0, 2));
+  chain.Init();
+  CHECK(check_gauss_seidel(chain));
+  for (int i = 0; i < kNumSimSteps; ++i) {
+    chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+    CHECK(check_gauss_seidel(chain));
+  }
+
+  Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
+  cairn.Init();
+  cairn.InitStabilize();
+  CHECK(check_gauss_seidel(cairn));
+  for (int i = 0; i < kNumSimSteps; ++i) {
+    cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+    CHECK(check_gauss_seidel(cairn));
   }
 }
 
