@@ -44,9 +44,17 @@ VectorXd CalculateBlockLx(const ConstraintsList& constraints,
 VectorXd CalculateBlockUx(const ConstraintsList& constraints,
                           const MatrixXd& M_inverse, const VectorXd& x);
 
+// Calculate Lx + Ux, the block strictly lower triangle times x
+VectorXd CalculateBlockLxPlusUx(const ConstraintsList& constraints,
+                                const MatrixXd& M_inverse, const VectorXd& x);
 // Calculate Dx, the block diagonal times x
 VectorXd CalculateBlockDx(const ConstraintsList& constraints,
                           const MatrixXd& M_inverse, const VectorXd& x);
+
+// Calculate JMJtX for an ensemble without explicitly forming the systems matrix
+// JMJt.
+VectorXd CalculateBlockJMJtX(const ConstraintsList& constraints,
+                             const MatrixXd& M_inverse, const VectorXd& x);
 
 }  // namespace sparse
 

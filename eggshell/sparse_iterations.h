@@ -9,10 +9,6 @@
 
 namespace sparse {
 
-// Pointer to the function that solves Ax=b for a special A, implementation
-// depends on whether A is diagonal, lower, or upper triangular.
-typedef VectorXd (*matrix_solver)(const MatrixXd&, const VectorXd&);
-
 // Iterative methods to solve Ax=b
 VectorXd JacobiIteration(const MatrixXd& A, const VectorXd& b);
 VectorXd GaussSeidelIteration(const MatrixXd& A, const VectorXd& b);
