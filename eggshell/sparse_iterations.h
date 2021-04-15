@@ -20,6 +20,8 @@ VectorXd JacobiIteration(const ConstraintsList& constraints,
                          const MatrixXd& M_inverse, const VectorXd& rhs);
 VectorXd GaussSeidelIteration(const ConstraintsList& constraints,
                               const MatrixXd& M_inverse, const VectorXd& rhs);
+VectorXd SORIteration(const ConstraintsList& constraints,
+                      const MatrixXd& M_inverse, const VectorXd& rhs);
 
 }  // namespace sparse
 

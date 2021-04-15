@@ -103,19 +103,24 @@ VectorXd BaseIteration(const ConstraintsList& constraints,
   //  1. ConstraintsList&, MatrixXd& M_inverse - to form the equivalent of M
   //     matrix
   //  2. VectorXd& rhs = Nx(i) + b
+  //  3. double Mx_solver_scale
   VectorXd (*Mx_solver)(const ConstraintsList&, const MatrixXd&,
-                        const VectorXd&);
+                        const VectorXd&, double);
+  double Mx_solver_scale = 1.0;
 
   // Function pointer to get Nx(i). Function arguments are:
   //  1. ConstraintsList&, MatrixXd& M_inverse - to form the equivalent of N
   //     matrix
   //  2. VectorXd& x(i)
-  VectorXd (*get_Nx)(const ConstraintsList&, const MatrixXd&, const VectorXd&);
+  //  3. double get_Nx_scale
+  VectorXd (*get_Nx)(const ConstraintsList&, const MatrixXd&, const VectorXd&,
+                     double);
+  double get_Nx_scale = 1.0;
 
   // Set Mx_solver and get_Nx for each iteration type.
   switch (type) {
     case IterationType::JACOBI:
-      get_Nx = &sparse::CalculateBlockLxPlusUx;
+      get_Nx = &sparse::CalculateBlockLxUx;
       Mx_solver = &sparse::MatrixSolveBlockDiagonal;
       break;
     case IterationType::GAUSS_SEIDEL:
@@ -123,9 +128,10 @@ VectorXd BaseIteration(const ConstraintsList& constraints,
       Mx_solver = &sparse::MatrixSolveBlockLowerTriangle;
       break;
     case IterationType::SOR:
-      // TODO: need more utils functions to handle kSOR.
-      // get_Nx = &sparse::CalculateBlockLx;
-      // Mx_solver = &sparse::MatrixSolveBlockUpperTriangle;
+      get_Nx = &sparse::CalculateBlockLxDx;
+      get_Nx_scale = 1 - kSOR;
+      Mx_solver = &sparse::MatrixSolveBlockUpperTriangle;
+      Mx_solver_scale = kSOR;
       break;
     default:
       Panic("Unknown iteration type %d.", type);
@@ -141,8 +147,9 @@ VectorXd BaseIteration(const ConstraintsList& constraints,
   // std::cout << "Step -1: (Ax-b).norm() = " << err << std::endl;
   while (err > kAllowNumericalError && i < kNumIterations) {
     // iteration_rhs = Nx(i) + b = get_Nx() + rhs.
-    VectorXd iteration_rhs = -1 * get_Nx(constraints, M_inverse, x) + rhs;
-    x = Mx_solver(constraints, M_inverse, iteration_rhs);
+    VectorXd iteration_rhs =
+        -1 * get_Nx(constraints, M_inverse, x, get_Nx_scale) + rhs;
+    x = Mx_solver(constraints, M_inverse, iteration_rhs, Mx_solver_scale);
     double new_err =
         (sparse::CalculateBlockJMJtX(constraints, M_inverse, x) - rhs).norm();
     // std::cout << "Step " << i << ": (Ax-b).norm() = " << new_err <<
@@ -182,6 +189,11 @@ VectorXd sparse::GaussSeidelIteration(const ConstraintsList& constraints,
                                       const VectorXd& rhs) {
   return BaseIteration(constraints, M_inverse, rhs,
                        IterationType::GAUSS_SEIDEL);
+}
+
+VectorXd sparse::SORIteration(const ConstraintsList& constraints,
+                              const MatrixXd& M_inverse, const VectorXd& rhs) {
+  return BaseIteration(constraints, M_inverse, rhs, IterationType::SOR);
 }
 
 //***************************************************************************
@@ -345,6 +357,40 @@ TEST_FUNCTION(GaussSeidelIteration_ensemble) {
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
     CHECK(check_gauss_seidel(cairn));
+  }
+}
+
+TEST_FUNCTION(SORIteration_ensemble) {
+  auto check_sor = [](const Ensemble& en) {
+    const MatrixXd J = en.ComputeJ();
+    const MatrixXd M = en.M_inverse();
+
+    // Use a randomly generated rhs
+    const VectorXd rhs = VectorXd::Random(J.rows());
+
+    // Solve (JMJt * x = rhs) using Gause-Seidel iteration
+    const VectorXd x =
+        sparse::SORIteration(en.constraints(), en.M_inverse(), rhs);
+
+    // Check x
+    return (J * M * J.transpose() * x - rhs).norm() < kAllowNumericalError;
+  };
+
+  Chain chain(4, Vector3d(0, 0, 2));
+  chain.Init();
+  CHECK(check_sor(chain));
+  for (int i = 0; i < kNumSimSteps; ++i) {
+    chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+    CHECK(check_sor(chain));
+  }
+
+  Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
+  cairn.Init();
+  cairn.InitStabilize();
+  CHECK(check_sor(cairn));
+  for (int i = 0; i < kNumSimSteps; ++i) {
+    cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
+    CHECK(check_sor(cairn));
   }
 }
 
