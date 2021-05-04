@@ -302,7 +302,7 @@ constexpr int kNumTestInsts = 10;
 constexpr int kNumSimSteps = 20;
 
 // Add constraint force mixing (CFM) to ensemble test cases.
-constexpr double kCfmCoeff = 0.02;
+constexpr double kCfmCoeff = 0.01;
 
 // Helper function to check mixed constraint solutions.
 bool CheckMixedConstraintSolutions(const MatrixXd& A, const VectorXd& b,
@@ -619,10 +619,8 @@ TEST_FUNCTION(GaussSeidelIteration_ensemble) {
   // Chain chain(4, Vector3d(0, 0, 2));
   // chain.Init();
   //
-  //
   // // Use a randomly generated rhs
   // const VectorXd rhs = VectorXd::Random(chain.ComputeJ().rows());
-  //
   //
   // sparse_check = check_gauss_seidel(chain, /*sparse = */ true, rhs);
   // dense_check = check_gauss_seidel(chain, /*sparse = */ false, rhs);

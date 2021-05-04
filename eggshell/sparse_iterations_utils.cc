@@ -89,15 +89,12 @@ VectorXd sparse::MatrixSolveBlockDiagonal(const ConstraintsList& constraints,
     if (i1 >= 0) {
       subD += j1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j1.transpose();
     }
-    subD =
-        subD * scale + epsilon * MatrixXd::Identity(subD.rows(), subD.cols());
+    subD += epsilon * MatrixXd::Identity(subD.rows(), subD.cols());
+    subD.diagonal() = subD.diagonal().array() * scale;
 
-    // Use ldlt().solve(), because we expect system to be symmetric positive
-    // definite.
     x.block(x_row_index, 0, j0.rows(), 1) =
-        subD.ldlt().solve(rhs.block(x_row_index, 0, j0.rows(), 1));
-
-    // Project x for inequality constraints
+        1.0 / subD.diagonal().array() *
+        rhs.block(x_row_index, 0, j0.rows(), 1).array();
     for (int k = 0; k < ct.size(); ++k) {
       x(x_row_index + k) =
           ApplyProjection(x(x_row_index + k), ct(k), c_lo(k), c_hi(k));
@@ -222,18 +219,20 @@ VectorXd sparse::MatrixSolveBlockLowerTriangle(
       diagonal_block +=
           j_i1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j_i1.transpose();
     }
-    diagonal_block =
-        diagonal_block * scale_diagonal +
+    diagonal_block +=
         epsilon_diagonal *
-            MatrixXd::Identity(diagonal_block.rows(), diagonal_block.cols());
+        MatrixXd::Identity(diagonal_block.rows(), diagonal_block.cols());
+    diagonal_block.diagonal() =
+        diagonal_block.diagonal().array() * scale_diagonal;
 
-    x.block(x_row_index, 0, j_i0.rows(), 1) = diagonal_block.ldlt().solve(
-        rhs.block(x_row_index, 0, j_i0.rows(), 1) - substitutions);
-
-    // Project x for inequality constraints
+    // Do substitution line by line
     for (int k = 0; k < ct.size(); ++k) {
-      x(x_row_index + k) =
-          ApplyProjection(x(x_row_index + k), ct(k), c_lo(k), c_hi(k));
+      for (int l = 0; l < k; ++l) {
+        substitutions(k) += diagonal_block(k, l) * x(x_row_index + l);
+      }
+      x(x_row_index + k) = ApplyProjection(
+          (rhs(x_row_index + k) - substitutions(k)) / diagonal_block(k, k),
+          ct(k), c_lo(k), c_hi(k));
     }
 
     // Update x_row_index
@@ -353,18 +352,20 @@ VectorXd sparse::MatrixSolveBlockUpperTriangle(
       diagonal_block +=
           j_i1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j_i1.transpose();
     }
-    diagonal_block =
-        diagonal_block * scale_diagonal +
+    diagonal_block +=
         epsilon_diagonal *
-            MatrixXd::Identity(diagonal_block.rows(), diagonal_block.cols());
+        MatrixXd::Identity(diagonal_block.rows(), diagonal_block.cols());
+    diagonal_block.diagonal() =
+        diagonal_block.diagonal().array() * scale_diagonal;
 
-    x.block(x_row_index, 0, j_i0.rows(), 1) = diagonal_block.ldlt().solve(
-        rhs.block(x_row_index, 0, j_i0.rows(), 1) - substitutions);
-
-    // Project x for inequality constraints
-    for (int k = 0; k < ct.size(); ++k) {
-      x(x_row_index + k) =
-          ApplyProjection(x(x_row_index + k), ct(k), c_lo(k), c_hi(k));
+    // Do substitution line by line
+    for (int k = ct.size() - 1; k >= 0; --k) {
+      for (int l = k + 1; l < ct.size(); ++l) {
+        substitutions(k) += diagonal_block(k, l) * x(x_row_index + l);
+      }
+      x(x_row_index + k) = ApplyProjection(
+          (rhs(x_row_index + k) - substitutions(k)) / diagonal_block(k, k),
+          ct(k), c_lo(k), c_hi(k));
     }
   }
 
@@ -430,7 +431,7 @@ VectorXd sparse::CalculateBlockLx(const ConstraintsList& constraints,
   VectorXd Lx = VectorXd::Zero(x.size());
   int Lx_row_index = 0;
 
-  for (int i = 1; i < constraints.size(); ++i) {
+  for (int i = 0; i < constraints.size(); ++i) {
     MatrixXd j_i0, j_i1;  // jacobians for the 2 component of this constraint
     ArrayXb ct;           // unused
     VectorXd c_lo, c_hi;  // unused
@@ -438,9 +439,9 @@ VectorXd sparse::CalculateBlockLx(const ConstraintsList& constraints,
     int i0 = constraints.at(i)->i0_;  // component 0's global index
     int i1 = constraints.at(i)->i1_;  // component 1's global index
 
-    Lx_row_index += j_i0.rows();
     int x_row_index = 0;
 
+    // Lower triangle blocks
     for (int j = 0; j < i; ++j) {
       MatrixXd j_j0,
           j_j1;  // jacobians for the 2 components in the constraint
@@ -461,16 +462,6 @@ VectorXd sparse::CalculateBlockLx(const ConstraintsList& constraints,
         JMJt += j_i1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j_j1.transpose();
       }
 
-      /*
-      std::cout << "Constraints indices i, j = " << i << ", " << j <<
-      std::endl; std::cout << "Components indices = (i0, i1), (j0, j1) = (" <<
-      i0 << ", "
-                << i1 << "), (" << j0 << ", " << j1 << ")\n";
-      std::cout << "JMJt = \n" << JMJt << std::endl;
-      std::cout << "Lx_row_index = " << Lx_row_index << std::endl;
-      std::cout << "x_row_index" << x_row_index << std::endl;
-      */
-
       // Accumulate the i-th subblock of Lx
       Lx.block(Lx_row_index, 0, j_i0.rows(), 1) +=
           JMJt * x.block(x_row_index, 0, JMJt.cols(), 1);
@@ -479,6 +470,23 @@ VectorXd sparse::CalculateBlockLx(const ConstraintsList& constraints,
       // submatrix.
       x_row_index += j_j0.rows();
     }
+
+    // Lower triangle of the diagonal blocks
+    MatrixXd JMJtDiag = MatrixXd::Zero(j_i0.rows(), j_i0.rows());
+    if (i0 >= 0) {
+      JMJtDiag +=
+          j_i0 * M_inverse.block<6, 6>(i0 * 6, i0 * 6) * j_i0.transpose();
+    }
+    if (i1 >= 0) {
+      JMJtDiag +=
+          j_i1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j_i1.transpose();
+    }
+    Lx.block(Lx_row_index, 0, j_i0.rows(), 1) +=
+        JMJtDiag.triangularView<Eigen::StrictlyLower>() *
+        x.block(x_row_index, 0, JMJtDiag.cols(), 1);
+
+    // Update Lx_row_index for the next iteration.
+    Lx_row_index += j_i0.rows();
   }
 
   return Lx;
@@ -501,6 +509,21 @@ VectorXd sparse::CalculateBlockUx(const ConstraintsList& constraints,
 
     int x_row_index = Ux_row_index;
 
+    // Upper triangle of the diagonal blocks
+    MatrixXd JMJtDiag = MatrixXd::Zero(j_i0.rows(), j_i0.rows());
+    if (i0 >= 0) {
+      JMJtDiag +=
+          j_i0 * M_inverse.block<6, 6>(i0 * 6, i0 * 6) * j_i0.transpose();
+    }
+    if (i1 >= 0) {
+      JMJtDiag +=
+          j_i1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j_i1.transpose();
+    }
+    Ux.block(Ux_row_index, 0, j_i0.rows(), 1) +=
+        JMJtDiag.triangularView<Eigen::StrictlyUpper>() *
+        x.block(x_row_index, 0, JMJtDiag.cols(), 1);
+
+    // Upper triangle blocks
     for (int j = i + 1; j < constraints.size(); ++j) {
       MatrixXd j_j0,
           j_j1;  // jacobians for the 2 components in the constraint
@@ -521,14 +544,6 @@ VectorXd sparse::CalculateBlockUx(const ConstraintsList& constraints,
         JMJt += j_i1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j_j1.transpose();
       }
 
-      /*
-      std::cout << "Constraints indices i, j = " << i << ", " << j <<
-      std::endl; std::cout << "Components indices = (i0, i1), (j0, j1) = (" <<
-      i0 << ", "
-                << i1 << "), (" << j0 << ", " << j1 << ")\n";
-      std::cout << "JMJt = \n" << JMJt << std::endl;
-      */
-
       // Update x_row_index for subvector multiplication with this JMJt
       // submatrix.
       x_row_index += j_i0.rows();
@@ -538,7 +553,7 @@ VectorXd sparse::CalculateBlockUx(const ConstraintsList& constraints,
           JMJt * x.block(x_row_index, 0, JMJt.cols(), 1);
     }
 
-    // Update Dx_row_index for the next constraint
+    // Update Ux_row_index for the next constraint
     Ux_row_index += j_i0.rows();
   }
 
@@ -576,15 +591,15 @@ VectorXd sparse::CalculateBlockDx(const ConstraintsList& constraints,
     if (i1 >= 0) {
       JMJt += j1 * M_inverse.block<6, 6>(i1 * 6, i1 * 6) * j1.transpose();
     }
+    JMJt.diagonal() = (JMJt.diagonal().array() + epsilon) * scale;
+
     Dx.block(Dx_row_index, 0, j0.rows(), 1) =
-        (JMJt + epsilon * MatrixXd::Identity(JMJt.rows(), JMJt.cols())) *
-        x.block(Dx_row_index, 0, j0.rows(), 1);
+        JMJt.diagonal().asDiagonal() * x.block(Dx_row_index, 0, j0.rows(), 1);
 
     // Update Dx_row_index for the next constraint
     Dx_row_index += j0.rows();
   }
 
-  Dx = Dx * scale;
   return Dx;
 }
 
@@ -755,8 +770,10 @@ bool CompareBlockDx(const Ensemble& en, int dof_per_constraint) {
       sparse::CalculateBlockDx(en.constraints(), M, x, kEpsilonDiagonal, scale);
 
   // Calculate block Dx by forming JMJt the systems matrix.
-  const MatrixXd JMJt_block_diagonal = GetBlockDiagonal(en, dof_per_constraint);
-  const VectorXd JMJt_Dx = JMJt_block_diagonal * x * scale;
+  const MatrixXd JMJt_block_diagonal =
+      GetBlockDiagonal(en, dof_per_constraint) * scale;
+  std::cout << "JMJt_block_diagonal =\n" << JMJt_block_diagonal << std::endl;
+  const VectorXd JMJt_Dx = JMJt_block_diagonal * x;
 
   return (Dx - JMJt_Dx).norm() < kAllowNumericalError;
 }
@@ -813,9 +830,6 @@ bool CompareBlockUx(const Ensemble& en, int dof_per_constraint) {
       sparse::CalculateBlockUx(en.constraints(), M, x, kEpsilonDiagonal);
 
   // Calculate block Ux by forming JMJt the systems matrix.
-  const MatrixXd JMJt =
-      J * M * J.transpose() +
-      kEpsilonDiagonal * MatrixXd::Identity(J.rows(), J.rows());
   MatrixXd JMJt_block_upper_triangle =
       GetBlockStrictlyUpperTriangle(en, dof_per_constraint);
   const VectorXd JMJt_Ux = JMJt_block_upper_triangle * x;
@@ -924,10 +938,10 @@ bool CompareBlockJMJtX(const Ensemble& en, int dof_per_constraint) {
 TEST_FUNCTION(CalculateBlockDx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockDx(chain, 3));
+  CHECK(CompareBlockDx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockDx(chain, 3));
+    CHECK(CompareBlockDx(chain, 1));
   }
 }
 
@@ -936,10 +950,10 @@ TEST_FUNCTION(CalculateBlockDx_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockDx(cairn, 3));
+  CHECK(CompareBlockDx(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep * 5, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockDx(cairn, 3));
+    CHECK(CompareBlockDx(cairn, 1));
   }
 }
 
@@ -947,10 +961,10 @@ TEST_FUNCTION(CalculateBlockDx_cairn) {
 TEST_FUNCTION(CalculateBlockUx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockUx(chain, 3));
+  CHECK(CompareBlockUx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockUx(chain, 3));
+    CHECK(CompareBlockUx(chain, 1));
   }
 }
 
@@ -960,10 +974,10 @@ TEST_FUNCTION(CalculateBlockUx_cairn) {
     Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
     cairn.Init();
     cairn.InitStabilize();
-    CHECK(CompareBlockUx(cairn, 3));
+    CHECK(CompareBlockUx(cairn, 1));
     for (int i = 0; i < kNumSimSteps; ++i) {
       cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-      CHECK(CompareBlockUx(cairn, 3));
+      CHECK(CompareBlockUx(cairn, 1));
     }
   }
 }
@@ -972,10 +986,10 @@ TEST_FUNCTION(CalculateBlockUx_cairn) {
 TEST_FUNCTION(CalculateBlockLx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockLx(chain, 3));
+  CHECK(CompareBlockLx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLx(chain, 3));
+    CHECK(CompareBlockLx(chain, 1));
   }
 }
 
@@ -984,10 +998,10 @@ TEST_FUNCTION(CalculateBlockLx_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockLx(cairn, 3));
+  CHECK(CompareBlockLx(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLx(cairn, 3));
+    CHECK(CompareBlockLx(cairn, 1));
   }
 }
 
@@ -995,10 +1009,10 @@ TEST_FUNCTION(CalculateBlockLx_cairn) {
 TEST_FUNCTION(CalculateBlockLxUx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockLxUx(chain, 3));
+  CHECK(CompareBlockLxUx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLxUx(chain, 3));
+    CHECK(CompareBlockLxUx(chain, 1));
   }
 }
 
@@ -1007,10 +1021,10 @@ TEST_FUNCTION(CalculateBlockLxUx_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockLxUx(cairn, 3));
+  CHECK(CompareBlockLxUx(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLxUx(cairn, 3));
+    CHECK(CompareBlockLxUx(cairn, 1));
   }
 }
 
@@ -1018,10 +1032,10 @@ TEST_FUNCTION(CalculateBlockLxUx_cairn) {
 TEST_FUNCTION(CalculateBlockJMJtX_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockJMJtX(chain, 3));
+  CHECK(CompareBlockJMJtX(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockJMJtX(chain, 3));
+    CHECK(CompareBlockJMJtX(chain, 1));
   }
 }
 
@@ -1030,10 +1044,10 @@ TEST_FUNCTION(CalculateBlockJMJtX_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockJMJtX(cairn, 3));
+  CHECK(CompareBlockJMJtX(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockJMJtX(cairn, 3));
+    CHECK(CompareBlockJMJtX(cairn, 1));
   }
 }
 
@@ -1053,7 +1067,7 @@ TEST_FUNCTION(MatrixSolveDiagonal) {
 }
 
 TEST_FUNCTION(MatrixSolveBlockDiagonal_matrix) {
-  const int block_dim = 3;
+  const int block_dim = 1;
   for (int i = 0; i < kNumTestInsts; ++i) {
     // Randomly generate a block diagonal matrix with dimension between 6 and
     // 90, where each block is (block_dim * block_dim).
@@ -1073,7 +1087,7 @@ TEST_FUNCTION(MatrixSolveBlockDiagonal_matrix) {
 
 TEST_FUNCTION(MatrixSolveBlockDiagonal_ensemble) {
   auto check_solve_block_diagonal = [](const Ensemble& en) {
-    const MatrixXd A = GetBlockDiagonal(en, 3);
+    const MatrixXd A = GetBlockDiagonal(en, 1);
     const VectorXd b = VectorXd::Random(A.rows());
     const VectorXd x = sparse::MatrixSolveBlockDiagonal(
         en.constraints(), en.M_inverse(), b, kEpsilonDiagonal);
@@ -1111,7 +1125,7 @@ TEST_FUNCTION(MatrixSolveLowerTriangle) {
 }
 
 TEST_FUNCTION(MatrixSolveBlockLowerTriangle_matrix) {
-  const int block_dim = 3;
+  const int block_dim = 1;
   for (int i = 0; i < kNumTestInsts; ++i) {
     // Randomly generate a block lower triangle matrix with dimension between
     // 6 and 90, where each block is (block_dim * block_dim).
@@ -1143,16 +1157,14 @@ TEST_FUNCTION(MatrixSolveBlockLowerTriangle_matrix) {
 
 TEST_FUNCTION(MatrixSolveBlockLowerTriangle_ensemble) {
   auto check_solve_block_lower_triangle = [](const Ensemble& en) {
-    const MatrixXd A = GetBlockLowerTriangle(en, 3);
+    const MatrixXd A = GetBlockLowerTriangle(en, 1);
     const VectorXd b = VectorXd::Random(A.rows());
     const VectorXd x = sparse::MatrixSolveBlockLowerTriangle(
         en.constraints(), en.M_inverse(), b, kEpsilonDiagonal);
-    const VectorXd x_exp = sparse::MatrixSolveBlockLowerTriangle(A, b, 3);
     // std::cout << "A = \n" << A << std::endl;
     // std::cout << "b = \n" << b << std::endl;
     // std::cout << "x = \n" << x << std::endl;
-    // std::cout << "x - x_exp = \n" << x - x_exp << std::endl;
-    // std::cout << "A * x_exp - b = \n" << A * x_exp - b << std::endl;
+    // std::cout << "A * x - b = \n" << A * x - b << std::endl;
     return (A * x - b).norm() < kAllowNumericalError;
   };
 
@@ -1187,7 +1199,7 @@ TEST_FUNCTION(MatrixSolveUpperTriangle) {
 }
 
 TEST_FUNCTION(MatrixSolveBlockUpperTriangle_matrix) {
-  const int block_dim = 3;
+  const int block_dim = 1;
   for (int i = 0; i < kNumTestInsts; ++i) {
     // Randomly generate a block upper triangle matrix with dimension between
     // 6 and 90, where each block is (block_dim * block_dim).
@@ -1219,11 +1231,10 @@ TEST_FUNCTION(MatrixSolveBlockUpperTriangle_matrix) {
 
 TEST_FUNCTION(MatrixSolveBlockUpperTriangle_ensemble) {
   auto check_solve_block_upper_triangle = [](const Ensemble& en) {
-    const MatrixXd A = GetBlockUpperTriangle(en, 3);
+    const MatrixXd A = GetBlockUpperTriangle(en, 1);
     const VectorXd b = VectorXd::Random(A.rows());
     const VectorXd x = sparse::MatrixSolveBlockUpperTriangle(
         en.constraints(), en.M_inverse(), b, kEpsilonDiagonal);
-    const VectorXd x_exp = sparse::MatrixSolveBlockUpperTriangle(A, b, 3);
     return (A * x - b).norm() < kAllowNumericalError;
   };
 
