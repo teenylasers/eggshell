@@ -64,7 +64,7 @@ VectorXd sparse::MatrixSolveBlockDiagonal(const MatrixXd& D,
   return x;
 }
 
-VectorXd sparse::MatrixSolveBlockDiagonal(const ConstraintsList& constraints,
+VectorXd sparse::MatrixSolveSparseDiagonal(const ConstraintsList& constraints,
                                           const MatrixXd& M_inverse,
                                           const VectorXd& rhs, double epsilon,
                                           double scale) {
@@ -156,7 +156,7 @@ VectorXd sparse::MatrixSolveBlockLowerTriangle(
   return x;
 }
 
-VectorXd sparse::MatrixSolveBlockLowerTriangle(
+VectorXd sparse::MatrixSolveSparseLowerTriangle(
     const ConstraintsList& constraints, const MatrixXd& M_inverse,
     const VectorXd& rhs, double epsilon_diagonal, double scale_diagonal) {
   VectorXd x = VectorXd::Zero(rhs.size());
@@ -289,7 +289,7 @@ VectorXd sparse::MatrixSolveBlockUpperTriangle(
   return x;
 }
 
-VectorXd sparse::MatrixSolveBlockUpperTriangle(
+VectorXd sparse::MatrixSolveSparseUpperTriangle(
     const ConstraintsList& constraints, const MatrixXd& M_inverse,
     const VectorXd& rhs, double epsilon_diagonal, double scale_diagonal) {
   VectorXd x = VectorXd::Zero(rhs.size());
@@ -424,7 +424,7 @@ VectorXd sparse::MatrixSolveBlockUpperTriangle(const MatrixXd& D,
 
 /////////////////////////////////////////////////////////////////////////////////
 
-VectorXd sparse::CalculateBlockLx(const ConstraintsList& constraints,
+VectorXd sparse::CalculateSparseLx(const ConstraintsList& constraints,
                                   const MatrixXd& M_inverse, const VectorXd& x,
                                   double epsilon_diagonal,
                                   double scale_diagonal) {
@@ -492,7 +492,7 @@ VectorXd sparse::CalculateBlockLx(const ConstraintsList& constraints,
   return Lx;
 }
 
-VectorXd sparse::CalculateBlockUx(const ConstraintsList& constraints,
+VectorXd sparse::CalculateSparseUx(const ConstraintsList& constraints,
                                   const MatrixXd& M_inverse, const VectorXd& x,
                                   double epsilon_diagonal,
                                   double scale_diagonal) {
@@ -560,15 +560,15 @@ VectorXd sparse::CalculateBlockUx(const ConstraintsList& constraints,
   return Ux;
 }
 
-VectorXd sparse::CalculateBlockLxUx(const ConstraintsList& constraints,
+VectorXd sparse::CalculateSparseLxUx(const ConstraintsList& constraints,
                                     const MatrixXd& M_inverse,
                                     const VectorXd& x, double epsilon_diagonal,
                                     double scale_diagonal) {
-  return CalculateBlockLx(constraints, M_inverse, x) +
-         CalculateBlockUx(constraints, M_inverse, x);
+  return CalculateSparseLx(constraints, M_inverse, x) +
+         CalculateSparseUx(constraints, M_inverse, x);
 }
 
-VectorXd sparse::CalculateBlockDx(const ConstraintsList& constraints,
+VectorXd sparse::CalculateSparseDx(const ConstraintsList& constraints,
                                   const MatrixXd& M_inverse, const VectorXd& x,
                                   double epsilon, double scale) {
   VectorXd Dx = VectorXd::Zero(x.size());
@@ -603,25 +603,25 @@ VectorXd sparse::CalculateBlockDx(const ConstraintsList& constraints,
   return Dx;
 }
 
-VectorXd sparse::CalculateBlockUxDx(const ConstraintsList& constraints,
+VectorXd sparse::CalculateSparseUxDx(const ConstraintsList& constraints,
                                     const MatrixXd& M_inverse,
                                     const VectorXd& x, double epsilon_diagonal,
                                     double scale_diagonal) {
-  return CalculateBlockUx(constraints, M_inverse, x) +
-         CalculateBlockDx(constraints, M_inverse, x, epsilon_diagonal,
+  return CalculateSparseUx(constraints, M_inverse, x) +
+         CalculateSparseDx(constraints, M_inverse, x, epsilon_diagonal,
                           scale_diagonal);
 }
 
-VectorXd sparse::CalculateBlockLxDx(const ConstraintsList& constraints,
+VectorXd sparse::CalculateSparseLxDx(const ConstraintsList& constraints,
                                     const MatrixXd& M_inverse,
                                     const VectorXd& x, double epsilon_diagonal,
                                     double scale_diagonal) {
-  return CalculateBlockLx(constraints, M_inverse, x) +
-         CalculateBlockDx(constraints, M_inverse, x, epsilon_diagonal,
+  return CalculateSparseLx(constraints, M_inverse, x) +
+         CalculateSparseDx(constraints, M_inverse, x, epsilon_diagonal,
                           scale_diagonal);
 }
 
-VectorXd sparse::CalculateBlockJMJtX(const ConstraintsList& constraints,
+VectorXd sparse::CalculateSparseJMJtX(const ConstraintsList& constraints,
                                      const MatrixXd& M_inverse,
                                      const VectorXd& x,
                                      double epsilon_diagonal) {
@@ -757,7 +757,7 @@ MatrixXd GetBlockDiagonal(const Ensemble& en, int dof_per_constraint) {
 
 // Compare (JMJt_block_diagonal * x) when calculated using CalculateBlockDx()
 // versus forming the JMJt systems matrix.
-bool CompareBlockDx(const Ensemble& en, int dof_per_constraint) {
+bool CompareSparseDx(const Ensemble& en, int dof_per_constraint) {
   const MatrixXd J = en.ComputeJ();
   const MatrixXd M = en.M_inverse();
 
@@ -765,9 +765,9 @@ bool CompareBlockDx(const Ensemble& en, int dof_per_constraint) {
   const VectorXd x = VectorXd::Random(J.rows());
   double scale = VectorXd::Random(1)(0);
 
-  // Calculate block Dx using CalculateBlockDx()
+  // Calculate sparse Dx using CalculateSparseDx()
   const VectorXd Dx =
-      sparse::CalculateBlockDx(en.constraints(), M, x, kEpsilonDiagonal, scale);
+      sparse::CalculateSparseDx(en.constraints(), M, x, kEpsilonDiagonal, scale);
 
   // Calculate block Dx by forming JMJt the systems matrix.
   const MatrixXd JMJt_block_diagonal =
@@ -817,17 +817,17 @@ MatrixXd GetBlockStrictlyUpperTriangle(const Ensemble& en,
 }
 
 // Compare (JMJt_block_upper_triangle * x) when calculated using
-// CalculateBlockUx() versus forming the JMJt systems matrix.
-bool CompareBlockUx(const Ensemble& en, int dof_per_constraint) {
+// CalculateSparseUx() versus forming the JMJt systems matrix.
+bool CompareSparseUx(const Ensemble& en, int dof_per_constraint) {
   const MatrixXd J = en.ComputeJ();
   const MatrixXd M = en.M_inverse();
 
   // Use a randomly generated x
   const VectorXd x = VectorXd::Random(J.rows());
 
-  // Calculate block Ux using CalculateBlockUx()
+  // Calculate sparse Ux using CalculateSparseUx()
   const VectorXd Ux =
-      sparse::CalculateBlockUx(en.constraints(), M, x, kEpsilonDiagonal);
+      sparse::CalculateSparseUx(en.constraints(), M, x, kEpsilonDiagonal);
 
   // Calculate block Ux by forming JMJt the systems matrix.
   MatrixXd JMJt_block_upper_triangle =
@@ -876,17 +876,17 @@ MatrixXd GetBlockStrictlyLowerTriangle(const Ensemble& en,
 }
 
 // Compare (JMJt_block_lower_triangle * x) when calculated using
-// CalculateBlockLx() versus forming the JMJt systems matrix.
-bool CompareBlockLx(const Ensemble& en, int dof_per_constraint) {
+// CalculateSparseLx() versus forming the JMJt systems matrix.
+bool CompareSparseLx(const Ensemble& en, int dof_per_constraint) {
   const MatrixXd J = en.ComputeJ();
   const MatrixXd M = en.M_inverse();
 
   // Use a randomly generated x
   const VectorXd x = VectorXd::Random(J.rows());
 
-  // Calculate block Lx using CalculateBlockLx()
+  // Calculate sparse Lx using CalculateSparseLx()
   const VectorXd Lx =
-      sparse::CalculateBlockLx(en.constraints(), M, x, kEpsilonDiagonal);
+      sparse::CalculateSparseLx(en.constraints(), M, x, kEpsilonDiagonal);
 
   // Calculate block Lx by forming JMJt the systems matrix.
   MatrixXd JMJt_block_lower_triangle =
@@ -896,16 +896,16 @@ bool CompareBlockLx(const Ensemble& en, int dof_per_constraint) {
   return (Lx - JMJt_Lx).norm() < kAllowNumericalError;
 }
 
-bool CompareBlockLxUx(const Ensemble& en, int dof_per_constraint) {
+bool CompareSparseLxUx(const Ensemble& en, int dof_per_constraint) {
   const MatrixXd J = en.ComputeJ();
   const MatrixXd M = en.M_inverse();
 
   // Use a randomly generated x
   const VectorXd x = VectorXd::Random(J.rows());
 
-  // Calculate block LxUx using CalculateBlockLxUx()
+  // Calculate sparse LxUx using CalculateSparseLxUx()
   const VectorXd LxUx =
-      sparse::CalculateBlockLxUx(en.constraints(), M, x, kEpsilonDiagonal);
+      sparse::CalculateSparseLxUx(en.constraints(), M, x, kEpsilonDiagonal);
 
   // Calculate block Lx by forming JMJt the systems matrix.
   MatrixXd JMJt_block_lower_upper_triangle =
@@ -916,16 +916,16 @@ bool CompareBlockLxUx(const Ensemble& en, int dof_per_constraint) {
   return (LxUx - JMJt_LxUx).norm() < kAllowNumericalError;
 }
 
-bool CompareBlockJMJtX(const Ensemble& en, int dof_per_constraint) {
+bool CompareSparseJMJtX(const Ensemble& en, int dof_per_constraint) {
   const MatrixXd J = en.ComputeJ();
   const MatrixXd M = en.M_inverse();
 
   // Use a randomly generated x
   const VectorXd x = VectorXd::Random(J.rows());
 
-  // Calculate (JMJt * x) using CalculateBlockJMJtX().
+  // Calculate (JMJt * x) using CalculateSparseJMJtX().
   const VectorXd JMJtX =
-      sparse::CalculateBlockJMJtX(en.constraints(), M, x, kEpsilonDiagonal);
+      sparse::CalculateSparseJMJtX(en.constraints(), M, x, kEpsilonDiagonal);
 
   // Calculate (JMJt * x) by forming JMJt the systems matrix.
   MatrixXd JMJt = J * M * J.transpose() +
@@ -934,120 +934,120 @@ bool CompareBlockJMJtX(const Ensemble& en, int dof_per_constraint) {
   return (JMJtX - JMJt * x).norm() < kAllowNumericalError;
 }
 
-// Test CalculateBlockDx on a hanging chain ensemble.
-TEST_FUNCTION(CalculateBlockDx_chain) {
+// Test CalculateSparseDx on a hanging chain ensemble.
+TEST_FUNCTION(CalculateSparseDx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockDx(chain, 1));
+  CHECK(CompareSparseDx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockDx(chain, 1));
+    CHECK(CompareSparseDx(chain, 1));
   }
 }
 
-// Test CalculateBlockDx on a falling cairn ensemble.
-TEST_FUNCTION(CalculateBlockDx_cairn) {
+// Test CalculateSparseDx on a falling cairn ensemble.
+TEST_FUNCTION(CalculateSparseDx_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockDx(cairn, 1));
+  CHECK(CompareSparseDx(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep * 5, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockDx(cairn, 1));
+    CHECK(CompareSparseDx(cairn, 1));
   }
 }
 
-// Test CalculateBlockUx on a hanging chain ensemble.
-TEST_FUNCTION(CalculateBlockUx_chain) {
+// Test CalculateSparseUx on a hanging chain ensemble.
+TEST_FUNCTION(CalculateSparseUx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockUx(chain, 1));
+  CHECK(CompareSparseUx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockUx(chain, 1));
+    CHECK(CompareSparseUx(chain, 1));
   }
 }
 
-// Test CalculateBlockUx on a falling cairn ensemble.
-TEST_FUNCTION(CalculateBlockUx_cairn) {
+// Test CalculateSparseUx on a falling cairn ensemble.
+TEST_FUNCTION(CalculateSparseUx_cairn) {
   for (int j = 0; j < 10; ++j) {
     Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
     cairn.Init();
     cairn.InitStabilize();
-    CHECK(CompareBlockUx(cairn, 1));
+    CHECK(CompareSparseUx(cairn, 1));
     for (int i = 0; i < kNumSimSteps; ++i) {
       cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-      CHECK(CompareBlockUx(cairn, 1));
+      CHECK(CompareSparseUx(cairn, 1));
     }
   }
 }
 
-// Test CalculateBlockLx on a hanging chain ensemble.
-TEST_FUNCTION(CalculateBlockLx_chain) {
+// Test CalculateSparseLx on a hanging chain ensemble.
+TEST_FUNCTION(CalculateSparseLx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockLx(chain, 1));
+  CHECK(CompareSparseLx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLx(chain, 1));
+    CHECK(CompareSparseLx(chain, 1));
   }
 }
 
-// Test CalculateBlockLx on a falling cairn ensemble.
-TEST_FUNCTION(CalculateBlockLx_cairn) {
+// Test CalculateSparseLx on a falling cairn ensemble.
+TEST_FUNCTION(CalculateSparseLx_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockLx(cairn, 1));
+  CHECK(CompareSparseLx(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLx(cairn, 1));
+    CHECK(CompareSparseLx(cairn, 1));
   }
 }
 
-// Test CalculateBlockLxUx on a hanging chain ensemble.
-TEST_FUNCTION(CalculateBlockLxUx_chain) {
+// Test CalculateSparseLxUx on a hanging chain ensemble.
+TEST_FUNCTION(CalculateSparseLxUx_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockLxUx(chain, 1));
+  CHECK(CompareSparseLxUx(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLxUx(chain, 1));
+    CHECK(CompareSparseLxUx(chain, 1));
   }
 }
 
-// Test CalculateBlockLxUx on a falling cairn ensemble.
-TEST_FUNCTION(CalculateBlockLxUx_cairn) {
+// Test CalculateSparseLxUx on a falling cairn ensemble.
+TEST_FUNCTION(CalculateSparseLxUx_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockLxUx(cairn, 1));
+  CHECK(CompareSparseLxUx(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockLxUx(cairn, 1));
+    CHECK(CompareSparseLxUx(cairn, 1));
   }
 }
 
-// Test CalculateBlockJMJtX on a hanging chain ensemble.
-TEST_FUNCTION(CalculateBlockJMJtX_chain) {
+// Test CalculateSparseJMJtX on a hanging chain ensemble.
+TEST_FUNCTION(CalculateSparseJMJtX_chain) {
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(CompareBlockJMJtX(chain, 1));
+  CHECK(CompareSparseJMJtX(chain, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockJMJtX(chain, 1));
+    CHECK(CompareSparseJMJtX(chain, 1));
   }
 }
 
-// Test CalculateBlockLxUx on a falling cairn ensemble.
-TEST_FUNCTION(CalculateBlockJMJtX_cairn) {
+// Test CalculateSparseLxUx on a falling cairn ensemble.
+TEST_FUNCTION(CalculateSparseJMJtX_cairn) {
   Cairn cairn(4, {-0.2, 0.2}, {-0.2, 0.2}, {1, 8});
   cairn.Init();
   cairn.InitStabilize();
-  CHECK(CompareBlockJMJtX(cairn, 1));
+  CHECK(CompareSparseJMJtX(cairn, 1));
   for (int i = 0; i < kNumSimSteps; ++i) {
     cairn.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(CompareBlockJMJtX(cairn, 1));
+    CHECK(CompareSparseJMJtX(cairn, 1));
   }
 }
 
@@ -1085,21 +1085,21 @@ TEST_FUNCTION(MatrixSolveBlockDiagonal_matrix) {
   }
 }
 
-TEST_FUNCTION(MatrixSolveBlockDiagonal_ensemble) {
-  auto check_solve_block_diagonal = [](const Ensemble& en) {
+TEST_FUNCTION(MatrixSolveSparseDiagonal_ensemble) {
+  auto check_solve_sparse_diagonal = [](const Ensemble& en) {
     const MatrixXd A = GetBlockDiagonal(en, 1);
     const VectorXd b = VectorXd::Random(A.rows());
-    const VectorXd x = sparse::MatrixSolveBlockDiagonal(
+    const VectorXd x = sparse::MatrixSolveSparseDiagonal(
         en.constraints(), en.M_inverse(), b, kEpsilonDiagonal);
     return (A * x - b).norm() < kAllowNumericalError;
   };
 
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(check_solve_block_diagonal(chain));
+  CHECK(check_solve_sparse_diagonal(chain));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(check_solve_block_diagonal(chain));
+    CHECK(check_solve_sparse_diagonal(chain));
   }
 }
 
@@ -1155,11 +1155,11 @@ TEST_FUNCTION(MatrixSolveBlockLowerTriangle_matrix) {
   }
 }
 
-TEST_FUNCTION(MatrixSolveBlockLowerTriangle_ensemble) {
-  auto check_solve_block_lower_triangle = [](const Ensemble& en) {
+TEST_FUNCTION(MatrixSolveSparseLowerTriangle_ensemble) {
+  auto check_solve_sparse_lower_triangle = [](const Ensemble& en) {
     const MatrixXd A = GetBlockLowerTriangle(en, 1);
     const VectorXd b = VectorXd::Random(A.rows());
-    const VectorXd x = sparse::MatrixSolveBlockLowerTriangle(
+    const VectorXd x = sparse::MatrixSolveSparseLowerTriangle(
         en.constraints(), en.M_inverse(), b, kEpsilonDiagonal);
     // std::cout << "A = \n" << A << std::endl;
     // std::cout << "b = \n" << b << std::endl;
@@ -1170,10 +1170,10 @@ TEST_FUNCTION(MatrixSolveBlockLowerTriangle_ensemble) {
 
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(check_solve_block_lower_triangle(chain));
+  CHECK(check_solve_sparse_lower_triangle(chain));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(check_solve_block_lower_triangle(chain));
+    CHECK(check_solve_sparse_lower_triangle(chain));
   }
 }
 
@@ -1229,21 +1229,21 @@ TEST_FUNCTION(MatrixSolveBlockUpperTriangle_matrix) {
   }
 }
 
-TEST_FUNCTION(MatrixSolveBlockUpperTriangle_ensemble) {
-  auto check_solve_block_upper_triangle = [](const Ensemble& en) {
+TEST_FUNCTION(MatrixSolveSparseUpperTriangle_ensemble) {
+  auto check_solve_sparse_upper_triangle = [](const Ensemble& en) {
     const MatrixXd A = GetBlockUpperTriangle(en, 1);
     const VectorXd b = VectorXd::Random(A.rows());
-    const VectorXd x = sparse::MatrixSolveBlockUpperTriangle(
+    const VectorXd x = sparse::MatrixSolveSparseUpperTriangle(
         en.constraints(), en.M_inverse(), b, kEpsilonDiagonal);
     return (A * x - b).norm() < kAllowNumericalError;
   };
 
   Chain chain(4, Vector3d(0, 0, 2));
   chain.Init();
-  CHECK(check_solve_block_upper_triangle(chain));
+  CHECK(check_solve_sparse_upper_triangle(chain));
   for (int i = 0; i < kNumSimSteps; ++i) {
     chain.Step(kSimTimeStep, Ensemble::Integrator::OPEN_DYNAMICS_ENGINE);
-    CHECK(check_solve_block_upper_triangle(chain));
+    CHECK(check_solve_sparse_upper_triangle(chain));
   }
 }
 

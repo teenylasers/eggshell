@@ -55,7 +55,7 @@ double GetResidualError(const ConstraintsList& constraints,
   VectorXd x_lo, x_hi;
   sparse::ConstructMixedConstraints(constraints, &C, &x_lo, &x_hi);
   VectorXd w =
-      sparse::CalculateBlockJMJtX(constraints, M_inverse, x, cfm_coeff) - rhs;
+      sparse::CalculateSparseJMJtX(constraints, M_inverse, x, cfm_coeff) - rhs;
   double equality_error = SelectSubvector(w, C).norm();
   double inequality_error =
       SelectSubvector(w, !C && x.array() == x_lo.array() && w.array() < 0)
@@ -181,17 +181,17 @@ VectorXd BaseIteration(const ConstraintsList& constraints,
   // Set Mx_solver and get_Nx for each iteration type.
   switch (type) {
     case IterationType::JACOBI:
-      get_Nx = &sparse::CalculateBlockLxUx;
-      Mx_solver = &sparse::MatrixSolveBlockDiagonal;
+      get_Nx = &sparse::CalculateSparseLxUx;
+      Mx_solver = &sparse::MatrixSolveSparseDiagonal;
       break;
     case IterationType::GAUSS_SEIDEL:
-      get_Nx = &sparse::CalculateBlockUx;
-      Mx_solver = &sparse::MatrixSolveBlockLowerTriangle;
+      get_Nx = &sparse::CalculateSparseUx;
+      Mx_solver = &sparse::MatrixSolveSparseLowerTriangle;
       break;
     case IterationType::SOR:
-      get_Nx = &sparse::CalculateBlockLxDx;
+      get_Nx = &sparse::CalculateSparseLxDx;
       get_Nx_scale = 1 - kSOR;
-      Mx_solver = &sparse::MatrixSolveBlockUpperTriangle;
+      Mx_solver = &sparse::MatrixSolveSparseUpperTriangle;
       Mx_solver_scale = kSOR;
       break;
     default:
