@@ -88,6 +88,118 @@ Quaterniond WtoQ(const Vector3d& w, double dt) {
   return q;
 }
 
+/////////////////////////////////////////////////////////////////////////
+
+MatrixXd SelectSubmatrix(const MatrixXd& A, const ArrayXb& row_ind,
+                         const ArrayXb& col_ind) {
+  // Check input argument dimensions
+  const auto dim = A.rows();
+  CHECK(A.cols() == dim);        // "A must be a square matrix.\n");
+  CHECK(row_ind.rows() == dim);  //, "A and ind dimensions do not match.\n");
+  CHECK(col_ind.rows() == dim);  //, "A and ind dimensions do not match.\n");
+
+  // Form submatrix
+  // TODO: what is a more efficient way?
+  const int sr = row_ind.count();  // submatrix num rows
+  const int sc = col_ind.count();  // submatrix num cols
+  int si = 0;  // advancing submatrix row index as we fill content
+  int sj = 0;  // advancing submatrix col index
+  MatrixXd submatrix = MatrixXd::Zero(sr, sc);
+  for (int i = 0; i < dim; ++i) {
+    for (int j = 0; j < dim; ++j) {
+      if (col_ind(j)) {
+        if (row_ind(i)) {
+          submatrix(si, sj) = A(i, j);
+        }
+        ++sj;
+      }
+    }
+    sj = 0;
+    if (row_ind(i)) {
+      ++si;
+    }
+  }
+  return submatrix;
+}
+
+VectorXd SelectSubvector(const VectorXd& v, const ArrayXb& ind) {
+  if (v.rows() != ind.rows()) {
+    std::cout << "v.rows() = " << v.rows() << ", ind.rows() = " << ind.rows()
+              << ". Must be the same dimensions.\n";
+    CHECK(v.rows() == ind.rows());
+  }
+  VectorXd subvector = VectorXd::Zero(ind.count());
+  int si = 0;
+  for (int i = 0; i < v.rows(); ++i) {
+    if (ind(i)) {
+      subvector(si) = v(i);
+      ++si;
+    }
+  }
+  return subvector;
+}
+
+void UpdateSubmatrix(MatrixXd& A, const ArrayXb& row_ind,
+                     const ArrayXb& col_ind, const MatrixXd& m) {
+  // Check input argument dimensions
+  const int dim = A.rows();
+  CHECK(A.cols() == dim);
+  CHECK(row_ind.rows() == dim);
+  CHECK(col_ind.rows() == dim);
+  const int sr = m.rows();  // submatrix num rows
+  const int sc = m.cols();  // submatric num cols
+  CHECK(row_ind.count() == sr);
+  CHECK(col_ind.count() == sc);
+  CHECK(m.rows() == sr);
+  CHECK(m.cols() == sc);
+
+  // advancing submatrix row and col indices as we read m content to update A
+  int si = 0;
+  int sj = 0;
+  for (int i = 0; i < dim; ++i) {
+    for (int j = 0; j < dim; ++j) {
+      if (col_ind(j)) {
+        if (row_ind(i)) {
+          A(i, j) = m(si, sj);
+        }
+        ++sj;
+      }
+    }
+    sj = 0;
+    if (row_ind(i)) {
+      ++si;
+    }
+  }
+}
+
+void UpdateSubvector(VectorXd& v, const ArrayXb& ind, const VectorXd& n) {
+  // Check input argument dimensions
+  const int dim = v.rows();
+  CHECK(ind.rows() == dim);
+  const int sd = n.rows();
+  CHECK(ind.count() == sd);
+  int si = 0;
+  for (int i = 0; i < dim; ++i) {
+    if (ind(i)) {
+      v(i) = n(si);
+      ++si;
+    }
+  }
+}
+
+void UpdateSubvector(VectorXd& v, const ArrayXb& ind, double d) {
+  // Check input argument dimensions
+  const int dim = v.rows();
+  CHECK(ind.rows() == dim);
+  for (int i = 0; i < dim; ++i) {
+    if (ind(i)) {
+      v(i) = d;
+    }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////
+
 MatrixXd GenerateSPDMatrix(int dimension) {
   auto gen_matrix = [&]() {
     const MatrixXd m = MatrixXd::Random(dimension, dimension);
@@ -149,8 +261,12 @@ double GetConditionNumber(const Eigen::MatrixXd& A) {
 }
 
 double GetSpectralRadius(const Eigen::MatrixXd& A) {
+  CHECK(A.rows() == A.cols() && A.rows() > 0);
   Eigen::EigenSolver<Eigen::MatrixXd> es(A);
   double radius = es.eigenvalues().cwiseAbs().maxCoeff();
+  // std::cout << "Update matrix eigenvalues = \n"
+  //           << es.eigenvalues().cwiseAbs()
+  //           << std::endl;
   return radius;
 }
 
@@ -277,6 +393,107 @@ TEST_FUNCTION(RandomRotationTest_GramSchmidt) {
     CHECK((prev_R - R).norm() >= kAllowNumericalError);
     prev_R = R;
   }
+}
+
+TEST_FUNCTION(SelectSubmatrix) {
+  // Test case
+  ArrayXb S(8);
+  S << 1, 1, 0, 0, 1, 0, 1, 1;
+  MatrixXd A(8, 8);
+  A << 44, 23, 81, 97, 37, 34, 72, 51, 12, 12, 3, 55, 99, 68, 91, 48, 26, 30,
+      93, 53, 4, 14, 90, 91, 41, 32, 74, 24, 89, 73, 34, 61, 60, 43, 49, 49, 92,
+      11, 70, 62, 27, 51, 58, 63, 80, 66, 20, 86, 61, 9, 24, 68, 10, 50, 4, 81,
+      72, 27, 46, 40, 27, 78, 75, 58;
+  MatrixXd A_SS(5, 5);
+  A_SS << 44, 23, 37, 72, 51, 12, 12, 99, 91, 48, 60, 43, 92, 70, 62, 61, 9, 10,
+      4, 81, 72, 27, 27, 75, 58;
+  MatrixXd A_ScS(3, 5);
+  A_ScS << 26, 30, 4, 90, 91, 41, 32, 89, 34, 61, 27, 51, 80, 20, 86;
+  MatrixXd A_SSc(5, 3);
+  A_SSc << 81, 97, 34, 3, 55, 68, 49, 49, 11, 24, 68, 50, 46, 40, 78;
+  MatrixXd A_ScSc(3, 3);
+  A_ScSc << 93, 53, 14, 74, 24, 73, 58, 63, 66;
+  // Run test
+  const ArrayXb S_complement = !S;
+  CHECK(A_SS == SelectSubmatrix(A, S, S));
+  CHECK(A_ScS == SelectSubmatrix(A, S_complement, S));
+  CHECK(A_SSc == SelectSubmatrix(A, S, S_complement));
+  CHECK(A_ScSc == SelectSubmatrix(A, S_complement, S_complement));
+}
+
+TEST_FUNCTION(UpdateSubmatrix) {
+  ArrayXb S(8);
+  S << 1, 1, 0, 0, 1, 0, 1, 1;
+  MatrixXd A(8, 8);
+  A << 90, 82, 36, 39, 57, 17, 23, 11, 96, 25, 84, 57, 47, 61, 92, 97, 55, 93,
+      59, 8, 2, 27, 16, 1, 14, 35, 55, 6, 34, 66, 83, 78, 15, 20, 92, 54, 17,
+      69, 54, 82, 26, 26, 29, 78, 80, 75, 100, 87, 85, 62, 76, 94, 32, 46, 8, 9,
+      26, 48, 76, 13, 53, 9, 45, 40;
+  MatrixXd m0(5, 5), m1(5, 3), m2(3, 5), m3(3, 3);
+  m0 << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      21, 22, 23, 24, 25;
+  m1 << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15;
+  m2 << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15;
+  m3 << 1, 2, 3, 4, 5, 6, 7, 8, 9;
+  // Run test
+  const ArrayXb S_complement = !S;
+  UpdateSubmatrix(A, S, S, m0);
+  MatrixXd res(8, 8);
+  res << 1, 2, 36, 39, 3, 17, 4, 5, 6, 7, 84, 57, 8, 61, 9, 10, 55, 93, 59, 8,
+      2, 27, 16, 1, 14, 35, 55, 6, 34, 66, 83, 78, 11, 12, 92, 54, 13, 69, 14,
+      15, 26, 26, 29, 78, 80, 75, 100, 87, 16, 17, 76, 94, 18, 46, 19, 20, 21,
+      22, 76, 13, 23, 9, 24, 25;
+  CHECK(A == res);
+  UpdateSubmatrix(A, S, S_complement, m1);
+  res << 1, 2, 1, 2, 3, 3, 4, 5, 6, 7, 4, 5, 8, 6, 9, 10, 55, 93, 59, 8, 2, 27,
+      16, 1, 14, 35, 55, 6, 34, 66, 83, 78, 11, 12, 7, 8, 13, 9, 14, 15, 26, 26,
+      29, 78, 80, 75, 100, 87, 16, 17, 10, 11, 18, 12, 19, 20, 21, 22, 13, 14,
+      23, 15, 24, 25;
+  CHECK(A == res);
+  UpdateSubmatrix(A, S_complement, S, m2);
+  res << 1, 2, 1, 2, 3, 3, 4, 5, 6, 7, 4, 5, 8, 6, 9, 10, 1, 2, 59, 8, 3, 27, 4,
+      5, 6, 7, 55, 6, 8, 66, 9, 10, 11, 12, 7, 8, 13, 9, 14, 15, 11, 12, 29, 78,
+      13, 75, 14, 15, 16, 17, 10, 11, 18, 12, 19, 20, 21, 22, 13, 14, 23, 15,
+      24, 25;
+  CHECK(A == res);
+  UpdateSubmatrix(A, S_complement, S_complement, m3);
+  res << 1, 2, 1, 2, 3, 3, 4, 5, 6, 7, 4, 5, 8, 6, 9, 10, 1, 2, 1, 2, 3, 3, 4,
+      5, 6, 7, 4, 5, 8, 6, 9, 10, 11, 12, 7, 8, 13, 9, 14, 15, 11, 12, 7, 8, 13,
+      9, 14, 15, 16, 17, 10, 11, 18, 12, 19, 20, 21, 22, 13, 14, 23, 15, 24, 25;
+  CHECK(A == res);
+}
+
+TEST_FUNCTION(SelectSubvector) {
+  VectorXd v(20);
+  v << 79, 9, 93, 78, 49, 44, 45, 31, 51, 52, 82, 80, 65, 38, 82, 54, 36, 94,
+      88, 56;
+  ArrayXb S(20);
+  S << 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1;
+  VectorXd res(10);
+  res << 79, 9, 49, 51, 52, 82, 38, 36, 88, 56;
+  CHECK(res == SelectSubvector(v, S));
+  res << 93, 78, 44, 45, 31, 80, 65, 82, 54, 94;
+  CHECK(res == SelectSubvector(v, !S));
+}
+
+TEST_FUNCTION(UpdateSubvector) {
+  VectorXd v(20);
+  v << 79, 9, 93, 78, 49, 44, 45, 31, 51, 52, 82, 80, 65, 38, 82, 54, 36, 94,
+      88, 56;
+  ArrayXb S(20);
+  S << 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1;
+  VectorXd n(10);
+  n << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10;
+  UpdateSubvector(v, S, n);
+  VectorXd res(20);
+  res << 1, 2, 93, 78, 3, 44, 45, 31, 4, 5, 6, 80, 65, 7, 82, 54, 8, 94, 9, 10;
+  CHECK(res == v);
+  UpdateSubvector(v, !S, n);
+  res << 1, 2, 1, 2, 3, 3, 4, 5, 4, 5, 6, 6, 7, 7, 8, 9, 8, 10, 9, 10;
+  CHECK(res == v);
+  UpdateSubvector(v, S, 0);
+  res << 0, 0, 1, 2, 0, 3, 4, 5, 0, 0, 0, 6, 7, 0, 8, 9, 0, 10, 0, 0;
+  CHECK(res == v);
 }
 
 TEST_FUNCTION(AlignVectors) {

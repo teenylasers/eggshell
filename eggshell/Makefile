@@ -174,6 +174,7 @@ $(APP): $(OBJ)
 TESTS = toolkit/testing.o \
   toolkit/random.o \
 	toolkit/error.o \
+	utils.o \
 	body.o \
 	collision.o \
 	contact.o \
@@ -181,9 +182,8 @@ TESTS = toolkit/testing.o \
 	ensembles.o \
 	joints.o \
 	lcp.o \
-	sparse_iterations.o \
   sparse_iterations_utils.o \
-	utils.o
+	sparse_iterations.o
 
 # TODO: fix
 # $(TESTS): CCFLAGS += -D__TOOLKIT_DEFINE_TESTING_MAIN__
