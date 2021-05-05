@@ -9,10 +9,10 @@
 
 namespace sparse {
 
-// Solve Ax=b for special matrices, and their block analog for ensembles without
+// Solve Ax=b for special matrices, and their sparse analog for ensembles without
 // constructing the systems matrix.
 
-// Solve Ax=b for (block) diagonal A.
+// Solve Ax=b for (sparse) diagonal A.
 VectorXd MatrixSolveDiagonal(const MatrixXd& D, const VectorXd& rhs,
                              const ArrayXb& C, const VectorXd& x_lo,
                              const VectorXd& x_hi);

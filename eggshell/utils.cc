@@ -90,9 +90,8 @@ Quaterniond WtoQ(const Vector3d& w, double dt) {
 
 /////////////////////////////////////////////////////////////////////////
 
-
 MatrixXd SelectSubmatrix(const MatrixXd& A, const ArrayXb& row_ind,
-                              const ArrayXb& col_ind) {
+                         const ArrayXb& col_ind) {
   // Check input argument dimensions
   const auto dim = A.rows();
   CHECK(A.cols() == dim);        // "A must be a square matrix.\n");
@@ -141,7 +140,7 @@ VectorXd SelectSubvector(const VectorXd& v, const ArrayXb& ind) {
 }
 
 void UpdateSubmatrix(MatrixXd& A, const ArrayXb& row_ind,
-                          const ArrayXb& col_ind, const MatrixXd& m) {
+                     const ArrayXb& col_ind, const MatrixXd& m) {
   // Check input argument dimensions
   const int dim = A.rows();
   CHECK(A.cols() == dim);
@@ -265,6 +264,9 @@ double GetSpectralRadius(const Eigen::MatrixXd& A) {
   CHECK(A.rows() == A.cols() && A.rows() > 0);
   Eigen::EigenSolver<Eigen::MatrixXd> es(A);
   double radius = es.eigenvalues().cwiseAbs().maxCoeff();
+  // std::cout << "Update matrix eigenvalues = \n"
+  //           << es.eigenvalues().cwiseAbs()
+  //           << std::endl;
   return radius;
 }
 
