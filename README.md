@@ -1,6 +1,11 @@
-# Things and also stuff
+# Things
 
-For rama documentation refer to [ramasimulator.org](http://ramasimulator.org).
+This fork adds a rigid body dynamics simulator in `eggshell`.  
+
+From the master branch, we inherit
+- `doccer` is a documentation tool for latex-style docs in html
+- `toolkit` contains build, visualization, error checking, and other tools
+- `rama` is an FEM electromagnetic simulator. For rama documentation refer to [ramasimulator.org](http://ramasimulator.org).
 
 ## Build instructions (all platforms)
 
