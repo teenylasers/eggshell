@@ -1,0 +1,45 @@
+<!-- A mock living room -->
+
+<mujoco>
+  <!--Texture for the floor-->
+  <asset> 
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3"
+    rgb2=".2 .3 .4" width="300" height="300" mark="edge" markrgb=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="2 2" texuniform="true"
+    reflectance="0"/>
+  </asset>
+
+  <worldbody>
+    <!--Set up lighting for better rendering-->
+    <light name="top" pos="0 0 500"/>
+
+    <!--Set up the floor
+    <geom name="ground" type="plane" pos="0 0 -20.5" size="1000 1000 .01" material="grid" solimp=".99 .99 .01" solref=".001 1"/>
+    -->
+
+    <!--Set up the real furnitures that should not move in the simulation-->
+    <body>
+      <geom name="Coffee_Table" type="box" pos="0.0 200.0 -10.0" size="150.0 80.0 30.0" euler="0 0 0" rgba="1 1 0 0.5" solimp=".99 .99 .01"  solref=".001 1"/>
+    </body>
+    <body>
+      <geom name="Dining_Table" type="box" pos="0.0 -300.0 30.0" size="250.0 150.0 80.0" euler="0 0 0" rgba="1 1 0 0.5" solimp=".99 .99 .01"  solref=".001 1"/>
+    </body>
+    <body>
+      <geom name="Tall_Bookcase" type="box" pos="-400.0 0.0 160.0" size="80.0 40.0 200.0" euler="0 0 90" rgba="1 1 0 0.5" solimp=".99 .99 .01"  solref=".001 1"/>
+    </body>
+    <body>
+      <geom name="Short_Bookcase" type="box" pos="400.0 0.0 100.0" size="80.0 40.0 120.0" euler="0 0 -90" rgba="1 1 0 0.5" solimp=".99 .99 .01"  solref=".001 1"/>
+    </body>
+
+    <!--Set up the virtual objects that can move in the simulation-->
+    <body> <freejoint/>
+      <geom name="Plush_Armchair" type="box" pos="-250.0 250.0 40.0" size="100.0 80.0 80.0" euler="0 0 45.0" rgba="0 1 0 1" solimp=".99 .99 .01" solref=".001 1"/>
+    </body>
+    <body> <freejoint/>
+      <geom name="Elegant_Armchair" type="box" pos="250.0 250.0 40.0" size="100.0 80.0 80.0" euler="0 0 -45.0" rgba="0 1 0 1" solimp=".99 .99 .01"  solref=".001 1"/>
+    </body>
+    <body> <freejoint/>  
+      <geom name="Table_Lamp" type="box" pos="0.0 -300.0 120.0" size="30.0 30.0 60.0" euler="0 0 0" rgba="0 1 0 1" solimp=".99 .99 .01"  solref=".001 1"/>
+    </body>
+  </worldbody>
+</mujoco>
